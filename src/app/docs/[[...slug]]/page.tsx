@@ -6,6 +6,16 @@ import {
   DocsTitle,
 } from 'fumadocs-ui/page';
 import { notFound } from 'next/navigation';
+import type { FC } from 'react';
+
+interface DocPageData {
+  title: string;
+  description?: string;
+  icon?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toc: any;
+  body: FC;
+}
 
 export default async function Page({
   params,
@@ -16,12 +26,13 @@ export default async function Page({
   const page = source.getPage(slug);
   if (!page) notFound();
 
-  const MDX = page.data.body;
+  const data = page.data as unknown as DocPageData;
+  const MDX = data.body;
 
   return (
-    <DocsPage toc={page.data.toc}>
-      <DocsTitle>{page.data.title}</DocsTitle>
-      <DocsDescription>{page.data.description}</DocsDescription>
+    <DocsPage toc={data.toc}>
+      <DocsTitle>{data.title}</DocsTitle>
+      <DocsDescription>{data.description}</DocsDescription>
       <DocsBody>
         <MDX />
       </DocsBody>
@@ -42,8 +53,10 @@ export async function generateMetadata({
   const page = source.getPage(slug);
   if (!page) notFound();
 
+  const data = page.data as unknown as DocPageData;
+
   return {
-    title: page.data.title,
-    description: page.data.description,
+    title: data.title,
+    description: data.description,
   };
 }
