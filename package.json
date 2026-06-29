@@ -10,6 +10,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@zeroroot-ai/brand": "^0.1.0",
     "fumadocs-core": "^14.0.0",
     "fumadocs-mdx": "^11.0.0",
     "fumadocs-ui": "^14.0.0",
