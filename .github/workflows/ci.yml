@@ -23,7 +23,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          # No pnpm lockfile in repo — pnpm install generates one during
+          # build. Skip cache to avoid "pnpm-lock.yaml not found" failure.
+          # TODO: commit pnpm-lock.yaml to enable cache + reproducible installs.
           registry-url: https://npm.pkg.github.com
           scope: "@zeroroot"
 
@@ -57,3 +59,4 @@ jobs:
             ghcr.io/zeroroot-ai/docs-site:main
           build-args: |
             NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
