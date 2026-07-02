@@ -15,7 +15,10 @@ RUN npm run build
 
 # Stage 2: serve — non-root nginx (user 101 = nginx in nginx:alpine)
 FROM nginx:alpine AS runner
-RUN chown -R nginx:nginx /var/cache/nginx /var/run /var/log/nginx /usr/share/nginx/html
+# /var/run is a symlink to /run in nginx:alpine — chown -R on the symlink
+# itself does not chown its target, so nginx (uid 101) can't write
+# /run/nginx.pid. Chown /run explicitly too.
+RUN chown -R nginx:nginx /var/cache/nginx /var/run /var/log/nginx /usr/share/nginx/html /run
 COPY --from=builder --chown=nginx:nginx /app/out /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 USER nginx

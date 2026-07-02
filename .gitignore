@@ -4,3 +4,5 @@ out/
 dist/
 *.tgz
 .env*.local
+.source/
+next-env.d.ts
