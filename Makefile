@@ -26,7 +26,7 @@ IMAGE_TAG  ?= dev
 all: check ## Default: run the full CI-equivalent gate
 
 bootstrap: ## Install dependencies (mirrors ci.yml's pnpm install)
-	$(PNPM) install --ignore-scripts
+	$(PNPM) install --frozen-lockfile --ignore-scripts
 
 build: ## Production Next.js build
 	$(PNPM) build
