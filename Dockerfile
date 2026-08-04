@@ -13,15 +13,22 @@ RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
-# Stage 2: serve — non-root nginx (user 101 = nginx in nginx:alpine)
-FROM nginx:alpine AS runner
-# /var/run is a symlink to /run in nginx:alpine — chown -R on the symlink
-# itself does not chown its target, so nginx (uid 101) can't write
-# /run/nginx.pid. Chown /run explicitly too.
-RUN chown -R nginx:nginx /var/cache/nginx /var/run /var/log/nginx /usr/share/nginx/html /run
-COPY --from=builder --chown=nginx:nginx /app/out /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-USER nginx
-EXPOSE 80
+# Stage 2: serve
+#
+# nginx-unprivileged, not plain nginx with `USER nginx`. The previous form
+# could never start: the deploy chart runs this pod as uid 101 with no
+# NET_BIND_SERVICE, and a non-root process cannot bind a privileged port, so
+# nginx died on startup with
+#   [emerg] bind() to 0.0.0.0:80 failed (13: Permission denied)
+# and the docs vhost answered 503. The unprivileged image is built for exactly
+# this: it owns its own cache/run paths and defaults to :8080.
+FROM nginxinc/nginx-unprivileged:alpine AS runner
+COPY --from=builder /app/out /usr/share/nginx/html
+# templates/ (not conf.d/): the entrypoint runs envsubst over
+# /etc/nginx/templates/*.template, which is what substitutes ${NGINX_PORT}
+# in nginx.conf. Copying to conf.d/ would ship the literal directive.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+ENV NGINX_PORT=8080
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]
 
