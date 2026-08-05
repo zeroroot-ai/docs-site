@@ -6,8 +6,9 @@
   "description": "ZeroRoot platform documentation site",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "build": "npm run check:docs && next build",
+    "start": "next start",
+    "check:docs": "node scripts/check-docs-links.mjs && node scripts/check-no-internal-tech-in-docs.mjs && node scripts/check-docs-allowlist-fresh.mjs && node scripts/check-docs-cli-name.mjs"
   },
   "dependencies": {
     "@zeroroot-ai/brand": "^0.1.0",
