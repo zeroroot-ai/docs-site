@@ -3,11 +3,15 @@
 @import "fumadocs-ui/css/preset.css";
 @import "@zeroroot-ai/brand/tokens.css";
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/*
+ * No `* { margin: 0; padding: 0 }` reset here.
+ *
+ * Tailwind's preflight (pulled in by @import "tailwindcss" above) already
+ * normalises margins and box-sizing in a way component frameworks expect. A
+ * second, blunter reset applied AFTER fumadocs' preset stripped the spacing
+ * that preset defines — headings, paragraphs, lists and the sidebar all
+ * collapsed against each other, which is what made the docs look broken.
+ */
 
 html {
   color-scheme: dark;
