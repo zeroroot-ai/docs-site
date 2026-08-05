@@ -9,9 +9,20 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // `dark` is set statically, and the theme provider is switched off.
+    //
+    // Without it the page rendered half-broken: globals.css paints the body
+    // with the brand's dark background token, but every fumadocs component
+    // reads its own --color-fd-* tokens, which resolve to their LIGHT values
+    // unless a `dark` class is on the root. The result was light cards and
+    // light-mode text sitting on a dark page.
+    //
+    // The brand is dark-only, so this is not a default to be toggled: there
+    // is no light variant to switch to, and leaving the provider enabled
+    // would let next-themes strip the class on hydration.
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body className="flex flex-col min-h-screen">
-        <RootProvider>{children}</RootProvider>
+        <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
       </body>
     </html>
   );

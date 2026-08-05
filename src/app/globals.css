@@ -16,6 +16,40 @@
 html {
   color-scheme: dark;
 }
+/*
+ * Map fumadocs' own design tokens onto the shared brand tokens.
+ *
+ * fumadocs-ui reads --color-fd-*, which its neutral preset fills with a
+ * generic grey scale (#121212 / #f5f5f5). Left alone the docs render as a
+ * neutral dark site sitting next to a violet-and-terminal-green product, and
+ * the body background from the brand token would not even match the cards
+ * drawn on top of it. Pointing the fd tokens at the brand tokens makes the
+ * docs the same surface as the rest of the platform, from one source.
+ *
+ * Scoped to .dark because the brand has no light variant.
+ */
+.dark {
+  --color-fd-background: var(--background);
+  --color-fd-foreground: var(--foreground);
+  --color-fd-card: var(--card);
+  --color-fd-card-foreground: var(--card-foreground);
+  --color-fd-popover: var(--popover);
+  --color-fd-popover-foreground: var(--popover-foreground);
+  --color-fd-muted: var(--muted);
+  --color-fd-muted-foreground: var(--muted-foreground);
+  --color-fd-accent: var(--accent);
+  --color-fd-accent-foreground: var(--accent-foreground);
+  --color-fd-secondary: var(--secondary);
+  --color-fd-secondary-foreground: var(--secondary-foreground);
+  --color-fd-primary: var(--primary);
+  --color-fd-primary-foreground: var(--primary-foreground);
+  --color-fd-border: var(--border);
+  --color-fd-ring: var(--ring);
+  --color-fd-overlay: var(--overlay);
+  --color-fd-error: var(--destructive);
+  --color-fd-warning: var(--warning);
+}
+
 
 body {
   background: var(--background);
