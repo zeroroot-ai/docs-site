@@ -505,7 +505,11 @@ function runSelftest() {
   //  - repeats the full deny list inside line comments (must be ignored).
   const visibleArray =
     "export const visible: string[] = [\n" +
-    denyMentions.map((s) => `  "${s.replace(/"/g, '\\"')}",`).join("\n") +
+    // JSON.stringify, not a hand-rolled quote escape: the previous
+    // s.replace(/"/g, '\\"') escaped quotes but not backslashes, so a deny
+    // term containing one would emit a TSX fixture that does not parse.
+    // CodeQL flags it as js/incomplete-sanitization, and it is right.
+    denyMentions.map((s) => `  ${JSON.stringify(s)},`).join("\n") +
     "\n];\n";
   const blockComment =
     "/*\n" + denyMentions.map((s) => " * " + s).join("\n") + "\n */\n";
