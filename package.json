@@ -8,7 +8,9 @@
     "dev": "next dev",
     "build": "npm run check:docs && next build",
     "start": "next start",
-    "check:docs": "node scripts/check-docs-links.mjs && node scripts/check-no-internal-tech-in-docs.mjs && node scripts/check-docs-allowlist-fresh.mjs && node scripts/check-docs-cli-name.mjs"
+    "gen:cli-reference": "node scripts/gen-cli-reference.mjs",
+    "regen:cli": "node scripts/regen-cli-reference.mjs",
+    "check:docs": "node scripts/check-docs-links.mjs && node scripts/check-no-internal-tech-in-docs.mjs && node scripts/check-docs-allowlist-fresh.mjs && node scripts/check-docs-cli-name.mjs && node scripts/check-cli-reference-fresh.mjs"
   },
   "dependencies": {
     "@zeroroot-ai/brand": "^0.1.0",
