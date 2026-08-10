@@ -35,18 +35,30 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 export const SPEC_PATH = join(ROOT, "src", "generated", "cli-spec.json");
 export const PAGE_PATH = join(ROOT, "src", "content", "docs", "cli-reference.mdx");
 
-// escapeInline neutralises the two characters MDX treats specially outside a
-// code span — `<` (JSX open) and `{` (expression open) — for text emitted as
-// prose. Everything else renders verbatim.
+// escapeInline neutralises the characters MDX treats specially outside a code
+// span, for text emitted as prose: `<` (JSX open) and `{` (expression open),
+// via HTML entities. The entity-introducer `&` is escaped FIRST so the scheme
+// is complete — a literal `&lt;` in the input becomes `&amp;lt;`, not a stray
+// entity (js/incomplete-sanitization).
 function escapeInline(s) {
-  return s.replace(/</g, "&lt;").replace(/\{/g, "&#123;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/\{/g, "&#123;");
 }
 
-// escapeCell prepares a value for a Markdown table cell: collapse newlines,
-// escape the pipe that would otherwise start a new column, and escape the MDX
-// specials. Applied to flag usage strings, which contain `a | b | c` unions.
+// escapeCell prepares a value for a Markdown table cell. It collapses newlines,
+// then applies the Markdown-level escapes (backslash FIRST — the escape
+// character itself — then the pipe that would otherwise start a new column),
+// then the MDX/HTML escapes via escapeInline. Applied to flag usage strings,
+// which contain `a | b | c` unions.
 function escapeCell(s) {
-  return escapeInline(s.replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|"));
+  return escapeInline(
+    s
+      .replace(/\s*\n\s*/g, " ")
+      .replace(/\\/g, "\\\\")
+      .replace(/\|/g, "\\|"),
+  );
 }
 
 // fence emits a multi-line block verbatim inside a ```text fence, so JSX-like
