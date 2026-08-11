@@ -74,11 +74,14 @@ function escapeCell(s) {
 // Markdown table cell (field/enum-value names, proto type strings like
 // `map<string, Value>`). Inline code is verbatim in MDX — JSX is NOT parsed
 // inside it — so `<`/`{`/`&` must NOT be entity-escaped here (that would render
-// a literal `&lt;`). Only the GFM table delimiter `|` needs neutralising, via
-// a backslash (which GFM strips inside a code span in a table). Proto type
-// strings contain no `|`, so this is a safety no-op in practice.
+// a literal `&lt;`). Only the GFM table delimiter `|` needs neutralising, via a
+// backslash (which GFM strips inside a code span in a table). The escape
+// character itself (`\`) is escaped FIRST so the scheme is complete — a literal
+// backslash in the input can never combine with the pipe escape
+// (js/incomplete-sanitization). Proto type strings contain neither, so this is
+// a safety no-op in practice.
 function escapeCodeCell(s) {
-  return s.replace(/\|/g, "\\|");
+  return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 // prose renders a (already-sanitized) multi-line comment as escaped MDX prose.
