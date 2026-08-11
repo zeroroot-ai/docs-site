@@ -23,7 +23,15 @@ RUN npm run build
 # and the docs vhost answered 503. The unprivileged image is built for exactly
 # this: it owns its own cache/run paths and defaults to :8080.
 FROM nginxinc/nginx-unprivileged:alpine AS runner
-COPY --from=builder /app/out /usr/share/nginx/html
+# --chown, because 40-substitute-origins.sh sed-edits these files in place at
+# container start and the process runs as uid 101.
+COPY --from=builder --chown=101:101 /app/out /usr/share/nginx/html
+# Runs before nginx starts (stock entrypoint executes /docker-entrypoint.d/*.sh
+# in lexical order): substitutes the __APP_ORIGIN__/__WWW_ORIGIN__ sentinels
+# that the rehype pass baked into functional cross-surface links
+# (scripts/rehype-env-origin-links.mjs) with this environment's origins,
+# defaulting to prod (docs-site#19).
+COPY --chmod=755 docker/40-substitute-origins.sh /docker-entrypoint.d/40-substitute-origins.sh
 # templates/ (not conf.d/): the entrypoint runs envsubst over
 # /etc/nginx/templates/*.template, which is what substitutes ${NGINX_PORT}
 # in nginx.conf. Copying to conf.d/ would ship the literal directive.
