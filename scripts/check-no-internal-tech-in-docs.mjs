@@ -70,7 +70,13 @@ const SKIP_DIR_NAMES = new Set([
 // the scanner fails so the error doubles as a how-to. Patterns are
 // case-sensitive on purpose, these are proper nouns / technical identifiers,
 // and lowercase variants (e.g. "envoyé") would otherwise trip false positives.
-const DENY_PATTERNS = [
+// Exported so the single canonical forbidden-term list has exactly one
+// definition that other generators can consume — the proto-reference comment
+// sanitizer (scripts/regen-api-reference.mjs) imports it, so anything this
+// guard forbids is guaranteed stripped from the generated API reference at
+// production time. (check-docs-allowlist-fresh.mjs keeps its own copy by
+// design — see its header.)
+export const DENY_PATTERNS = [
   {
     name: "zitadel",
     re: /\bZitadel\b/g,
@@ -600,19 +606,24 @@ function runSelftest() {
   }
 }
 
-const mode = process.argv[2];
-let code;
-switch (mode) {
-  case "--seed":
-    code = runSeed();
-    break;
-  case "--shrink":
-    code = runShrink();
-    break;
-  case "--selftest":
-    code = runSelftest();
-    break;
-  default:
-    code = runScan();
+// Only act as a CLI when executed directly. When imported (e.g. by the
+// proto-reference sanitizer, for DENY_PATTERNS), do nothing on load — the
+// previous unconditional `process.exit()` would have terminated any importer.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const mode = process.argv[2];
+  let code;
+  switch (mode) {
+    case "--seed":
+      code = runSeed();
+      break;
+    case "--shrink":
+      code = runShrink();
+      break;
+    case "--selftest":
+      code = runSelftest();
+      break;
+    default:
+      code = runScan();
+  }
+  process.exit(code);
 }
-process.exit(code);
