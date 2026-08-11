@@ -12,6 +12,7 @@
 import { defineDocs, defineConfig } from 'fumadocs-mdx/config';
 import remarkGfm from 'remark-gfm';
 import { z } from 'zod';
+import rehypeEnvOriginLinks from './scripts/rehype-env-origin-links.mjs';
 
 /**
  * Page frontmatter schema.
@@ -36,6 +37,10 @@ export const docs = defineDocs({
 export default defineConfig({
   mdxOptions: {
     remarkPlugins: [remarkGfm],
+    // Rewrites anchor hrefs targeting the prod app/www/apex origins into
+    // sentinels that the Docker entrypoint resolves per environment
+    // (docs-site#19). Code fences and prose are untouched by construction.
+    rehypePlugins: [rehypeEnvOriginLinks],
     rehypeCodeOptions: {
       themes: {
         light: 'github-dark',
