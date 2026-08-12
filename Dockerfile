@@ -23,6 +23,16 @@ RUN npm run build
 # and the docs vhost answered 503. The unprivileged image is built for exactly
 # this: it owns its own cache/run paths and defaults to :8080.
 FROM nginxinc/nginx-unprivileged:alpine AS runner
+# The html DIRECTORY itself must be writable by uid 101, not just the files
+# in it: 40-substitute-origins.sh runs `sed -i` at container start, and sed
+# creates its temp file in the target file's directory. The --chown on the
+# COPY below only covers the entries it copies — the directory pre-exists in
+# the base image owned by root, so without this chown the substitution dies
+# on the base image's stock 50x.html with `can't create temp file ...
+# Permission denied` and the container never starts (docs-site#21).
+USER root
+RUN chown 101:101 /usr/share/nginx/html
+USER 101
 # --chown, because 40-substitute-origins.sh sed-edits these files in place at
 # container start and the process runs as uid 101.
 COPY --from=builder --chown=101:101 /app/out /usr/share/nginx/html

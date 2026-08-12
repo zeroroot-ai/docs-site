@@ -35,20 +35,50 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Build on every ref, smoke the built image (it must START, not just
+  # build — a cannot-start image published green for a week, docs-site#21),
+  # and push only from main. The push rebuild is a cache hit.
   docker:
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
       - uses: docker/login-action@v3
+        if: github.ref == 'refs/heads/main'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: docs-site:smoke
+          build-args: |
+            NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+      - name: smoke — the container must start and serve as uid 101
+        run: |
+          # --user matches the deploy chart's securityContext (runAsUser 101);
+          # the entrypoint's 40-substitute-origins.sh must complete and nginx
+          # must answer before we call the image publishable.
+          docker run -d --name docs-smoke --user 101:101 \
+            -p 127.0.0.1:8080:8080 docs-site:smoke
+          ok=
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/docs >/dev/null && ok=1 && break
+            sleep 1
+          done
+          docker logs docs-smoke 2>&1 | tail -20
+          [ "$ok" = 1 ] || { echo "::error::container did not serve /docs"; exit 1; }
+          docker logs docs-smoke 2>&1 | grep -q "40-substitute-origins: APP_ORIGIN=" \
+            || { echo "::error::origin substitution did not complete"; exit 1; }
+          docker rm -f docs-smoke
+
+      - uses: docker/build-push-action@v6
+        if: github.ref == 'refs/heads/main'
         with:
           context: .
           push: true
