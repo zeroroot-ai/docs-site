@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
-@import "@zeroroot-ai/brand/tokens.css";
+@import "@zeroroot-ai/brand/globals.css";
 
 /*
  * No `* { margin: 0; padding: 0 }` reset here.
@@ -13,9 +13,22 @@
  * collapsed against each other, which is what made the docs look broken.
  */
 
+/*
+ * The FULL brand globals are imported above (not just tokens.css), the same
+ * entry the www marketing site and the dashboard use. That brings the whole
+ * home-page character in one import: the Tailwind @theme mapping, the mono
+ * typography (body weight 500, --font-sans = JetBrains Mono stack), the CRT
+ * scanline overlay, the violet scrollbars and the zd utilities — so the docs
+ * are literally the same surface as the landing page, from one source.
+ *
+ * It is imported AFTER the fumadocs preset so the brand's font and base-layer
+ * rules win over fumadocs' neutral defaults.
+ */
+
 html {
   color-scheme: dark;
 }
+
 /*
  * Map fumadocs' own design tokens onto the shared brand tokens.
  *
@@ -50,14 +63,36 @@ html {
   --color-fd-warning: var(--warning);
 }
 
+/*
+ * fumadocs' neutral.css carries a `.dark #nd-sidebar` rule that re-pins the
+ * sidebar's muted/secondary tokens to hardcoded grey hsl() values. Its
+ * id-selector specificity beats the `.dark` mapping above, so without this
+ * override the sidebar alone stayed generic grey next to a violet-tinted
+ * page. Re-point the same tokens at the brand's sidebar tokens at equal
+ * specificity (declared later, so it wins).
+ */
+.dark #nd-sidebar {
+  --color-fd-muted: var(--sidebar-accent);
+  --color-fd-secondary: var(--sidebar-accent);
+  --color-fd-muted-foreground: var(--muted-foreground);
+}
 
+/*
+ * The landing page body is `bg-zd-gradient` (a fixed background→card→
+ * background sweep), not flat --background. Reproduce it here so the two
+ * hosts read as one continuous surface. Declared on body (not a utility
+ * class in layout.tsx) so it outlives fumadocs' own body background from
+ * the preset's base layer.
+ */
 body {
-  background: var(--background);
+  background: linear-gradient(135deg, var(--background) 0%, var(--card) 50%, var(--background) 100%);
+  background-attachment: fixed;
   color: var(--foreground);
-  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+  font-family: var(--text-family);
   -webkit-font-smoothing: antialiased;
 }
 
+/* Cyan-blue links, same as the landing page's --link token. */
 a {
   color: var(--link);
   text-decoration: none;
