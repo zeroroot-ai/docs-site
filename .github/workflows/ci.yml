@@ -38,7 +38,9 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
+    # Runs on pull requests too, building without pushing: a build-only,
+    # main-only job is how the #23 EACCES crashloop shipped — the artifact
+    # was never run before it hit the cluster (same lesson as www's job).
     steps:
       - uses: actions/checkout@v4
 
@@ -51,10 +53,33 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          # Push only from main; a pull request proves the image builds and
+          # runs (smoke below), and a fork PR cannot publish to the registry.
+          push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
             ghcr.io/zeroroot-ai/docs-site:${{ github.sha }}
             ghcr.io/zeroroot-ai/docs-site:main
           build-args: |
             NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+      # Boot the image exactly as the chart does (uid 101 by base USER) with
+      # substitution env and assert a page whose functional links were
+      # sentinelized: substituted origins in, sentinels gone. A container
+      # that dies at start fails the curl loop.
+      - name: Smoke-run the image with substituted origins
+        run: |
+          docker build -t docs-smoke --build-arg NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }} .
+          docker run -d --name docs-smoke -p 8080:8080 \
+            -e APP_ORIGIN=https://app.staging.example \
+            -e WWW_ORIGIN=https://www.staging.example \
+            docs-smoke
+          for i in $(seq 1 30); do
+            curl -fsm2 http://localhost:8080/ >/dev/null 2>&1 && break
+            sleep 1
+          done
+          docker logs docs-smoke
+          H=$(curl -fsm5 http://localhost:8080/docs/install/)
+          echo "$H" | grep -q 'https://www.staging.example' || { echo "FAIL: substituted www origin missing"; exit 1; }
+          if echo "$H" | grep -q '__APP_ORIGIN__\|__WWW_ORIGIN__'; then echo "FAIL: sentinels leaked"; exit 1; fi
+          echo "smoke OK: substituted origins served"
 
