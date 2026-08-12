@@ -23,8 +23,15 @@ RUN npm run build
 # and the docs vhost answered 503. The unprivileged image is built for exactly
 # this: it owns its own cache/run paths and defaults to :8080.
 FROM nginxinc/nginx-unprivileged:alpine AS runner
-# --chown, because 40-substitute-origins.sh sed-edits these files in place at
-# container start and the process runs as uid 101.
+# Recreate the html tree owned by the runtime uid: the base image ships
+# /usr/share/nginx/html owned by root (with a stock 50x.html), and
+# 40-substitute-origins.sh sed-edits in place as uid 101 — sed's temp file
+# needs WRITE ON THE DIRECTORY, which COPY --chown alone does not grant
+# (it chowns the copied entries, not the pre-existing dir). Without this the
+# container fails startup on-cluster with EACCES (#23, same as www#17).
+USER root
+RUN rm -rf /usr/share/nginx/html && install -d -o 101 -g 101 /usr/share/nginx/html
+USER 101
 COPY --from=builder --chown=101:101 /app/out /usr/share/nginx/html
 # Runs before nginx starts (stock entrypoint executes /docker-entrypoint.d/*.sh
 # in lexical order): substitutes the __APP_ORIGIN__/__WWW_ORIGIN__ sentinels
