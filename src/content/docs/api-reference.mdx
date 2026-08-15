@@ -781,12 +781,6 @@ ReportStepHints reports planning step hints from an agent back to the orchestrat
 
 RunMission queues a mission for execution.
 
-##### `StoreNode`
-
-`StoreNodeRequest` → `StoreNodeResponse`
-
-StoreNode persists a node in the knowledge graph and returns its assigned ID.
-
 ##### `SubmitFinding`
 
 `SubmitFindingRequest` → `SubmitFindingResponse`
@@ -1602,23 +1596,6 @@ RunMissionResponse is returned after a mission is queued.
 
 _No fields._
 
-#### `StoreNodeRequest`
-
-StoreNodeRequest is a harness proxy request to persist a graph node.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-| `node` | 2 | `gibson.graphrag.v1.GraphNode` | — |
-
-#### `StoreNodeResponse`
-
-StoreNodeResponse carries the assigned node ID.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `node_id` | 1 | `string` | — |
-
 #### `SubmitFindingRequest`
 
 SubmitFindingRequest is a harness proxy request to record a security finding.
@@ -1626,7 +1603,7 @@ SubmitFindingRequest is a harness proxy request to record a security finding.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `work_id` | 1 | `string` | — |
-| `finding` | 2 | `bytes` | finding is the serialized finding payload (proto-encoded Finding message). |
+| `finding` | 2 | `bytes` | finding is the JSON encoding of the SDK `finding.Finding` struct (see finding/finding.go). NOT a proto-encoded message — the daemon reads it with `string(req.Finding)`. This is distinct from the typed HarnessCallbackService.SubmitFinding RPC, which carries a gibson.types.v1.Finding proto message. |
 
 #### `SubmitFindingResponse`
 
@@ -4212,6 +4189,22 @@ These enable agents to autonomously create, run, and manage missions
 
 Agent Operations
 
+##### `DeleteSessionContext`
+
+`DeleteSessionContextRequest` → `DeleteSessionContextResponse`
+
+##### `DevboxExec`
+
+`DevboxExecRequest` → `stream DevboxExecResponse`
+
+DevboxExec runs one command in the caller's session Devbox — a
+session-lifetime sandbox resolved (and lazily created on first call)
+by (tenant, session_id), then REUSED across calls in that session.
+This is deliberately distinct from the per-call SANDBOXED tool path
+(CallToolProto), which stays one microVM per call; a Devbox holds
+working state (checkouts, build caches) that per-call isolation would
+throw away between commands.
+
 ##### `GenerateNodeID`
 
 `GenerateNodeIDRequest` → `GenerateNodeIDResponse`
@@ -4235,6 +4228,10 @@ Credential Operations
 `GetPlanContextRequest` → `GetPlanContextResponse`
 
 Planning Operations
+
+##### `GetSessionContext`
+
+`GetSessionContextRequest` → `GetSessionContextResponse`
 
 ##### `GetTaxonomySchema`
 
@@ -4282,6 +4279,19 @@ LLM Operations
 
 Observe emits a typed observation into the World (ADR-0007). The brain
 resolves identity and topology; scope is derived server-side from context.
+
+##### `PutSessionContext`
+
+`PutSessionContextRequest` → `PutSessionContextResponse`
+
+Session-context store: an opaque, versioned blob per (tenant,
+session_id), persisted in the per-tenant dataplane store. The daemon
+never interprets the bytes — the component owns its own format. This
+is the TRUSTED home for a session's local context; it must never be
+written to the untrusted Devbox volume (that invariant is the
+client's to keep, but this store is why keeping it costs nothing).
+Writes are guarded by an etag (If-Match) so concurrent writers cannot
+clobber each other; the server enforces a TTL and a size cap.
 
 ##### `QueryPlugin`
 
@@ -4404,6 +4414,20 @@ spec.
 WorkspaceWriteFile writes content to a file in the named workspace.
 Path is relative to the workspace root. Content larger than 16 MB
 returns RESOURCE_EXHAUSTED; a streaming variant is deferred.
+
+##### `WorldView`
+
+`WorldViewRequest` → `WorldViewResponse`
+
+WorldView returns the caller's server-projected slice of the tenant World
+(ADR-0012, sdk#341's read half). It is the counterpart to Observe: Observe
+is the agent's only write, WorldView its only read.
+
+The slice is projected by the daemon from the mission record it created —
+the tenant that owns the World and the scope that bounds the slice are read
+there, never from this request. WorldViewRequest carries no tenant field and
+no scope field, so an agent cannot name another tenant's World or a wider
+slice: both are unrepresentable rather than rejected.
 
 ### Messages
 
@@ -4648,6 +4672,59 @@ CredentialObservation reports a discovered credential (identity: secret hash).
 | `result` | 1 | `gibson.types.v1.Result` | — |
 | `error` | 2 | `HarnessError` | — |
 
+#### `DeleteSessionContextRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `session_id` | 2 | `string` | — |
+
+#### `DeleteSessionContextResponse`
+
+DeleteSessionContextResponse is empty on success; deleting a session that
+has no blob is a no-op, not an error.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `error` | 1 | `HarnessError` | — |
+
+#### `DevboxExecExit`
+
+DevboxExecExit is the terminal event of a completed command.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `exit_code` | 1 | `int32` | — |
+
+#### `DevboxExecRequest`
+
+DevboxExecRequest names the session and the command. No tenant field, no
+sandbox handle: the Devbox is addressed purely by the server-derived
+(tenant, session_id) pair.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `session_id` | 2 | `string` | session_id is the agent-chosen opaque session identity shared with the session-context store. Required, non-empty. |
+| `argv` | 3 | `repeated string` | argv is the command to run, exec-style (argv[0] is the binary). The server does not shell-interpret it; a caller that wants a shell asks for one explicitly (argv = ["sh", "-c", …]). |
+| `stdin` | 4 | `bytes` | stdin is written to the process's standard input and closed. Empty means an immediately-closed stdin, not an open pipe. |
+
+#### `DevboxExecResponse`
+
+DevboxExecResponse streams interleaved stdio and ends with the exit event.
+Exactly one exit event terminates a successful stream; a stream that ends
+without one was cut by transport or server failure and the caller must not
+assume the command completed.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `stdout` | 1 | `bytes` | stdout/stderr carry raw chunks in arrival order. Chunk boundaries are transport artifacts, not line boundaries. |
+| `stderr` | 2 | `bytes` | — |
+| `exit` | 3 | `DevboxExecExit` | — |
+| `error` | 4 | `HarnessError` | — |
+
+**oneof `payload`** — one of: `stdout`, `stderr`, `exit`, `error`.
+
 #### `DomainObservation`
 
 DomainObservation reports a registrable domain seen in scope.
@@ -4766,6 +4843,21 @@ GetMissionStatusResponse returns detailed status info.
 |---|---|---|---|
 | `plan_context` | 1 | `PlanContext` | — |
 | `error` | 2 | `HarnessError` | — |
+
+#### `GetSessionContextRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `session_id` | 2 | `string` | — |
+
+#### `GetSessionContextResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `error` | 1 | `HarnessError` | — |
+| `data` | 2 | `bytes` | data is empty and etag "" when no blob exists for the session (a fresh session is not an error). |
+| `etag` | 3 | `string` | — |
 
 #### `GetTaxonomySchemaRequest`
 
@@ -5274,6 +5366,24 @@ PropertyMapping maps a source field to a target property.
 | `target` | 2 | `string` | — |
 | `default_value` | 3 | `string` | — |
 | `transform` | 4 | `string` | — |
+
+#### `PutSessionContextRequest`
+
+PutSessionContextRequest writes the session's context blob.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `session_id` | 2 | `string` | session_id — see DevboxExecRequest.session_id; the same identity. |
+| `data` | 3 | `bytes` | data is the opaque blob. The server enforces a size cap (~8 MB); larger working state belongs in the Devbox, not here. |
+| `if_match` | 4 | `string` | if_match carries the etag of the version this write is based on. Empty string means "create": the write succeeds only if no blob exists for this session yet. A non-empty etag succeeds only if it names the current version. Either mismatch is rejected — a stale writer learns it lost the race instead of clobbering the winner. |
+
+#### `PutSessionContextResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `error` | 1 | `HarnessError` | — |
+| `etag` | 2 | `string` | etag names the version this write produced; pass it as if_match on the next write. |
 
 #### `QueryPluginRequest`
 
@@ -5927,6 +6037,42 @@ WorkspaceWriteFileResponse is empty on success.
 
 _No fields._
 
+#### `WorldEntity`
+
+WorldEntity is one entity in the slice.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `handle` | 1 | `string` | handle is the ONLY name the agent has for this entity: an opaque, server-minted, non-constructible reference, valid within the slice it was issued to and nowhere else. It carries no brain id an agent could iterate, so enumerating past the slice boundary is unrepresentable (ADR-0012). A handle stays stable across re-projections of the same slice: the entity it names does not change, so refreshing the view never invalidates a reference the agent is holding. |
+| `kind` | 2 | `WorldEntityKind` | — |
+| `label` | 3 | `string` | label is the entity's coordinate as observed — an address, an FQDN, a finding title. Human- and LLM-readable; not a reference (only handle is). |
+| `attributes` | 4 | `map<string, string>` | attributes is the projected detail, level-of-detail summarized for the unfocused slice and complete for a focused one. Keys are server-chosen. |
+
+#### `WorldViewRequest`
+
+WorldViewRequest asks for the caller's slice of the tenant World.
+
+There is deliberately no tenant field and no scope field. The daemon reads both
+off the mission record it created, reached through the harness registered for
+(mission_id, agent_name); context is an address that selects which harness to
+consult, never an authority over what the slice contains. An agent therefore
+cannot express "another tenant's World" or "a wider scope" at all.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `focus` | 2 | `repeated string` | focus narrows the response to entities the caller was already shown, by their handles, and returns those at full detail instead of the summary level the unfocused slice carries. A handle that was not issued to this caller is refused — focus can never widen a slice, only zoom into one. |
+
+#### `WorldViewResponse`
+
+WorldViewResponse carries the projected slice.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `error` | 1 | `HarnessError` | — |
+| `entities` | 2 | `repeated WorldEntity` | — |
+| `truncated` | 3 | `bool` | truncated is true when the slice exceeded the projection cap and entities were dropped. The cap is a server-side budget, not something the caller can raise; a truncated slice is still a valid one. |
+
 ### Enums
 
 #### `CredentialType`
@@ -5989,6 +6135,20 @@ StatusCode represents the status of a span.
 | `STATUS_CODE_UNSPECIFIED` | 0 | — |
 | `STATUS_CODE_OK` | 1 | — |
 | `STATUS_CODE_ERROR` | 2 | — |
+
+#### `WorldEntityKind`
+
+WorldEntityKind names what an entity in the slice is.
+
+| Value | # | Description |
+|---|---|---|
+| `WORLD_ENTITY_KIND_UNSPECIFIED` | 0 | — |
+| `WORLD_ENTITY_KIND_HOST` | 1 | — |
+| `WORLD_ENTITY_KIND_DOMAIN` | 2 | — |
+| `WORLD_ENTITY_KIND_SUBDOMAIN` | 3 | — |
+| `WORLD_ENTITY_KIND_CREDENTIAL` | 4 | — |
+| `WORLD_ENTITY_KIND_ACCOUNT` | 5 | — |
+| `WORLD_ENTITY_KIND_FINDING` | 6 | — |
 
 ## Package `gibson.identity.v1`
 
