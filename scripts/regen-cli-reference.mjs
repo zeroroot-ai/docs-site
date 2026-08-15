@@ -67,6 +67,20 @@ function refreshSpec() {
     encoding: "utf8",
     maxBuffer: 16 * 1024 * 1024,
   });
+  // Validate BEFORE writing. An adk checkout predating the `docs cli`
+  // subcommand answers with cobra's help text on stdout and exit 0, which the
+  // old unconditional write clobbered the committed spec with — corrupting a
+  // maintainer's working tree (and, once spec-sync automated this, any CI
+  // checkout) before loadSpec() got the chance to complain.
+  try {
+    JSON.parse(json);
+  } catch {
+    throw new Error(
+      `regen:cli: \`gibson docs cli\` in ${adk} did not emit JSON — the committed spec was left untouched.\n` +
+        `That ref probably predates the \`docs cli\` subcommand. First 200 bytes of what it printed:\n` +
+        json.slice(0, 200),
+    );
+  }
   writeFileSync(SPEC_PATH, json);
 }
 

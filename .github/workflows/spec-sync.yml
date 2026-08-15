@@ -1,0 +1,324 @@
+name: spec-sync
+
+# Refreshes the two committed, generated specs from their source repos and
+# opens (or updates) a PR here:
+#
+#   cli-spec.json  ←  zeroroot-ai/adk   (`gibson docs cli`)   → chore/refresh-cli-spec
+#   api-spec.json  ←  zeroroot-ai/sdk   (`buf build`)         → chore/refresh-api-spec
+#
+# docs-site#26. Before this, both specs were refreshed only by a maintainer
+# running `pnpm regen:cli` / `pnpm regen:api` against sibling checkouts, so a
+# released CLI flag or proto field could sit undocumented indefinitely —
+# `pnpm check:docs` only byte-compares the COMMITTED spec against the rendered
+# page, never against source.
+#
+# ── Why the work lives HERE, not in adk/sdk ─────────────────────────────────
+# adk and sdk are public, so this repo can read them with no credential at all.
+# The reverse is not true: a workflow in adk or sdk pushing a branch here needs
+# a cross-repo write credential, and the sdk fan-out App (SDK_FANOUT_APP_ID) is
+# provisioned on sdk only — adk has no write credential for this repo. Keeping
+# the engine here means the sync needs exactly one token, the one this repo
+# already holds (RELEASE_PLEASE_TOKEN), and adk/sdk only have to say "a release
+# happened" (see their docs-spec-sync / release-please notify jobs).
+#
+# ── Triggers ────────────────────────────────────────────────────────────────
+#   repository_dispatch  — the release-time path. adk/sdk fire
+#                          refresh-cli-spec / refresh-api-spec with
+#                          client_payload.ref = the released tag.
+#   workflow_dispatch    — manual, and how this workflow is tested without a
+#                          release. `ref` builds from any source ref.
+#   schedule (weekly)    — the credential-free safety net. The dispatch path
+#                          needs DOCS_SITE_DISPATCH_TOKEN in adk/sdk; until
+#                          that exists the weekly poll still catches drift.
+#
+# ── Why the PR is opened with RELEASE_PLEASE_TOKEN ──────────────────────────
+# A PR opened with the default GITHUB_TOKEN does not trigger `pull_request`
+# workflows, so ci.yml (which runs `pnpm check:docs`) would never run on it and
+# the acceptance gate would be vacuous. The PAT makes the PR a normal PR.
+
+on:
+  repository_dispatch:
+    types: [refresh-cli-spec, refresh-api-spec]
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: "Which spec to refresh: cli, api, or both"
+        required: false
+        default: both
+        type: choice
+        options: [both, cli, api]
+      ref:
+        description: "Source repo ref to build from (default: that repo's latest release tag)"
+        required: false
+        default: ""
+  schedule:
+    # Mondays 06:17 UTC. Off-the-hour to avoid the scheduler's peak-minute queue.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      specs: ${{ steps.plan.outputs.specs }}
+      ref: ${{ steps.plan.outputs.ref }}
+    steps:
+      - name: Resolve which specs to refresh
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          DISPATCH_SPEC: ${{ inputs.spec }}
+          DISPATCH_REF: ${{ inputs.ref }}
+          PAYLOAD_REF: ${{ github.event.client_payload.ref }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            repository_dispatch)
+              case "$ACTION" in
+                refresh-cli-spec) specs='["cli"]' ;;
+                refresh-api-spec) specs='["api"]' ;;
+                *) echo "::error::unknown dispatch type $ACTION"; exit 1 ;;
+              esac
+              ref="${PAYLOAD_REF:-}"
+              ;;
+            workflow_dispatch)
+              case "${DISPATCH_SPEC:-both}" in
+                cli) specs='["cli"]' ;;
+                api) specs='["api"]' ;;
+                *)   specs='["cli","api"]' ;;
+              esac
+              ref="${DISPATCH_REF:-}"
+              ;;
+            *)
+              specs='["cli","api"]'
+              ref=""
+              ;;
+          esac
+          echo "specs=$specs" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "specs=$specs ref=${ref:-<latest release tag>}"
+
+  sync:
+    name: ${{ matrix.spec }}-spec
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        spec: ${{ fromJSON(needs.plan.outputs.specs) }}
+    steps:
+      - name: Shard config
+        id: cfg
+        env:
+          SPEC: ${{ matrix.spec }}
+        run: |
+          set -euo pipefail
+          if [ "$SPEC" = "cli" ]; then
+            echo "source_repo=zeroroot-ai/adk" >> "$GITHUB_OUTPUT"
+            echo "paths=src/generated/cli-spec.json src/content/docs/cli-reference.mdx" >> "$GITHUB_OUTPUT"
+          else
+            echo "source_repo=zeroroot-ai/sdk" >> "$GITHUB_OUTPUT"
+            echo "paths=src/generated/api-spec.json src/content/docs/api-reference.mdx" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve source ref
+        id: ref
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_REPO: ${{ steps.cfg.outputs.source_repo }}
+          REQUESTED: ${{ needs.plan.outputs.ref }}
+        run: |
+          set -euo pipefail
+          ref="${REQUESTED:-}"
+          if [ -z "$ref" ]; then
+            ref=$(gh api "/repos/${SOURCE_REPO}/releases" --jq '.[0].tag_name // empty')
+          fi
+          if [ -z "$ref" ]; then
+            echo "::error::${SOURCE_REPO} has no releases and no ref was supplied"
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Building ${{ matrix.spec }}-spec from ${SOURCE_REPO}@${ref}"
+
+      - name: Checkout docs-site
+        uses: actions/checkout@v4
+        with:
+          # PAT (not GITHUB_TOKEN) so the branch push + PR trigger ci.yml.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.cfg.outputs.source_repo }}
+          ref: ${{ steps.ref.outputs.ref }}
+          path: .spec-src
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The regen + check scripts import node builtins only, so they run
+      # without `pnpm install` — which would otherwise need a registry token
+      # for @zeroroot-ai/brand.
+
+      - name: Set up Go
+        if: matrix.spec == 'cli'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: .spec-src/gibson/go.mod
+          cache-dependency-path: .spec-src/gibson/go.sum
+
+      - name: Install buf
+        if: matrix.spec == 'api'
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # `gibson docs cli` landed in adk after its last release tag (v0.106.0),
+      # so a scheduled build from the latest tag can legitimately have no
+      # machine-readable CLI spec to emit. Probe for it and skip with a warning
+      # rather than failing — the next adk release makes the probe pass. Any
+      # other failure (build error, bad JSON from a ref that DOES have the
+      # command) still fails the job through the regen step below.
+      - name: Probe for `gibson docs cli`
+        if: matrix.spec == 'cli'
+        id: probe
+        working-directory: .spec-src/gibson
+        run: |
+          set -uo pipefail
+          # Capture to a file rather than piping: `head -c 1` would close the
+          # pipe and SIGPIPE `go run`, which pipefail then reads as a failure
+          # even on a good spec.
+          if go run ./cmd/gibson docs cli >"${RUNNER_TEMP}/cli-probe.json" 2>/dev/null \
+             && head -c 1 "${RUNNER_TEMP}/cli-probe.json" | grep -q '{'; then
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::adk@${{ steps.ref.outputs.ref }} does not emit a machine-readable \`gibson docs cli\` spec; nothing to sync from this ref."
+          fi
+
+      - name: Regenerate cli-spec
+        if: matrix.spec == 'cli' && steps.probe.outputs.supported == 'true'
+        env:
+          ADK_GIBSON_DIR: ${{ github.workspace }}/.spec-src/gibson
+        run: node scripts/regen-cli-reference.mjs
+
+      - name: Regenerate api-spec
+        if: matrix.spec == 'api'
+        env:
+          SDK_DIR: ${{ github.workspace }}/.spec-src
+        run: node scripts/regen-api-reference.mjs
+
+      - name: Detect drift
+        id: drift
+        env:
+          PATHS: ${{ steps.cfg.outputs.paths }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- $PATHS; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ matrix.spec }}-spec is already in sync with ${{ steps.cfg.outputs.source_repo }}@${{ steps.ref.outputs.ref }}; nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff --stat -- $PATHS
+          fi
+
+      # The same gate the PR will have to pass. Running it here means a
+      # regeneration that would break the docs fails THIS run (visible, and it
+      # files the tracked issue below) instead of parking a red PR.
+      - name: Run check:docs
+        if: steps.drift.outputs.changed == 'true'
+        run: pnpm run check:docs
+
+      - name: Open or update the refresh PR
+        if: steps.drift.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          SPEC: ${{ matrix.spec }}
+          SOURCE_REPO: ${{ steps.cfg.outputs.source_repo }}
+          SOURCE_REF: ${{ steps.ref.outputs.ref }}
+          PATHS: ${{ steps.cfg.outputs.paths }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/refresh-${SPEC}-spec"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -- $PATHS
+          git commit -m "chore(docs): refresh ${SPEC}-spec from ${SOURCE_REPO}@${SOURCE_REF}"
+
+          # Fixed branch name + force-push is the collision guard: a second
+          # release while a refresh PR is still open UPDATES that PR instead of
+          # stacking a second one.
+          git push --force -u origin "$BRANCH"
+
+          BODY="Regenerated \`${SPEC}-spec\` from [\`${SOURCE_REPO}@${SOURCE_REF}\`](${{ github.server_url }}/${SOURCE_REPO}/tree/${SOURCE_REF})."
+          BODY="${BODY}"$'\n\n'"Produced by \`.github/workflows/spec-sync.yml\` ([run](${RUN_URL})) using this repo's own \`regen:${SPEC}\` entrypoint, so the output is byte-identical to a maintainer's local refresh. \`pnpm check:docs\` passed in that run."
+          BODY="${BODY}"$'\n\n'"This branch is force-updated in place by later runs — never stacked."
+          BODY="${BODY}"$'\n\n'"Docs-PR: not-applicable: this IS the docs change."
+
+          EXISTING=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --body "$BODY"
+            PR="$EXISTING"
+            echo "::notice::updated existing refresh PR #${PR}"
+          else
+            gh pr create \
+              --title "chore(docs): refresh ${SPEC}-spec" \
+              --body "$BODY" \
+              --base main \
+              --head "$BRANCH"
+            PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+            echo "::notice::opened refresh PR #${PR}"
+          fi
+
+          # Auto-merge is best-effort and its failure is LOUD (sdk#301's lesson:
+          # a swallowed warning here leaves PRs piling up unnoticed). It needs
+          # the repo's "Allow auto-merge" setting on; without it the PR stays
+          # open for a human.
+          if ! gh pr merge --auto --squash "$PR"; then
+            echo "::error::Could not arm auto-merge on PR #${PR}. Check the repo's 'Allow auto-merge' setting. The PR is open and awaiting a human merge."
+          fi
+
+      # ------------------------------------------------------------------
+      # Failure signal. This workflow runs on dispatch and on a schedule —
+      # nobody is watching either, and that is exactly how sdk's buf-push
+      # stayed red across nine releases (sdk#459/#462). Same find-by-title /
+      # refresh-in-place pattern as that workflow's failure step.
+      # ------------------------------------------------------------------
+      - name: File or update tracked issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TITLE="ci(spec-sync): ${{ matrix.spec }}-spec refresh is failing"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BODY="## spec-sync (${{ matrix.spec }}-spec) failed\n\n"
+          BODY="${BODY}Run: ${RUN_URL}\nSource: \`${{ steps.cfg.outputs.source_repo }}@${{ steps.ref.outputs.ref }}\`\nEvent: \`${{ github.event_name }}\`\n\n"
+          BODY="${BODY}\`src/generated/${{ matrix.spec }}-spec.json\` is NOT being refreshed from source. The committed spec — and the reference page rendered from it — will drift silently from the released surface until this is fixed.\n\n"
+          BODY="${BODY}This issue is auto-filed by the spec-sync workflow's failure step and refreshed in place on each subsequent failure."
+          EXISTING=$(gh issue list -R "${{ github.repository }}" \
+                       --state open --search "in:title \"ci(spec-sync): ${{ matrix.spec }}-spec refresh is failing\"" \
+                       --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            printf "%b" "$BODY" | gh issue comment "$EXISTING" -R "${{ github.repository }}" --body-file -
+          else
+            printf "%b" "$BODY" | gh issue create -R "${{ github.repository }}" --title "$TITLE" --body-file -
+          fi
