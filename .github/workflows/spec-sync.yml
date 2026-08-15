@@ -151,23 +151,23 @@ jobs:
           echo "Building ${{ matrix.spec }}-spec from ${SOURCE_REPO}@${ref}"
 
       - name: Checkout docs-site
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # PAT (not GITHUB_TOKEN) so the branch push + PR trigger ci.yml.
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Checkout source repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ steps.cfg.outputs.source_repo }}
           ref: ${{ steps.ref.outputs.ref }}
           path: .spec-src
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -181,14 +181,14 @@ jobs:
 
       - name: Set up Go
         if: matrix.spec == 'cli'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: .spec-src/gibson/go.mod
           cache-dependency-path: .spec-src/gibson/go.sum
 
       - name: Install buf
         if: matrix.spec == 'api'
-        uses: bufbuild/buf-setup-action@v1
+        uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
