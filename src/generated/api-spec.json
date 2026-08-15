@@ -1477,14 +1477,6 @@
               "comment": "RunMission queues a mission for execution."
             },
             {
-              "name": "StoreNode",
-              "input": "StoreNodeRequest",
-              "output": "StoreNodeResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "StoreNode persists a node in the knowledge graph and returns its assigned ID."
-            },
-            {
               "name": "SubmitFinding",
               "input": "SubmitFindingRequest",
               "output": "SubmitFindingResponse",
@@ -3236,36 +3228,6 @@
           "fields": []
         },
         {
-          "name": "StoreNodeRequest",
-          "comment": "StoreNodeRequest is a harness proxy request to persist a graph node.",
-          "fields": [
-            {
-              "name": "work_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "node",
-              "number": 2,
-              "type": "gibson.graphrag.v1.GraphNode",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "StoreNodeResponse",
-          "comment": "StoreNodeResponse carries the assigned node ID.",
-          "fields": [
-            {
-              "name": "node_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "SubmitFindingRequest",
           "comment": "SubmitFindingRequest is a harness proxy request to record a security finding.",
           "fields": [
@@ -3279,7 +3241,7 @@
               "name": "finding",
               "number": 2,
               "type": "bytes",
-              "comment": "finding is the serialized finding payload (proto-encoded Finding message)."
+              "comment": "finding is the JSON encoding of the SDK `finding.Finding` struct\n(see finding/finding.go). NOT a proto-encoded message — the daemon\nreads it with `string(req.Finding)`. This is distinct from the typed\nHarnessCallbackService.SubmitFinding RPC, which carries a\ngibson.types.v1.Finding proto message."
             }
           ]
         },
@@ -9390,6 +9352,22 @@
               "comment": "Agent Operations"
             },
             {
+              "name": "DeleteSessionContext",
+              "input": "DeleteSessionContextRequest",
+              "output": "DeleteSessionContextResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": ""
+            },
+            {
+              "name": "DevboxExec",
+              "input": "DevboxExecRequest",
+              "output": "DevboxExecResponse",
+              "clientStreaming": false,
+              "serverStreaming": true,
+              "comment": "DevboxExec runs one command in the caller's session Devbox — a\nsession-lifetime sandbox resolved (and lazily created on first call)\nby (tenant, session_id), then REUSED across calls in that session.\nThis is deliberately distinct from the per-call SANDBOXED tool path\n(CallToolProto), which stays one microVM per call; a Devbox holds\nworking state (checkouts, build caches) that per-call isolation would\nthrow away between commands."
+            },
+            {
               "name": "GenerateNodeID",
               "input": "GenerateNodeIDRequest",
               "output": "GenerateNodeIDResponse",
@@ -9428,6 +9406,14 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "Planning Operations"
+            },
+            {
+              "name": "GetSessionContext",
+              "input": "GetSessionContextRequest",
+              "output": "GetSessionContextResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": ""
             },
             {
               "name": "GetTaxonomySchema",
@@ -9508,6 +9494,14 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "Observe emits a typed observation into the World (ADR-0007). The brain\nresolves identity and topology; scope is derived server-side from context."
+            },
+            {
+              "name": "PutSessionContext",
+              "input": "PutSessionContextRequest",
+              "output": "PutSessionContextResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "Session-context store: an opaque, versioned blob per (tenant,\nsession_id), persisted in the per-tenant dataplane store. The daemon\nnever interprets the bytes — the component owns its own format. This\nis the TRUSTED home for a session's local context; it must never be\nwritten to the untrusted Devbox volume (that invariant is the\nclient's to keep, but this store is why keeping it costs nothing).\nWrites are guarded by an etag (If-Match) so concurrent writers cannot\nclobber each other; the server enforces a TTL and a size cap."
             },
             {
               "name": "QueryPlugin",
@@ -9668,6 +9662,14 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "WorkspaceWriteFile writes content to a file in the named workspace.\nPath is relative to the workspace root. Content larger than 16 MB\nreturns RESOURCE_EXHAUSTED; a streaming variant is deferred."
+            },
+            {
+              "name": "WorldView",
+              "input": "WorldViewRequest",
+              "output": "WorldViewResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "WorldView returns the caller's server-projected slice of the tenant World\n(ADR-0012, sdk#341's read half). It is the counterpart to Observe: Observe\nis the agent's only write, WorldView its only read.\n\nThe slice is projected by the daemon from the mission record it created —\nthe tenant that owns the World and the scope that bounds the slice are read\nthere, never from this request. WorldViewRequest carries no tenant field and\nno scope field, so an agent cannot name another tenant's World or a wider\nslice: both are unrepresentable rather than rejected."
             }
           ]
         }
@@ -10400,6 +10402,119 @@
           ]
         },
         {
+          "name": "DeleteSessionContextRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "session_id",
+              "number": 2,
+              "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "DeleteSessionContextResponse",
+          "comment": "DeleteSessionContextResponse is empty on success; deleting a session that\nhas no blob is a no-op, not an error.",
+          "fields": [
+            {
+              "name": "error",
+              "number": 1,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "DevboxExecExit",
+          "comment": "DevboxExecExit is the terminal event of a completed command.",
+          "fields": [
+            {
+              "name": "exit_code",
+              "number": 1,
+              "type": "int32",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "DevboxExecRequest",
+          "comment": "DevboxExecRequest names the session and the command. No tenant field, no\nsandbox handle: the Devbox is addressed purely by the server-derived\n(tenant, session_id) pair.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "session_id",
+              "number": 2,
+              "type": "string",
+              "comment": "session_id is the agent-chosen opaque session identity shared with the\nsession-context store. Required, non-empty."
+            },
+            {
+              "name": "argv",
+              "number": 3,
+              "type": "repeated string",
+              "comment": "argv is the command to run, exec-style (argv[0] is the binary). The\nserver does not shell-interpret it; a caller that wants a shell asks\nfor one explicitly (argv = [\"sh\", \"-c\", …])."
+            },
+            {
+              "name": "stdin",
+              "number": 4,
+              "type": "bytes",
+              "comment": "stdin is written to the process's standard input and closed. Empty\nmeans an immediately-closed stdin, not an open pipe."
+            }
+          ]
+        },
+        {
+          "name": "DevboxExecResponse",
+          "comment": "DevboxExecResponse streams interleaved stdio and ends with the exit event.\nExactly one exit event terminates a successful stream; a stream that ends\nwithout one was cut by transport or server failure and the caller must not\nassume the command completed.",
+          "fields": [
+            {
+              "name": "stdout",
+              "number": 1,
+              "type": "bytes",
+              "comment": "stdout/stderr carry raw chunks in arrival order. Chunk boundaries\nare transport artifacts, not line boundaries."
+            },
+            {
+              "name": "stderr",
+              "number": 2,
+              "type": "bytes",
+              "comment": ""
+            },
+            {
+              "name": "exit",
+              "number": 3,
+              "type": "DevboxExecExit",
+              "comment": ""
+            },
+            {
+              "name": "error",
+              "number": 4,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ],
+          "oneofs": [
+            {
+              "name": "payload",
+              "fields": [
+                "stdout",
+                "stderr",
+                "exit",
+                "error"
+              ]
+            }
+          ]
+        },
+        {
           "name": "DomainObservation",
           "comment": "DomainObservation reports a registrable domain seen in scope.",
           "fields": [
@@ -10689,6 +10804,48 @@
               "name": "error",
               "number": 2,
               "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "GetSessionContextRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "session_id",
+              "number": 2,
+              "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "GetSessionContextResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "error",
+              "number": 1,
+              "type": "HarnessError",
+              "comment": ""
+            },
+            {
+              "name": "data",
+              "number": 2,
+              "type": "bytes",
+              "comment": "data is empty and etag \"\" when no blob exists for the session (a\nfresh session is not an error)."
+            },
+            {
+              "name": "etag",
+              "number": 3,
+              "type": "string",
               "comment": ""
             }
           ]
@@ -12292,6 +12449,54 @@
               "number": 4,
               "type": "string",
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "PutSessionContextRequest",
+          "comment": "PutSessionContextRequest writes the session's context blob.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "session_id",
+              "number": 2,
+              "type": "string",
+              "comment": "session_id — see DevboxExecRequest.session_id; the same identity."
+            },
+            {
+              "name": "data",
+              "number": 3,
+              "type": "bytes",
+              "comment": "data is the opaque blob. The server enforces a size cap (~8 MB);\nlarger working state belongs in the Devbox, not here."
+            },
+            {
+              "name": "if_match",
+              "number": 4,
+              "type": "string",
+              "comment": "if_match carries the etag of the version this write is based on.\nEmpty string means \"create\": the write succeeds only if no blob exists\nfor this session yet. A non-empty etag succeeds only if it names the\ncurrent version. Either mismatch is rejected — a stale writer learns\nit lost the race instead of clobbering the winner."
+            }
+          ]
+        },
+        {
+          "name": "PutSessionContextResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "error",
+              "number": 1,
+              "type": "HarnessError",
+              "comment": ""
+            },
+            {
+              "name": "etag",
+              "number": 2,
+              "type": "string",
+              "comment": "etag names the version this write produced; pass it as if_match on\nthe next write."
             }
           ]
         },
@@ -14056,6 +14261,78 @@
           "name": "WorkspaceWriteFileResponse",
           "comment": "WorkspaceWriteFileResponse is empty on success.",
           "fields": []
+        },
+        {
+          "name": "WorldEntity",
+          "comment": "WorldEntity is one entity in the slice.",
+          "fields": [
+            {
+              "name": "handle",
+              "number": 1,
+              "type": "string",
+              "comment": "handle is the ONLY name the agent has for this entity: an opaque,\nserver-minted, non-constructible reference, valid within the slice it was\nissued to and nowhere else. It carries no brain id an agent could iterate,\nso enumerating past the slice boundary is unrepresentable (ADR-0012).\n\nA handle stays stable across re-projections of the same slice: the entity\nit names does not change, so refreshing the view never invalidates a\nreference the agent is holding."
+            },
+            {
+              "name": "kind",
+              "number": 2,
+              "type": "WorldEntityKind",
+              "comment": ""
+            },
+            {
+              "name": "label",
+              "number": 3,
+              "type": "string",
+              "comment": "label is the entity's coordinate as observed — an address, an FQDN, a\nfinding title. Human- and LLM-readable; not a reference (only handle is)."
+            },
+            {
+              "name": "attributes",
+              "number": 4,
+              "type": "map<string, string>",
+              "comment": "attributes is the projected detail, level-of-detail summarized for the\nunfocused slice and complete for a focused one. Keys are server-chosen."
+            }
+          ]
+        },
+        {
+          "name": "WorldViewRequest",
+          "comment": "WorldViewRequest asks for the caller's slice of the tenant World.\n\nThere is deliberately no tenant field and no scope field. The daemon reads both\noff the mission record it created, reached through the harness registered for\n(mission_id, agent_name); context is an address that selects which harness to\nconsult, never an authority over what the slice contains. An agent therefore\ncannot express \"another tenant's World\" or \"a wider scope\" at all.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "focus",
+              "number": 2,
+              "type": "repeated string",
+              "comment": "focus narrows the response to entities the caller was already shown, by\ntheir handles, and returns those at full detail instead of the summary\nlevel the unfocused slice carries. A handle that was not issued to this\ncaller is refused — focus can never widen a slice, only zoom into one."
+            }
+          ]
+        },
+        {
+          "name": "WorldViewResponse",
+          "comment": "WorldViewResponse carries the projected slice.",
+          "fields": [
+            {
+              "name": "error",
+              "number": 1,
+              "type": "HarnessError",
+              "comment": ""
+            },
+            {
+              "name": "entities",
+              "number": 2,
+              "type": "repeated WorldEntity",
+              "comment": ""
+            },
+            {
+              "name": "truncated",
+              "number": 3,
+              "type": "bool",
+              "comment": "truncated is true when the slice exceeded the projection cap and entities\nwere dropped. The cap is a server-side budget, not something the caller can\nraise; a truncated slice is still a valid one."
+            }
+          ]
         }
       ],
       "enums": [
@@ -14215,6 +14492,47 @@
             {
               "name": "STATUS_CODE_ERROR",
               "number": 2,
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "WorldEntityKind",
+          "comment": "WorldEntityKind names what an entity in the slice is.",
+          "values": [
+            {
+              "name": "WORLD_ENTITY_KIND_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "WORLD_ENTITY_KIND_HOST",
+              "number": 1,
+              "comment": ""
+            },
+            {
+              "name": "WORLD_ENTITY_KIND_DOMAIN",
+              "number": 2,
+              "comment": ""
+            },
+            {
+              "name": "WORLD_ENTITY_KIND_SUBDOMAIN",
+              "number": 3,
+              "comment": ""
+            },
+            {
+              "name": "WORLD_ENTITY_KIND_CREDENTIAL",
+              "number": 4,
+              "comment": ""
+            },
+            {
+              "name": "WORLD_ENTITY_KIND_ACCOUNT",
+              "number": 5,
+              "comment": ""
+            },
+            {
+              "name": "WORLD_ENTITY_KIND_FINDING",
+              "number": 6,
               "comment": ""
             }
           ]
