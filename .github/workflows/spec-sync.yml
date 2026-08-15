@@ -170,10 +170,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@zeroroot"
 
-      # The regen + check scripts import node builtins only, so they run
-      # without `pnpm install` — which would otherwise need a registry token
-      # for @zeroroot-ai/brand.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Go
         if: matrix.spec == 'cli'
@@ -237,12 +241,23 @@ jobs:
             git --no-pager diff --stat -- $PATHS
           fi
 
-      # The same gate the PR will have to pass. Running it here means a
-      # regeneration that would break the docs fails THIS run (visible, and it
-      # files the tracked issue below) instead of parking a red PR.
-      - name: Run check:docs
+      # Gate the regenerated content BEFORE the PR is opened, running exactly
+      # what ci.yml's `build` job runs (`pnpm build` = `check:docs && next
+      # build`).
+      #
+      # Doing it here rather than relying on the PR's own CI is not belt-and-
+      # braces, it is the actual gate: docs-site `main` has no branch
+      # protection (docs-site#29), so nothing is a *required* check, and
+      # `gh pr merge --auto` on a repo with no required checks degenerates into
+      # an immediate merge — refresh PR #28 landed two seconds after it opened,
+      # before ci.yml had started. `check:docs` alone would not have been
+      # enough: it byte-compares spec against page and would pass on MDX that
+      # `next build` cannot parse.
+      - name: Verify the regenerated docs build
         if: steps.drift.outputs.changed == 'true'
-        run: pnpm run check:docs
+        run: pnpm build
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Open or update the refresh PR
         if: steps.drift.outputs.changed == 'true'
@@ -269,7 +284,7 @@ jobs:
           git push --force -u origin "$BRANCH"
 
           BODY="Regenerated \`${SPEC}-spec\` from [\`${SOURCE_REPO}@${SOURCE_REF}\`](${{ github.server_url }}/${SOURCE_REPO}/tree/${SOURCE_REF})."
-          BODY="${BODY}"$'\n\n'"Produced by \`.github/workflows/spec-sync.yml\` ([run](${RUN_URL})) using this repo's own \`regen:${SPEC}\` entrypoint, so the output is byte-identical to a maintainer's local refresh. \`pnpm check:docs\` passed in that run."
+          BODY="${BODY}"$'\n\n'"Produced by \`.github/workflows/spec-sync.yml\` ([run](${RUN_URL})) using this repo's own \`regen:${SPEC}\` entrypoint, so the output is byte-identical to a maintainer's local refresh. \`pnpm build\` (\`check:docs\` + \`next build\`) passed on this content in that run, before the PR was opened."
           BODY="${BODY}"$'\n\n'"This branch is force-updated in place by later runs — never stacked."
           BODY="${BODY}"$'\n\n'"Docs-PR: not-applicable: this IS the docs change."
 
