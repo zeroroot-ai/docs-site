@@ -1,0 +1,61 @@
+---
+title: Tenancy
+description: Tenants do not share a graph database. Isolation is the connection, not a filter — there is no cross-tenant query to get wrong.
+---
+
+Most multi-tenant systems isolate tenants with a predicate: every query carries
+`WHERE tenant_id = ?`, and safety depends on nobody ever forgetting it. One
+missed filter is a cross-tenant leak.
+
+Gibson's knowledge graph does not work that way.
+
+## One database per tenant
+
+Each tenant gets its own graph database instance, in its own namespace. The
+connection is resolved per call from the tenant on the request.
+
+Graph nodes carry **no tenant identifier property at all**, because there is
+nothing to disambiguate — every node in the database you are connected to
+belongs to that tenant by construction.
+
+**What that gets you:** there is no cross-tenant query to get wrong. A query
+cannot leak across tenants by omitting a filter, because the filter was never the
+mechanism. Isolation is which database you are pointed at.
+
+The corollary is worth knowing if you write graph queries: a `WHERE
+n.tenant_id = ...` predicate matches **zero rows** and silently returns an empty
+result. It is not a safety net here; it is a bug.
+
+## What else is per tenant
+
+| Resource | Isolation |
+|---|---|
+| Knowledge graph | A dedicated database instance per tenant, in its own namespace |
+| Secrets | Per-tenant storage, reached only through the daemon |
+| Component registry | Per tenant — a component published to the platform is not automatically available in your tenant |
+| Relational data | Per-tenant databases |
+
+The component registry point connects to
+[Authorization](/docs/security/authorization): reachability requires your tenant
+to have enabled the component, and that is a separate act from the platform
+publishing it.
+
+## Sharing inside one tenant
+
+The graph is **shared between agents in a tenant**, and that is the point of it:
+what one agent discovers, the next one starts from. A recon agent's findings are
+available to the agent that triages them, without an export step or a second
+copy.
+
+Inside the tenant, what a caller may read follows the authorization model's read
+path, including cross-team data-sharing relations where a team has been granted
+visibility of another team's data. So "shared" does not mean "flat" — it means
+one graph, with grants on top.
+
+## What to check
+
+1. Each tenant has a dedicated graph database instance in its own namespace.
+2. Nodes carry no tenant identifier, so isolation cannot be bypassed by a missing
+   predicate.
+3. Secrets are reached only through the daemon, never by a component directly.
+4. A platform-published component is not automatically enabled in a tenant.

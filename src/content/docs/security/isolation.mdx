@@ -1,0 +1,97 @@
+---
+title: Isolation
+description: One gate decides how a component runs — deny it, put it in a Firecracker microVM, or run it in process. It reads the component's declared content trust and the deployment shape, and it fails closed.
+---
+
+Component code does not decide where it runs. One gate decides, and it is pure,
+total, and fail-closed: `internal/engine/harness/dispatchpolicy` (ADR-0010).
+
+Read that one file and you have reviewed the whole isolation boundary. That is
+the point of putting it in one place.
+
+## The gate
+
+It returns one of three answers:
+
+| Answer | Meaning |
+|---|---|
+| **Deny** | The component does not execute. |
+| **RequireSetec** | The component executes inside a Firecracker microVM, via Kata, orchestrated by the setec operator. |
+| **AllowInProcess** | The component may take the in-process path. |
+
+It decides from three inputs — whether a sandboxed dispatch is available, the
+component's declared content trust, and the deployment shape:
+
+```
+if a sandboxed dispatch is available   → RequireSetec
+if untrusted and hosted shape          → Deny
+otherwise                              → AllowInProcess
+```
+
+Two things follow that are worth being precise about, because the short version
+gets misquoted in both directions:
+
+- **When a sandbox is available it is always used** — for trusted components as
+  well as untrusted ones. The sandbox is the default, not the exception.
+- **Untrusted code has no in-process fallback in the hosted deployment.** If the
+  sandbox is unavailable, the call is refused. It does not degrade into running
+  in the platform's address space.
+
+So the accurate claim is not "every invocation runs in a microVM". It is:
+**untrusted code never runs outside a microVM on our infrastructure, and when a
+sandbox is there, everything uses it.**
+
+## Content trust
+
+A component declares in its manifest whether it handles untrusted input:
+
+```yaml
+spec:
+  policy:
+    content_trust: untrusted   # or: trusted
+```
+
+**The default is `trusted`.** A manifest that omits the field gets `trusted`, and
+so does a descriptor registered before the field existed — the gate treats
+"unspecified" as trusted for backward compatibility.
+
+That matters for a review: content trust is a **declaration by the component
+author**, not something the platform infers. A tool that parses attacker-supplied
+output and does not say so is treated as trusted. Treat the field as part of
+component review, the same way you would treat a requested permission.
+
+## Deployment shape
+
+The environment variable `GIBSON_UNTRUSTED_EXEC` selects who owns the isolation
+boundary:
+
+| Value | Meaning |
+|---|---|
+| `setec-only` | Hosted, multi-tenant. Untrusted execution is sandbox-or-denied. |
+| `customer-isolation` | Self-hosted. You own the boundary, and untrusted components may take the in-process path when no sandbox is configured. |
+
+`setec-only` is the default, the zero value, and the fallback for any
+unrecognised value — so a harness that was never wired fails closed rather than
+open.
+
+The same shape gates *where* untrusted execution may be isolated. Hosted permits
+only the platform-operated sandbox fleet; a self-hosted deployment may point at
+its own sandbox endpoint.
+
+## What that gets you
+
+A tool that parses attacker-controlled output — a scanner report, a scraped page,
+a model's own output fed back as input — cannot reach the host, the daemon, or
+the next tool. It gets a hardware-virtualised boundary, not a container
+namespace.
+
+The failure mode a reviewer usually asks about, "what happens when the sandbox is
+down", has a stated answer: on our infrastructure, untrusted work stops. It does
+not quietly run somewhere less safe.
+
+## What to check
+
+1. `dispatchpolicy` is the only decision site, and it is pure and total.
+2. Content trust defaults to trusted when the manifest omits it.
+3. `GIBSON_UNTRUSTED_EXEC` fails closed to `setec-only` on any unrecognised value.
+4. There is no in-process fallback for untrusted code in the hosted shape.

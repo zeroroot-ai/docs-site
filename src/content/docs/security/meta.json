@@ -3,6 +3,8 @@
   "pages": [
     "index",
     "identity",
-    "authorization"
+    "authorization",
+    "isolation",
+    "tenancy"
   ]
 }
