@@ -1329,10 +1329,27 @@ HeartbeatResponse is returned by the server after each heartbeat.
 
 LLMMessage represents a single message in an LLM conversation.
 
+Tool-call round trips are represented with two message shapes so a
+multi-turn conversation can replay the full tool history structurally
+(instead of flattening it into `content` text):
+
+ 1. An assistant turn that requested tool calls sets `role` to
+ "assistant" and carries the calls in `tool_calls` (typically copied
+ verbatim from a prior `CompleteWithToolsResponse.tool_calls`).
+ `content` holds any accompanying assistant text and may be empty.
+ 2. A tool-result turn sets `role` to "tool", `tool_call_id` to the
+ `ToolCallResult.id` it answers, and `content` to the tool's output.
+ One message per tool call; a turn with N tool calls is followed by
+ N tool-result messages.
+
+Both fields are optional: plain role+content messages are unchanged.
+
 | Field | # | Type | Description |
 |---|---|---|---|
-| `role` | 1 | `string` | role is "system", "user", or "assistant". |
+| `role` | 1 | `string` | role is "system", "user", "assistant", or "tool". |
 | `content` | 2 | `string` | — |
+| `tool_calls` | 3 | `repeated ToolCallResult` | tool_calls carries the tool calls an assistant turn requested. Set only when role is "assistant"; empty for all other roles. |
+| `tool_call_id` | 4 | `string` | tool_call_id identifies which requested tool call this message answers. Set only when role is "tool", in which case `content` carries the tool's output and this matches the `ToolCallResult.id` of the corresponding entry in the preceding assistant turn's `tool_calls`. Empty for all other roles. |
 
 #### `ListAgentsRequest`
 
