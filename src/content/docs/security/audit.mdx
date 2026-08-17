@@ -1,0 +1,61 @@
+---
+title: Audit
+description: Every model call is recorded with its full transcript inside your tenant, every mission is replayable from its event timeline, and no third-party trace vendor sits on the path.
+---
+
+The question behind an audit requirement is usually: *can you show me exactly
+what it did, and can I reproduce it?*
+
+## The record is the timeline
+
+Missions run on an event-sourced world. Every change is an appended event, so the
+mission's history is not a log written alongside the work — it **is** the work.
+Replaying the timeline reconstructs the state at any point.
+
+**What that gets you:** "what did it see, and what did it decide" is answerable
+after the fact, from the same structure the runtime used to make the decision.
+There is no separate audit pipeline that can drift from reality, or lose events
+the runtime acted on.
+
+## Model calls are recorded in full
+
+Every model call is recorded with:
+
+- the prompt messages and the completion, as an **immutable transcript** — set
+  once when first observed, never rewritten
+- prompt and completion token counts, and therefore per-call cost
+
+The transcript lives in the tenant's own world model, and the dashboard reads it
+from there.
+
+**No third-party trace vendor sits on this path.** Prompts and completions do not
+leave your tenant in order to be observable. An earlier build sent traces to an
+external tracing service; that was removed and the in-world transcript replaced
+it. If you find that vendor named in an older document, the document is stale.
+
+That matters more than usual here: prompts to a security agent routinely contain
+the thing you are protecting — hostnames, findings, snippets of your own code. A
+tracing vendor holding them is a data-flow you would have to account for in your
+own review. There is no such flow.
+
+## Traces and metrics
+
+OpenTelemetry traces and Prometheus metrics ship with the platform for the
+operational picture — latency, errors, and throughput across services. They carry
+operational telemetry, not prompt content.
+
+## Attribution
+
+Every component authenticates as itself (see
+[Identity](/docs/security/identity)) and every principal has a human owner (see
+[Authorization](/docs/security/authorization)). So an action in the record
+resolves to a component, and that component resolves to a person.
+
+## What to check
+
+1. The mission timeline is the source of truth, not a parallel log.
+2. Model transcripts are immutable once written.
+3. Prompts and completions stay in the tenant, with no external trace vendor on
+   the path.
+4. Every recorded action attributes to a component, and every component to an
+   owner.

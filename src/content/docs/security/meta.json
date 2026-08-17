@@ -5,6 +5,8 @@
     "identity",
     "authorization",
     "isolation",
-    "tenancy"
+    "tenancy",
+    "runtime",
+    "audit"
   ]
 }
