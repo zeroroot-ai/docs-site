@@ -22,20 +22,15 @@
  * customer-facing SDK packages are emitted (see FIRST_PARTY_PREFIXES /
  * EXCLUDE_PACKAGES).
  *
- * ── Customer terminology (hard requirement, dashboard#1026) ─────────────────
- * Proto leading comments name internal vendors/impl (the identity service,
- * the permissions system, the gateway, workload identity, the knowledge graph,
- * …). docs-site enforces `check-no-internal-tech-in-docs.mjs` against an EMPTY
- * allowlist, so the generated page must be deny-list clean.
+ * ── CLI name (hard requirement, check-docs-cli-name.mjs) ────────────────────
+ * Proto leading comments sometimes say `gibson-cli`; the binary is `gibson`.
+ * Every comment goes through `sanitizeComment`, and `assertClean` re-checks the
+ * assembled spec and THROWS on a leak, so a bad name fails `regen:api` loudly
+ * rather than shipping.
  *
- * Approach: SANITIZE AT SOURCE, so the committed spec is itself customer-safe.
- * Every comment is passed through `sanitizeComment`, which imports the guard's
- * canonical `DENY_PATTERNS` (single source of truth) and replaces each
- * forbidden term with its customer-facing wording (or drops it). After
- * building the spec, `assertClean` re-runs every deny pattern over every
- * comment and THROWS if anything slipped through — so a leak fails `regen:api`
- * loudly rather than shipping. Because the spec is clean, the renderer stays
- * pure presentation and the drift gate never has to sanitize.
+ * The vendor-name deny list that used to run here was removed with
+ * `check-no-internal-tech-in-docs.mjs`: proto comments may name the standards
+ * and backends the platform implements.
  *
  * CI does NOT run this. CI runs `pnpm check:docs`, whose
  * check-api-reference-fresh gate re-renders from the committed spec and fails
@@ -44,7 +39,7 @@
  * refresh command.
  *
  *   node scripts/regen-api-reference.mjs            # refresh spec (if sdk+buf) + page
- *   node scripts/regen-api-reference.mjs --selftest # prove the sanitizer strips every deny term
+ *   node scripts/regen-api-reference.mjs --selftest # prove the sanitizer fixes the CLI name
  */
 
 import { execFileSync } from "node:child_process";
@@ -53,7 +48,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { renderApiReference, loadSpec, SPEC_PATH, PAGE_PATH } from "./gen-api-reference.mjs";
-import { DENY_PATTERNS } from "./check-no-internal-tech-in-docs.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const MODULE_NAME = "buf.build/zeroroot-ai-platform/sdk";
@@ -75,33 +69,7 @@ function isFirstParty(pkg) {
 }
 
 // ── Comment sanitizer ───────────────────────────────────────────────────────
-// Customer-facing replacement for each guard pattern. Any pattern NOT listed
-// here (e.g. a term added to the guard later) falls back to "" (drop) via
-// REPLACEMENTS.get(name) ?? "", so the sanitizer is always at least as strict
-// as the guard. assertClean is the backstop that proves it.
-const REPLACEMENTS = new Map([
-  ["zitadel", "the identity service"],
-  ["openfga", "the permissions system"],
-  ["fga-bare", "permissions"],
-  ["spiffe", "workload identity"],
-  ["spire", ""],
-  ["envoy", ""],
-  ["ext-authz", "the authorization layer"],
-  ["jwt-authn", ""],
-  ["jwks", ""],
-  ["x-gibson-identity", ""],
-  ["cgjwt", ""],
-  ["langfuse", "Traces"],
-  ["neo4j", "the knowledge graph"],
-  ["cnpg", ""],
-  ["argocd", ""],
-  ["cert-manager", ""],
-  ["eso", ""],
-  ["opa", ""],
-  ["gibson-hosted-vault", "Gibson-managed secrets storage"],
-]);
-
-// Name fixes for the OTHER docs guard, check-docs-cli-name.mjs, which forbids
+// Name fixes for the docs CLI-name guard, check-docs-cli-name.mjs, which forbids
 // the `gibson-cli` substring (the binary is `gibson`). Applied longest-match
 // first so `gibson-client.ts` (an internal dashboard file the protos mention)
 // is rewritten before the shorter matches, leaving no `gibson-cli` substring.
@@ -142,30 +110,16 @@ export function sanitizeComment(raw) {
   // line, so continuation lines render left-aligned rather than indented.
   // Relative indentation (nested lists) is preserved — only one space goes.
   let text = raw.replace(/^ /gm, "");
-  for (const { name, re } of DENY_PATTERNS) {
-    const replacement = REPLACEMENTS.get(name) ?? "";
-    re.lastIndex = 0;
-    text = text.replace(re, replacement);
-  }
   for (const [re, replacement] of NAME_FIXES) {
     text = text.replace(re, replacement);
   }
   return tidy(text);
 }
 
-// assertClean re-runs the guard's own patterns over an already-sanitized
-// string and throws on any surviving match — the production-time backstop that
-// proves the committed spec (and therefore the page) is deny-list clean.
+// assertClean re-checks an already-sanitized string and throws on any surviving
+// match — the production-time backstop that proves the committed spec (and
+// therefore the page) never ships the wrong CLI name.
 function assertClean(text, where) {
-  for (const { name, re } of DENY_PATTERNS) {
-    re.lastIndex = 0;
-    const m = re.exec(text);
-    if (m) {
-      throw new Error(
-        `sanitizer leak at ${where}: pattern "${name}" still matches ${JSON.stringify(m[0])} in:\n${text}`,
-      );
-    }
-  }
   NAME_FORBIDDEN.lastIndex = 0;
   const nm = NAME_FORBIDDEN.exec(text);
   if (nm) {
@@ -449,7 +403,7 @@ function buildSpec(fds) {
     .sort(collator());
 
   const spec = { module: MODULE_NAME, generator: "scripts/regen-api-reference.mjs", packages };
-  // Backstop: prove every comment in the finished spec is deny-list clean.
+  // Backstop: prove every comment in the finished spec uses the right CLI name.
   assertClean(JSON.stringify(spec), "assembled spec");
   return spec;
 }
@@ -506,43 +460,37 @@ function refreshSpec() {
   }
 }
 
-// ── selftest: prove the sanitizer strips every deny term ────────────────────
+// ── selftest: prove the sanitizer fixes the CLI name ────────────────────────
 function runSelftest() {
-  // One mention per deny pattern, mid-sentence, so the sanitizer must handle
+  // One mention per name fix, mid-sentence, so the sanitizer must handle
   // in-prose replacement (not just whole-line drops).
   const sample = [
-    "Signed in via Zitadel OIDC.",
-    "OpenFGA holds the tuples and the FGA relation gates it.",
-    "Identity is derived from ext-authz-emitted headers via the SPIFFE id.",
-    "SPIRE agent, Envoy edge, jwt_authn filter, JWKS endpoint.",
-    "The x-gibson-identity-subject header and cgjwt.Verifier are internal.",
-    "Langfuse traces land in Neo4j; CNPG postgres, ArgoCD app, cert-manager cert.",
-    "ESO and External Secrets Operator sync; OPA evaluates; Gibson-hosted Vault default.",
     "Run gibson-cli inspect; replaces gibson-client.ts (getKPIs).",
+    "Fetches through gibson-client for data.",
   ].join("\n");
   const cleaned = sanitizeComment(sample);
   try {
     assertClean(cleaned, "selftest");
   } catch (err) {
-    process.stderr.write(`❌ regen:api --selftest FAILED: ${err.message}\n`);
+    process.stderr.write(`\u274c regen:api --selftest FAILED: ${err.message}\n`);
     return 1;
   }
-  // Every pattern must actually have been exercised by the sample (guards the
-  // sample against silently drifting out of coverage as the deny-list grows).
+  // Every fix must actually have been exercised by the sample (guards the
+  // sample against silently drifting out of coverage as the list grows).
   const missing = [];
-  for (const { name, re } of DENY_PATTERNS) {
+  for (const [re] of NAME_FIXES) {
     re.lastIndex = 0;
-    if (!re.test(sample)) missing.push(name);
+    if (!re.test(sample)) missing.push(String(re));
   }
   if (missing.length > 0) {
     process.stderr.write(
-      `❌ regen:api --selftest FAILED: sample does not exercise pattern(s): ${missing.join(", ")}\n`,
+      `\u274c regen:api --selftest FAILED: sample does not exercise ${missing.join(", ")}\n`,
     );
     return 1;
   }
   console.log(
-    `check via regen:api --selftest: OK — sanitizer strips all ${DENY_PATTERNS.length} deny pattern(s); ` +
-      `cleaned sample is deny-list clean.\n---\n${cleaned}\n---`,
+    `check via regen:api --selftest: OK \u2014 sanitizer applied all ${NAME_FIXES.length} name fix(es); ` +
+      `cleaned sample uses the right CLI name.\n---\n${cleaned}\n---`,
   );
   return 0;
 }
