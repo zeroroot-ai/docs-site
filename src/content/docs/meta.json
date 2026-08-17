@@ -1,5 +1,5 @@
 {
-  "title": "Gibson ADK",
+  "title": "Gibson",
   "pages": [
     "install",
     "getting-started",
@@ -22,6 +22,8 @@
     "rbac",
     "observability",
     "cli-reference",
-    "api-reference"
+    "api-reference",
+    "---",
+    "security"
   ]
 }

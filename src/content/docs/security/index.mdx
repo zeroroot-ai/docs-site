@@ -1,0 +1,73 @@
+---
+title: Security architecture
+description: The controls Gibson enforces, what each one is, and the outcome it drives. Written for a CISO, a DevSecOps engineer, or a platform engineer who must approve autonomous agents.
+---
+
+This section states what Gibson does, and the outcome each fact drives. It is
+not a tour of the dashboard. For the day-to-day operator view, read
+[Roles & permissions](/docs/rbac) and [Observability](/docs/observability).
+
+Every claim here names the file, the flag, the environment variable, or the ADR
+that proves it. If a claim and the code disagree, the code is correct — tell us
+and we will fix the page.
+
+## The problem this section answers
+
+An agent that runs on its own, holds credentials, and calls tools is a process
+your organisation must approve. The usual answer is an approval queue: a human
+agrees to each action. Gibson does not do that, and this section explains what
+it does instead.
+
+Control in Gibson is **declared before the agent runs**, not requested while it
+runs:
+
+- An agent is a source-controlled artifact. A named person owns it.
+- What it may touch is a grant. A person sets that grant and can revoke it.
+- Where it may run is decided by one gate, from the trust level the component
+  declares about its own input.
+- How far it may go is a set of limits carried by the mission itself.
+
+Once a mission starts inside those bounds, it runs to the end with no approval
+prompt. That is a decision, not an omission. The Runtime page explains why.
+
+## Controls
+
+| Domain | What Gibson does | Outcome |
+|---|---|---|
+| **Identity** | Two identity planes. In the cluster, services present SPIFFE mTLS and JWTs. Off the cluster, an agent uses the Capability Grant Protocol with an Ed25519 host key held at 0600. | Every caller proves who it is. No shared API key is passed between services. |
+| **Authorization** | An OpenFGA model gives agents, tools, and plugins their own principal types, each with a `owner` relation to a user. Read, configure, and execute are separate grants. | Every agent traces back to a named person, and you can switch off one component at tenant, team, or user level. |
+| **Isolation** | One gate decides how a component runs: deny it, put it in a Firecracker microVM, or let it run in process. It reads the content-trust level from the component manifest and the deployment shape from an environment variable. | Code that handles untrusted input cannot reach the host or the next tool. The gate fails closed. |
+| **Tenancy** | Each tenant gets its own graph database, its own secrets, and its own component registry. | There is no cross-tenant query to get wrong, because tenants do not share a database. |
+| **Runtime** | Missions run on a persistent, event-sourced loop. A mission with a goal does not finish on its own. Mission constraints cap duration, cost, tokens, findings, turns, tools, and domains. | You can run an agent for weeks, and you set the ceiling it cannot pass. |
+| **Audit** | Every LLM call is recorded with its prompt messages, its completion, and its token counts. Traces and metrics ship with the platform. | You can replay any mission step by step. Prompts stay inside your tenant. |
+| **Supply chain** | The product is one umbrella Helm chart that pins every first-party image by digest when it is packaged. | A chart version is an exact, reproducible deployment. Rollback is pinning the version before it. |
+| **Deployment** | Self-host the whole stack on your own Kubernetes cluster. Bring your own LLM keys. | The platform never holds your model credentials. |
+| **Licensing** | Apache-2.0 and MIT for everything you build against. Elastic License 2.0 for the control plane and the dashboard. | What you write is yours. You can read and run the control plane. |
+
+## Pages in this section
+
+Each page below covers one domain in full. Pages arrive as they are written.
+
+| Page | Status |
+|---|---|
+| Identity | In progress |
+| Authorization | In progress |
+| Isolation | In progress |
+| Tenancy | In progress |
+| Runtime | In progress |
+| Audit | In progress |
+| Supply chain | In progress |
+| Deployment | In progress |
+| Licensing | In progress |
+
+## What Gibson does not do
+
+Say these out loud, because a reader who assumes otherwise finds out later:
+
+- **Gibson has no clock.** There is no cron and no trigger on a mission. A
+  mission starts because you start it, from CI, from a webhook, from your alert
+  manager, or from your own scheduler.
+- **Gibson does not ask a human to approve an action.** Control is the grant and
+  the constraint you set first.
+- **Not every tool call runs in a microVM.** A component that declares it
+  handles untrusted input does. The Isolation page gives the rule.
