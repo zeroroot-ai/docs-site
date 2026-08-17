@@ -1,0 +1,51 @@
+---
+title: Deployment
+description: Run the whole stack on your own Kubernetes cluster, bring your own model keys, and choose who owns the isolation boundary.
+---
+
+## Self-hosted
+
+The whole platform installs on your own Kubernetes cluster from the same
+versioned chart the hosted fleet uses — see
+[Supply chain](/docs/security/supply-chain). You bring your own relational
+database, cache, and identity provider.
+
+There is no phone-home requirement for the platform to function.
+
+## Bring your own model keys
+
+Model provider credentials stay where your team puts them. The platform does not
+custody them, and it is not a proxy that holds a key on your behalf.
+
+Components do not embed a provider SDK either. An agent declares the *slot* it
+needs — "give me the primary model" — and the platform resolves the slot to a
+provider and model at runtime. Swapping provider is configuration, not a
+component rebuild.
+
+**What that gets you:** two separate questions get separate answers. *Who holds
+the key* is you. *Which model runs* is a runtime decision you can change without
+touching a component or its review.
+
+## You choose who owns the isolation boundary
+
+`GIBSON_UNTRUSTED_EXEC` selects the deployment shape, and self-hosting means you
+can own the sandbox boundary yourself rather than inheriting ours. See
+[Isolation](/docs/security/isolation) for the exact decision table and the
+fail-closed default.
+
+## Agents run where the work is
+
+A component does not have to run in the cluster. It can run on a laptop, a CI
+runner, a VPS, or your own cluster, and reach the control plane over the
+Capability Grant Protocol — see [Identity](/docs/security/identity).
+
+**What that gets you:** an agent that needs to touch an internal network can sit
+inside that network, rather than requiring you to open it up to the control
+plane.
+
+## What to check
+
+1. The self-hosted install uses the same chart artifact as the hosted fleet.
+2. Model credentials are never custodied by the platform.
+3. A component declares a model slot, not a provider.
+4. The isolation boundary is yours to own when self-hosting.

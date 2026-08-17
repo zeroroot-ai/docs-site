@@ -1,0 +1,53 @@
+---
+title: Licensing
+description: Everything you build against is Apache-2.0 or MIT. The control plane and dashboard are Elastic License 2.0, and both of its restrictions are stated here.
+---
+
+Two statements cover it.
+
+**Everything you build against is Apache-2.0 or MIT.** What you write is yours,
+with no licence obligation back to us.
+
+**The control plane and the dashboard are Elastic License 2.0.** You may read,
+run, modify, and self-host them. You may not offer them to third parties as a
+managed service, and you may not remove the licence-key check.
+
+## The map
+
+| Repository | Licence | What it is |
+|---|---|---|
+| [`sdk`](https://github.com/zeroroot-ai/sdk) | Apache-2.0 | Go SDK — agent, tool, and plugin contracts, the harness API |
+| [`adk`](https://github.com/zeroroot-ai/adk) | Apache-2.0 | The `gibson` CLI — scaffold, build, validate, enrol, submit missions |
+| [`setec`](https://github.com/zeroroot-ai/setec) | Apache-2.0 | Kubernetes operator for Firecracker microVMs via Kata. Useful standalone |
+| [`gibson-executor`](https://github.com/zeroroot-ai/gibson-executor) | Apache-2.0 | One microVM image, one binary, parsers for common security and ops tools |
+| [`sdk-ts`](https://github.com/zeroroot-ai/sdk-ts) | MIT | TypeScript SDK |
+| [`zerocool-plugins`](https://github.com/zeroroot-ai/zerocool-plugins) | MIT | opencode plugins for running a coding agent under Gibson's controls |
+| [`docs-site`](https://github.com/zeroroot-ai/docs-site) | Apache-2.0 | This documentation |
+| [`gibson`](https://github.com/zeroroot-ai/gibson) | Elastic License 2.0 | The control plane |
+| [`dashboard`](https://github.com/zeroroot-ai/dashboard) | Elastic License 2.0 | The web interface |
+
+## Why the two restrictions are stated
+
+A procurement reviewer stops on Elastic License 2.0, so it is better to say what
+it forbids than to leave someone to find out:
+
+1. You may not provide the software to third parties **as a managed service**.
+2. You may not circumvent the **licence-key functionality**, or remove or obscure
+   protected notices.
+
+Neither restricts internal use. Running the control plane for your own
+organisation, on your own infrastructure, modified as you like, is permitted.
+
+## Components you write
+
+A component you build with the SDK is your code. It links against Apache-2.0
+libraries, and the licence carries no obligation to publish it or to license it
+back to us. You may keep it private, sell it, or open it under whatever terms you
+choose.
+
+## What to check
+
+1. The `LICENSE` file in each repository matches the table above.
+2. Nothing you build against is Business Source Licence or source-available with
+   a delayed conversion.
+3. The Elastic restrictions apply to the control plane and dashboard only.
