@@ -51,9 +51,9 @@ Each page below covers one domain in full. Pages arrive as they are written.
 | Page | Status |
 |---|---|
 | [Identity](/docs/security/identity) | Published |
-| Authorization | In progress |
-| Isolation | In progress |
-| Tenancy | In progress |
+| [Authorization](/docs/security/authorization) | Published |
+| [Isolation](/docs/security/isolation) | Published |
+| [Tenancy](/docs/security/tenancy) | Published |
 | Runtime | In progress |
 | Audit | In progress |
 | Supply chain | In progress |
@@ -70,4 +70,5 @@ Say these out loud, because a reader who assumes otherwise finds out later:
 - **Gibson does not ask a human to approve an action.** Control is the grant and
   the constraint you set first.
 - **Not every tool call runs in a microVM.** A component that declares it
-  handles untrusted input does. The Isolation page gives the rule.
+  handles untrusted input does, and when a sandbox is available everything uses
+  it. See [Isolation](/docs/security/isolation).

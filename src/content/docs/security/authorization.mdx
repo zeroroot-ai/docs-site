@@ -1,0 +1,116 @@
+---
+title: Authorization
+description: How Gibson decides what an agent, tool, or plugin may do. Every component has a human owner, read/write/execute are separate grants, and a deny at tenant, team, or user scope always wins.
+---
+
+Authorization is an OpenFGA model — the Google Zanzibar relationship model. The
+model file and its generated registry are the source of truth; the registry is
+generated, never hand-edited.
+
+The short version: **an agent cannot do anything nobody granted it, and every
+agent traces back to a named person.**
+
+## Every component has a human owner
+
+Agents, tools, and plugins are not users with a flag set. They are their own
+principal types, and each one declares an owner:
+
+```
+type agent_principal
+  relations
+    define owner: [user]
+    define belongs_to: [tenant]
+    define cannot_invoke: [component]
+```
+
+`tool_principal` and `plugin_principal` have the same shape.
+
+**What that gets you:** "which human is answerable for this agent" is a
+relation in the authorization model, not a convention someone has to keep up.
+You cannot enrol an agent that belongs to nobody, and the answer survives the
+person changing teams.
+
+## Read, write, and execute are separate
+
+Every component carries three effective relations:
+
+| Relation | What it allows |
+|---|---|
+| `can_read` | See the target component's state, recent runs, and metadata |
+| `can_configure` | Change the target's settings |
+| `can_execute` | Invoke it — run the agent, call the tool |
+
+A grant of one is not a grant of another. An agent granted `can_read` on a tool
+cannot run it.
+
+## A deny at any scope wins
+
+Three scopes can switch a component off, and the model subtracts them from the
+grant rather than racing them:
+
+```
+can_execute: (direct_execute and in_tenant_catalog) but not any_execute_deny
+```
+
+where `any_execute_deny` is the union of the tenant-, team-, and user-scoped
+disables. The same shape applies to read and configure.
+
+**What that gets you:** a single kill switch that cannot be out-voted by a grant
+somewhere else. If you disable a component at tenant scope, no team grant and no
+user grant can re-enable it. Turning something off is one write, and it does not
+require finding and unpicking every grant that turned it on.
+
+`in_tenant_catalog` is the second half: a component is reachable only if your
+tenant has enabled it. A component published to the platform is not
+automatically available inside your tenant.
+
+## An agent acting as itself needs two keys
+
+When the caller is a component rather than a person, the model requires **both**
+the owner-side grant and a per-component grant:
+
+```
+can_read_as_component:    can_read    and component_read_enabled
+can_write_as_component:   can_configure and component_write_enabled
+can_execute_as_component: can_execute and component_execute_enabled
+```
+
+`component_*_enabled` is absent by default, and absent means denied. The owner
+approves it at install time.
+
+**What that gets you:** granting a *person* access to a tool does not silently
+grant it to every agent that person owns. The agent's own authority is a
+separate, narrower decision, made once, visible as its own tuple.
+
+## Blocking a specific pairing
+
+Two relations handle the cases a grant cannot express:
+
+- `cannot_invoke` on a principal blocks named components outright.
+- `can_be_invoked_by` on a component controls which agents may call it.
+
+So you can allow an agent broad execute rights and still fence off one
+particular tool, without rebuilding the grant set.
+
+## Where a person manages this
+
+The dashboard's grants table, over the tenant grants API. The operator's
+walkthrough — roles, the permissions tab, the deploy wizard — is on
+[Roles & permissions](/docs/rbac). This page is the model underneath it.
+
+## What a human does and does not do
+
+A person **does**: own components, write and revoke grants, enable or disable a
+component at tenant, team, or user scope, and set the mission constraints.
+
+A person **does not**: approve individual actions while a mission runs. That is a
+deliberate decision, recorded as an ADR. The Runtime page gives the reasoning.
+Control is declared before the agent starts, not requested while it works.
+
+## What to check
+
+1. Every principal type declares `owner: [user]`.
+2. `can_read`, `can_configure`, and `can_execute` are independent.
+3. Deny is subtracted from the grant, so a disable at any scope wins.
+4. `component_*_enabled` is absent by default, and absent denies.
+5. The authz registry is generated, and CI fails if a hand edit drifts from it.
