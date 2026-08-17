@@ -7,6 +7,9 @@
     "isolation",
     "tenancy",
     "runtime",
-    "audit"
+    "audit",
+    "supply-chain",
+    "deployment",
+    "licensing"
   ]
 }
