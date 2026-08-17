@@ -2627,19 +2627,31 @@
         },
         {
           "name": "LLMMessage",
-          "comment": "LLMMessage represents a single message in an LLM conversation.",
+          "comment": "LLMMessage represents a single message in an LLM conversation.\n\nTool-call round trips are represented with two message shapes so a\nmulti-turn conversation can replay the full tool history structurally\n(instead of flattening it into `content` text):\n\n 1. An assistant turn that requested tool calls sets `role` to\n \"assistant\" and carries the calls in `tool_calls` (typically copied\n verbatim from a prior `CompleteWithToolsResponse.tool_calls`).\n `content` holds any accompanying assistant text and may be empty.\n 2. A tool-result turn sets `role` to \"tool\", `tool_call_id` to the\n `ToolCallResult.id` it answers, and `content` to the tool's output.\n One message per tool call; a turn with N tool calls is followed by\n N tool-result messages.\n\nBoth fields are optional: plain role+content messages are unchanged.",
           "fields": [
             {
               "name": "role",
               "number": 1,
               "type": "string",
-              "comment": "role is \"system\", \"user\", or \"assistant\"."
+              "comment": "role is \"system\", \"user\", \"assistant\", or \"tool\"."
             },
             {
               "name": "content",
               "number": 2,
               "type": "string",
               "comment": ""
+            },
+            {
+              "name": "tool_calls",
+              "number": 3,
+              "type": "repeated ToolCallResult",
+              "comment": "tool_calls carries the tool calls an assistant turn requested.\nSet only when role is \"assistant\"; empty for all other roles."
+            },
+            {
+              "name": "tool_call_id",
+              "number": 4,
+              "type": "string",
+              "comment": "tool_call_id identifies which requested tool call this message\nanswers. Set only when role is \"tool\", in which case `content`\ncarries the tool's output and this matches the `ToolCallResult.id`\nof the corresponding entry in the preceding assistant turn's\n`tool_calls`. Empty for all other roles."
             }
           ]
         },
