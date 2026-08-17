@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.0...docs-site-v0.2.1) (2026-08-17)
+
+
+### Miscellaneous
+
+* **docs:** refresh api-spec from zeroroot-ai/sdk@v0.163.0 ([#39](https://github.com/zeroroot-ai/docs-site/issues/39)) ([9c272c6](https://github.com/zeroroot-ai/docs-site/commit/9c272c628b2409702f6edf8f0bd86106c467cb06))
+
 ## [0.2.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.1.0...docs-site-v0.2.0) (2026-08-15)
 
 
