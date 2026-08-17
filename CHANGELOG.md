@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.1...docs-site-v0.2.2) (2026-08-17)
+
+
+### Miscellaneous
+
+* **deps:** bump js-yaml ([#38](https://github.com/zeroroot-ai/docs-site/issues/38)) ([012297c](https://github.com/zeroroot-ai/docs-site/commit/012297c882d3176929d620422bae6d798fa82fe3))
+* **deps:** bump nanoid from 3.3.15 to 3.3.18 ([#37](https://github.com/zeroroot-ai/docs-site/issues/37)) ([ecb40c7](https://github.com/zeroroot-ai/docs-site/commit/ecb40c7a510f47f296d32ad965fd5d6db6636af5))
+
 ## [0.2.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.0...docs-site-v0.2.1) (2026-08-17)
 
 
