@@ -2,6 +2,7 @@
   "title": "Security architecture",
   "pages": [
     "index",
-    "identity"
+    "identity",
+    "authorization"
   ]
 }
