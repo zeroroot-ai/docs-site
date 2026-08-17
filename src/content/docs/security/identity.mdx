@@ -1,0 +1,100 @@
+---
+title: Identity
+description: How every caller proves who it is. Gibson runs two identity planes — SPIFFE mTLS inside the cluster, and the Capability Grant Protocol for agents that run anywhere else — plus the complete list of static credentials in the platform.
+---
+
+Gibson runs **two identity planes**. Which one applies depends on where the code
+runs, and they do not overlap.
+
+| Where the code runs | What it presents | Issued by |
+|---|---|---|
+| Inside the cluster (platform services) | A SPIFFE SVID over mTLS, and a JWT signed by an issuer the receiver trusts | SPIRE, and the identity provider |
+| Anywhere else — laptop, CI runner, VPS, your own cluster | An Ed25519 host key, then a short-lived `agent+jwt` per call | The Capability Grant Protocol |
+
+An agent you run on a laptop does **not** get a SPIFFE SVID. If you read that
+claim anywhere, it is wrong.
+
+## In the cluster
+
+Every service-to-service call authenticates with a JWT signed by a JWKS the
+receiver trusts. Transport security is SPIFFE mTLS wherever the connection can
+carry it. This is the rule, not the aspiration — ADR-0009 records the audit of
+what each call actually presents on the wire, and CI rejects any code path that
+contradicts it.
+
+Workload identities look like `spiffe://zeroroot.ai/platform/daemon`. The trust
+domain is `zeroroot.ai`.
+
+Two consequences worth stating:
+
+- **There is no trusted internal network.** A caller inside the cluster proves
+  who it is exactly like a caller outside it. Landing a pod in the namespace
+  grants nothing on its own.
+- **Plugins never reach the secret store directly.** A plugin asks the daemon,
+  and the daemon is the only component that authenticates to the secret store.
+  That keeps one issuer on the secrets path instead of one per component.
+
+## Outside the cluster
+
+An agent that runs where you work uses the Capability Grant Protocol. The SDK
+package `capabilitygrant` is the client side; it holds no platform secrets, no
+permission logic, and no authorization decisions.
+
+Three keys, with different lifetimes:
+
+| Key | Lifetime | Stored |
+|---|---|---|
+| **Bootstrap credential** | One use | Never written to disk. Consumed at first registration and discarded. |
+| **Host key** (Ed25519) | Persistent, survives restarts | On disk at `0600`. Identifies the machine, not the agent. |
+| **Agent key** (Ed25519) | One process | Memory only. Generated fresh every time the agent starts. |
+
+The host ID is the RFC 7638 JWK thumbprint of the host public key, so the machine
+identifier is derived from the key rather than assigned and tracked separately.
+
+The agent key signs a short-lived `agent+jwt` for each call. **Those tokens
+expire after 55 seconds** and are never cached — the server enforces a
+60-second ceiling, and the client stays under it.
+
+The flow is: read the discovery document at `/.well-known/agent-configuration`
+for the platform's protocol version and endpoints, register the host once with
+the bootstrap credential, then authenticate every later call with the host key.
+
+**What that gets you:** the long-lived material on a developer's laptop is one
+`0600` file that identifies a machine. It is not an API key that can call the
+platform, and it is not a credential that grants any permission by itself —
+what the agent may then do is a separate grant.
+
+The package depends on `crypto/ed25519` and `net/http` from the standard library
+and nothing else. No third-party JWT library sits on the authentication path.
+
+## Every static credential in the platform
+
+A short, complete list is more useful to a reviewer than a claim that there are
+few. ADR-0009 enumerates them, and CI blocks the introduction of new ones:
+
+| Credential | Where | Why it is static |
+|---|---|---|
+| Operator-admin secret-store token | The platform operator process only | Bootstraps the secret store before any workload identity exists. Never passed beyond the operator's own client. |
+| Stripe API key | Billing | An external vendor's authentication contract, not ours. |
+
+Everything else on every other call is a JWT or a SPIFFE SVID.
+
+Explicitly **not** used anywhere, and blocked by CI so it cannot return:
+
+- Kubernetes `TokenReview`-based authentication to non-Kubernetes services
+- Secret-store `auth/kubernetes`
+- Static secret-store tokens passed beyond the operator's own client
+
+That deny list exists because a half-wired alternative once accumulated as
+unused boilerplate across four repositories and misled everyone reading the
+code about which pattern was real. The ADR removed it and CI keeps it removed.
+
+## What to check
+
+If you are reviewing this, these are the checkable claims:
+
+1. The trust domain is `zeroroot.ai`, and workload identities carry it.
+2. Off-cluster agents hold an Ed25519 host key at `0600` and nothing longer-lived.
+3. Per-call tokens expire in 55 seconds.
+4. The static-credential list above is complete.
+5. No component other than the daemon authenticates to the secret store.
