@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.3](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.2...docs-site-v0.2.3) (2026-08-18)
+
+
+### Bug Fixes
+
+* **export:** make the static export serve without host-specific rules ([#56](https://github.com/zeroroot-ai/docs-site/issues/56)) ([39fe94c](https://github.com/zeroroot-ai/docs-site/commit/39fe94c2f0ac4ac7b7393d253eb650a04e0a0e03))
+
+
+### Miscellaneous
+
+* **docs:** remove the legacy vendor-name guard ([#48](https://github.com/zeroroot-ai/docs-site/issues/48)) ([cfd10d0](https://github.com/zeroroot-ai/docs-site/commit/cfd10d06892983a210f9016d9a76ecb8c0707da3))
+
 ## [0.2.2](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.1...docs-site-v0.2.2) (2026-08-17)
 
 
