@@ -1,0 +1,130 @@
+# ----------------------------------------------------------------------------
+# publish-site — copy the built docs to the public bucket and drop the CDN's
+# old copy.
+#
+# In plain words: this is what makes a released change visible on
+# docs.zeroroot.ai.
+#
+# TAG TRIGGER, NOT MAIN. The docs deployable is the static export at a RELEASE
+# TAG (deploy ADR-0009). The nginx container image for self-hosted and
+# air-gapped installs is cut from that same tag, so the two consumers are
+# provably the same bytes — that is what keeps them from being a parallel
+# codepath under ADR-0027. Publishing from `main` would make the public site
+# lead every release and break that property.
+#
+# The publish role's trust policy also only accepts a refs/tags sub, so a
+# push-to-main run could not authenticate even if this trigger changed.
+# ----------------------------------------------------------------------------
+name: publish-site
+
+on:
+  push:
+    tags:
+      - "docs-site-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (e.g. docs-site-v0.2.3)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-site
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+      id-token: write # OIDC — aws-actions/configure-aws-credentials
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@zeroroot"
+
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # `build` runs check:docs and then check-static-export-standalone.mjs, so
+      # an export that would need host-specific rewrite rules never reaches the
+      # bucket.
+      - run: pnpm build
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d181db # v4
+        with:
+          role-to-assume: ${{ vars.PUBLISH_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Two passes, because the cache headers differ and getting them the wrong
+      # way round is the whole failure mode:
+      #
+      #   assets — content-hashed filenames, so they can be cached forever.
+      #   HTML   — must revalidate, or a publish stays invisible for a TTL.
+      #
+      # --delete on the asset pass would race the HTML pass (old HTML still
+      # references old assets for the seconds between them), so only the second
+      # pass prunes.
+      - name: Sync assets
+        run: |
+          aws s3 sync out/ "s3://${{ vars.PUBLISH_BUCKET }}/" \
+            --exclude "*.html" --exclude "*.txt" \
+            --cache-control "public,max-age=31536000,immutable" \
+            --only-show-errors
+
+      - name: Sync HTML and text, pruning removed pages
+        run: |
+          aws s3 sync out/ "s3://${{ vars.PUBLISH_BUCKET }}/" --delete \
+            --cache-control "public,max-age=0,must-revalidate" \
+            --only-show-errors
+
+      # The HTML objects carry max-age=0, so an invalidation is belt-and-braces
+      # for anything already in an edge cache. `/*` is within the free monthly
+      # allowance at this publish rate.
+      - name: Invalidate the distribution
+        run: |
+          ID=$(aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.PUBLISH_DISTRIBUTION_ID }}" \
+            --paths "/*" --query 'Invalidation.Id' --output text)
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${{ vars.PUBLISH_DISTRIBUTION_ID }}" --id "$ID"
+
+      # A publish that "succeeded" without the site working is the failure this
+      # catches. Asserts the real hostname, not the bucket.
+      - name: Verify the live site
+        run: |
+          fail=0
+          check() {
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 5 "$1")
+            if [ "$code" != "$2" ]; then
+              echo "FAIL $1 -> $code, expected $2"
+              fail=1
+            else
+              echo "ok   $1 -> $code"
+            fi
+          }
+          check https://docs.zeroroot.ai/ 200
+          check https://docs.zeroroot.ai/docs/ 200
+          check https://docs.zeroroot.ai/docs/install/ 200
+          check https://docs.zeroroot.ai/nope/ 404
+          exit $fail
