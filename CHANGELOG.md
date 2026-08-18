@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.3...docs-site-v0.3.0) (2026-08-18)
+
+
+### Features
+
+* **ci:** publish the docs site to s3 on a release tag ([#57](https://github.com/zeroroot-ai/docs-site/issues/57)) ([491f549](https://github.com/zeroroot-ai/docs-site/commit/491f549ed48b9a2bfbb0f6ad9a72c902f8779d89))
+
+
+### Bug Fixes
+
+* **ci:** pin the real configure-aws-credentials sha ([#59](https://github.com/zeroroot-ai/docs-site/issues/59)) ([c236bbb](https://github.com/zeroroot-ai/docs-site/commit/c236bbbcf35ec904bf0001abc79f53433436b995))
+
 ## [0.2.3](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.2...docs-site-v0.2.3) (2026-08-18)
 
 
