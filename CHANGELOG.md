@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.3.0...docs-site-v0.3.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **release:** make docs and refactor releasable types ([#61](https://github.com/zeroroot-ai/docs-site/issues/61)) ([2537442](https://github.com/zeroroot-ai/docs-site/commit/2537442048002e1a0b095c98b8164ffab06d7203))
+
+
+### Documentation
+
+* **docs:** fold connectors into plugins as a runtime, not a peer page ([#60](https://github.com/zeroroot-ai/docs-site/issues/60)) ([03668fa](https://github.com/zeroroot-ai/docs-site/commit/03668fa9bf91b08d2feadcddc69611fce3ae453c))
+
 ## [0.3.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.3...docs-site-v0.3.0) (2026-08-18)
 
 
