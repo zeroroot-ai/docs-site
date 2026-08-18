@@ -6,13 +6,13 @@
   "description": "ZeroRoot platform documentation site",
   "scripts": {
     "dev": "next dev",
-    "build": "npm run check:docs && next build",
+    "build": "npm run check:docs && next build && node scripts/check-static-export-standalone.mjs",
     "start": "next start",
     "gen:cli-reference": "node scripts/gen-cli-reference.mjs",
     "regen:cli": "node scripts/regen-cli-reference.mjs",
     "gen:api-reference": "node scripts/gen-api-reference.mjs",
     "regen:api": "node scripts/regen-api-reference.mjs",
-    "check:docs": "node scripts/check-docs-links.mjs && node scripts/check-docs-cli-name.mjs && node scripts/check-cli-reference-fresh.mjs && node scripts/check-api-reference-fresh.mjs"
+    "check:docs": "node scripts/check-docs-links.mjs && node scripts/check-docs-cli-name.mjs && node scripts/check-cli-reference-fresh.mjs && node scripts/check-api-reference-fresh.mjs && node scripts/check-static-export-standalone.mjs --selftest"
   },
   "dependencies": {
     "@zeroroot-ai/brand": "^0.1.0",
