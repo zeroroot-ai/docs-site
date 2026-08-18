@@ -18,6 +18,23 @@ Reach for a plugin when you need to:
 If the work is stateless and contract-shaped, "given X, return Y" -
 build a [tool](/docs/tools) instead.
 
+## Two runtimes, one component kind
+
+Every plugin is the same component kind, with the same enrollment, secret
+bindings, permissions and lifecycle. What differs is the **runtime**, which
+decides where the method implementations come from:
+
+| Runtime | You write | Reach for it when |
+|---|---|---|
+| `code` (default) | The methods themselves, in a binary that calls `plugin.Serve(ctx)`. | The integration does not exist yet, or you need behaviour a vendor server does not offer. |
+| `mcp-bridge` | Nothing. You point at an existing [Model Context Protocol](https://modelcontextprotocol.io) server and it runs **unmodified**. | A vendor already ships an MCP server for the system you want to reach. |
+
+A plugin on the `mcp-bridge` runtime is called a **connector**. That is a
+name for a configuration, not a second component: there is no connector
+runtime, no `gibson connector` command, and nothing in this page that stops
+applying to it. Everything below is true of both unless a section says
+otherwise.
+
 ## Plugin shape
 
 A plugin is:
@@ -236,6 +253,91 @@ recent invocation counts.
 | Register / configure / delete a plugin | Tenant admins. |
 
 See [Roles & permissions](/docs/rbac).
+
+## Connectors
+
+A **connector** is a plugin on the `mcp-bridge` runtime. It brings an existing
+MCP server into Gibson without rewriting it or porting its tools: the vendor
+server runs unmodified behind a generic bridge, and its tools become callable
+inside your missions.
+
+What the bridge handles for you:
+
+- spawning or connecting to the vendor MCP server,
+- the MCP `initialize` handshake and `tools/list` discovery,
+- resolving the secrets the vendor server needs from
+  [Gibson-managed secrets storage](/docs/secrets-management),
+- exposing each discovered tool to your agents and missions.
+
+### Two transports
+
+A connector reaches its vendor MCP server one of two ways:
+
+| Transport | When | How |
+|---|---|---|
+| `stdio` (default) | The vendor server is a local executable (an `npx`/`uvx` package, a binary). | The bridge spawns it as a subprocess and speaks MCP over stdin/stdout. |
+| `http` | The vendor server already runs as a network service. | The bridge connects to its base URL. |
+
+### Scaffold a connector
+
+A connector is scaffolded with `gibson component init`, the same command
+that scaffolds any component, with `--kind plugin --runtime mcp-bridge`.
+It writes a `plugin.yaml` whose `spec.mcp_bridge` block describes the
+vendor reference, the transport, and the secret-to-environment-variable
+mapping the vendor server expects. (There is no separate `gibson
+connector` command, a connector is just a plugin with the mcp-bridge
+runtime.)
+
+```bash
+# stdio: spawn an npm-published MCP server as a subprocess
+gibson component init github-bridge --kind plugin --runtime mcp-bridge \
+  --command npx --arg=-y --arg=@modelcontextprotocol/server-github \
+  --secret github_token=GITHUB_PERSONAL_ACCESS_TOKEN
+
+# http: bridge an already-running MCP server
+gibson component init internal-api --kind plugin --runtime mcp-bridge \
+  --transport http --endpoint https://mcp.example.com/mcp
+```
+
+| Flag | Notes |
+|---|---|
+| `--kind plugin` | Required, a connector is a plugin. |
+| `--runtime mcp-bridge` | Selects the connector (MCP-bridge) scaffold instead of a code plugin. |
+| `--transport` | `stdio` (default) or `http`. |
+| `--command` | stdio: the executable that runs the vendor server (e.g. `npx`, `uvx`). |
+| `--arg` | stdio: one argument to `--command`, repeatable and ordered. |
+| `--endpoint` | http: the base URL of the running vendor server. |
+| `--secret` | A `<broker-name>=<ENV_VAR>` mapping, repeatable. The bridge resolves the broker secret and injects it as the named environment variable. |
+| `--force` | Overwrite existing files. |
+
+### Validate and run locally
+
+Because a connector is a plugin, it uses the same local component
+commands, no connector-specific verbs:
+
+```bash
+gibson component validate   # schema + proto checks against plugin.yaml
+gibson component run        # run the mcp-bridge locally in this directory
+```
+
+`gibson component run` runs the bridge with declared secrets resolved
+from **your environment** rather than the platform secrets broker, so you
+can iterate without a daemon. Set the environment variables named in your
+`--secret` mappings first, e.g. `export GITHUB_PERSONAL_ACCESS_TOKEN=...`.
+
+### Deploy it
+
+Once `gibson component run` starts the bridge cleanly against your vendor
+server, the connector deploys like any other plugin:
+
+1. Enroll a plugin identity and register it with `gibson component
+   register`, see [Component bootstrap & auth](/docs/component-bootstrap).
+   The connector's `--kind` is `plugin`.
+2. Bind the vendor server's secrets to the plugin so the bridge resolves
+   them from Gibson-managed secrets storage instead of your shell, see
+   [Secrets management](/docs/secrets-management).
+3. Reference the bridged tools from a mission the same way you reference
+   any tool.
 
 ## Related
 
