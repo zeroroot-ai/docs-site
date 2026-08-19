@@ -7,7 +7,7 @@
  * No `* { margin: 0; padding: 0 }` reset here.
  *
  * Tailwind's preflight (pulled in by @import "tailwindcss" above) already
- * normalises margins and box-sizing in a way component frameworks expect. A
+ * normalizes margins and box-sizing in a way component frameworks expect. A
  * second, blunter reset applied AFTER fumadocs' preset stripped the spacing
  * that preset defines — headings, paragraphs, lists and the sidebar all
  * collapsed against each other, which is what made the docs look broken.
@@ -99,11 +99,11 @@ body {
  *
  * Set through the typography variable rather than a bare `a { color }`.
  * That selector matched every anchor on the page, and because it sits
- * outside any @layer it beat every Tailwind colour utility regardless of
+ * outside any @layer it beat every Tailwind color utility regardless of
  * specificity — so the sidebar, the nav and the table of contents all
  * rendered in link-cyan, and the active page's `text-fd-primary` violet
  * never showed. The landing page does the opposite: navigation is
- * foreground-coloured and cyan is reserved for links in running text.
+ * foreground-colored and cyan is reserved for links in running text.
  *
  * fumadocs' typography preset points --tw-prose-links at the plain
  * foreground; repoint it at the brand link token. Unlayered, so it wins

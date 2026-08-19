@@ -26,7 +26,7 @@ decides where the method implementations come from:
 
 | Runtime | You write | Reach for it when |
 |---|---|---|
-| `code` (default) | The methods themselves, in a binary that calls `plugin.Serve(ctx)`. | The integration does not exist yet, or you need behaviour a vendor server does not offer. |
+| `code` (default) | The methods themselves, in a binary that calls `plugin.Serve(ctx)`. | The integration does not exist yet, or you need behavior a vendor server does not offer. |
 | `mcp-bridge` | Nothing. You point at an existing [Model Context Protocol](https://modelcontextprotocol.io) server and it runs **unmodified**. | A vendor already ships an MCP server for the system you want to reach. |
 
 A plugin on the `mcp-bridge` runtime is called a **connector**. That is a
@@ -212,10 +212,10 @@ name and the requesting plugin identity.
 
 ## Rotation
 
-When an admin rotates a secret, Gibson notifies your plugin. Behaviour
+When an admin rotates a secret, Gibson notifies your plugin. Behavior
 follows your manifest:
 
-| `rotation` | Plugin behaviour |
+| `rotation` | Plugin behavior |
 |---|---|
 | `live` | Cache entry invalidated. Next `Resolve` fetches the new value. No restart. |
 | `restart` | Plugin stops accepting new work, drains in-flight handlers, calls `OnStop`, and exits. Your runtime (Kubernetes, systemd, …) restarts the plugin, which picks up the new value on the next start. |
