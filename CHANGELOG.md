@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.3.1...docs-site-v0.4.0) (2026-08-19)
+
+
+### Features
+
+* **brand:** adopt the light acid-concrete brand ([#67](https://github.com/zeroroot-ai/docs-site/issues/67)) ([88a0f2f](https://github.com/zeroroot-ai/docs-site/commit/88a0f2f8812634dbb1542f462bd9c0e7d7953921))
+
+
+### Documentation
+
+* **connectors:** say where the vendor MCP server actually runs ([#64](https://github.com/zeroroot-ai/docs-site/issues/64)) ([60f72b7](https://github.com/zeroroot-ai/docs-site/commit/60f72b7f44c588e71fb67adb42c84208a119a111))
+
 ## [0.3.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.3.0...docs-site-v0.3.1) (2026-08-18)
 
 
