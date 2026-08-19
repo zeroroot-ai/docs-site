@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.4.0...docs-site-v0.4.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **docs:** American English throughout, with a guard ([#68](https://github.com/zeroroot-ai/docs-site/issues/68)) ([a1571e8](https://github.com/zeroroot-ai/docs-site/commit/a1571e84b23f5ebae9ff08dcc6a345ab63332f31))
+
 ## [0.4.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.3.1...docs-site-v0.4.0) (2026-08-19)
 
 
