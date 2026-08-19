@@ -35,7 +35,7 @@ running. That is by design, not a leak.
 
 The loop is event-driven, not polled. When new evidence lands and no decision is
 already in flight, the Decider is asked what to do next; it reads the mission's
-own slice of the world plus the catalogue of components it may use, and
+own slice of the world plus the catalog of components it may use, and
 dispatches more work. The results become new evidence, and round it goes.
 
 ## Gibson owns no clock

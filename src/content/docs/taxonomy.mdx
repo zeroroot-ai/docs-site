@@ -1,6 +1,6 @@
 ---
 title: Taxonomy
-description: The standard entity types and relationships Gibson recognises, and how to extend the taxonomy from your component repo via taxonomy.yaml.
+description: The standard entity types and relationships Gibson recognizes, and how to extend the taxonomy from your component repo via taxonomy.yaml.
 ---
 
 Gibson ships a **standard taxonomy** of entities and relationships
@@ -9,7 +9,7 @@ finding references the same set of well-known types. That consistency
 is what lets the dashboard, the knowledge graph, and downstream agents
 reason about data they didn't produce themselves.
 
-This page lists what Gibson recognises out of the box and explains
+This page lists what Gibson recognizes out of the box and explains
 how to add your own node types and relationships via `taxonomy.yaml`.
 
 For hierarchy, equivalence, and identity mappings, *"`CWE-79` is a
@@ -53,7 +53,7 @@ Compliance entities (emitted by Gibson, not your components):
 
 | Entity | What it represents |
 |---|---|
-| **Compliance signal** | A normalised marker tying observed behaviour to a compliance framework (PCI, SOC 2, HIPAA, …). |
+| **Compliance signal** | A normalized marker tying observed behavior to a compliance framework (PCI, SOC 2, HIPAA, …). |
 
 The authoritative field-by-field schema lives in the SDK's
 [`taxonomy/core.yaml`](https://github.com/zeroroot-ai/sdk/blob/main/taxonomy/core.yaml).
@@ -142,9 +142,9 @@ chains).
 
 ## Compliance signals
 
-If your agent identifies behaviour relevant to a compliance framework,
+If your agent identifies behavior relevant to a compliance framework,
 emit a **`ComplianceSignal`** rather than declaring a custom node.
-Gibson recognises a curated list of frameworks and renders them in
+Gibson recognizes a curated list of frameworks and renders them in
 the dashboard's compliance view:
 
 ```go
