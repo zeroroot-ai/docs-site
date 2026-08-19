@@ -41,10 +41,20 @@ export default defineConfig({
     // sentinels that the Docker entrypoint resolves per environment
     // (docs-site#19). Code fences and prose are untouched by construction.
     rehypePlugins: [rehypeEnvOriginLinks],
+    // github-LIGHT, because fumadocs paints the code block's background from
+    // its own --color-fd-* tokens rather than from the shiki theme. Under the
+    // dark brand that happened to agree with github-dark; under the light one
+    // it left dark-theme syntax colours on a light card, which renders as pale
+    // grey text on pale grey — the first thing that broke when the ground
+    // flipped, and invisible unless you look at a rendered page.
+    //
+    // Both keys carry the same theme because there is one brand and nothing to
+    // switch between. Terminal panels elsewhere stay dark (ADR-0064); a docs
+    // code fence is a listing, not a transcript.
     rehypeCodeOptions: {
       themes: {
-        light: 'github-dark',
-        dark: 'github-dark',
+        light: 'github-light',
+        dark: 'github-light',
       },
     },
   },
