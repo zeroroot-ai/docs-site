@@ -261,6 +261,13 @@ MCP server into Gibson without rewriting it or porting its tools: the vendor
 server runs unmodified behind a generic bridge, and its tools become callable
 inside your missions.
 
+"Unmodified" is literal. Gibson never forks, patches or wraps a vendor server.
+The bridge is an ordinary **MCP client**: it performs the `initialize`
+handshake, discovers what the server offers with `tools/list`, registers those
+as the connector's methods, and forwards each call as `tools/call`. The vendor
+server has no idea Gibson exists. That is why one runner image serves every
+connector and there is no per-connector build.
+
 What the bridge handles for you:
 
 - spawning or connecting to the vendor MCP server,
@@ -269,14 +276,53 @@ What the bridge handles for you:
   [Gibson-managed secrets storage](/docs/secrets-management),
 - exposing each discovered tool to your agents and missions.
 
-### Two transports
+### Two transports, and where the vendor server runs
 
-A connector reaches its vendor MCP server one of two ways:
+A connector reaches its vendor MCP server one of two ways. The difference is
+not only mechanical: **it decides whether any vendor code runs in your
+infrastructure at all.**
 
-| Transport | When | How |
-|---|---|---|
-| `stdio` (default) | The vendor server is a local executable (an `npx`/`uvx` package, a binary). | The bridge spawns it as a subprocess and speaks MCP over stdin/stdout. |
-| `http` | The vendor server already runs as a network service. | The bridge connects to its base URL. |
+| Transport | When | How | Where the vendor server runs |
+|---|---|---|---|
+| `stdio` (default) | The vendor server is a local executable (an `npx`/`uvx` package, a binary). | The bridge spawns it as a subprocess and speaks MCP over stdin/stdout. | **In your infrastructure**, as a child process of the bridge. |
+| `http` | The vendor server already runs as a network service. | The bridge connects to its base URL. | **Somewhere you or the vendor already operate.** Nothing of theirs runs in your cluster. |
+
+#### `http` runs no vendor code
+
+With `http`, the MCP server is a service that already exists. GitLab's, for
+example, is a feature of your own GitLab instance at
+`https://<your-gitlab>/api/v4/mcp`. The bridge makes outbound calls to it as a
+client. There is no vendor package to install, no subprocess, and nothing
+third-party executing next to your workloads.
+
+Authenticate with `spec.mcp_bridge.auth`, which presents a credential resolved
+from Gibson-managed secrets as a request header:
+
+```yaml
+spec:
+  mcp_bridge:
+    transport: http
+    endpoint: https://gitlab.example.com/api/v4/mcp
+    auth:
+      type: bearer
+      secret: cred:gitlab-access
+```
+
+#### `stdio` runs the vendor's code, where you decide
+
+With `stdio`, the bridge spawns the vendor server, so third-party code executes
+inside the bridge's execution context. **Which context that is comes from the
+connector's `runtime`**, exactly as it would for a code plugin:
+
+| `runtime` | Where the vendor subprocess ends up |
+|---|---|
+| `process` | Beside the bridge, in the same process space. |
+| `pod` | In a Kubernetes pod. |
+| `setec` | In a [Setec](https://github.com/zeroroot-ai/setec) microVM, with the connector's declared `spec.egress` enforced at the microVM boundary. |
+
+If you are bridging a package you did not write — most `npx`-distributed MCP
+servers — `setec` is the runtime to choose, and `policy.setec_required: true`
+makes that non-negotiable for the component.
 
 ### Scaffold a connector
 
