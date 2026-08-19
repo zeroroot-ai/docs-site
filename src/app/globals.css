@@ -26,7 +26,7 @@
  */
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 /*
@@ -34,14 +34,17 @@ html {
  *
  * fumadocs-ui reads --color-fd-*, which its neutral preset fills with a
  * generic grey scale (#121212 / #f5f5f5). Left alone the docs render as a
- * neutral dark site sitting next to a violet-and-terminal-green product, and
- * the body background from the brand token would not even match the cards
- * drawn on top of it. Pointing the fd tokens at the brand tokens makes the
- * docs the same surface as the rest of the platform, from one source.
+ * neutral site sitting next to an acid-on-concrete product, and the body
+ * background from the brand token would not even match the cards drawn on top
+ * of it. Pointing the fd tokens at the brand tokens makes the docs the same
+ * surface as the rest of the platform, from one source.
  *
- * Scoped to .dark because the brand has no light variant.
+ * Scoped to :root, not .dark. The brand is one locked LIGHT brand now
+ * (ADR-0064) and the document carries no theme class at all, so a .dark-scoped
+ * mapping would simply never apply and every fd token would fall back to
+ * fumadocs' generic grey.
  */
-.dark {
+:root {
   --color-fd-background: var(--background);
   --color-fd-foreground: var(--foreground);
   --color-fd-card: var(--card);
@@ -64,21 +67,20 @@ html {
 }
 
 /*
- * fumadocs' neutral.css carries a `.dark #nd-sidebar` rule that re-pins the
- * sidebar's muted/secondary tokens to hardcoded grey hsl() values. Its
- * id-selector specificity beats the `.dark` mapping above, so without this
- * override the sidebar alone stayed generic grey next to a violet-tinted
- * page. Re-point the same tokens at the brand's sidebar tokens at equal
- * specificity (declared later, so it wins).
+ * fumadocs' neutral.css re-pins the sidebar's muted/secondary tokens to
+ * hardcoded grey hsl() values under an id selector, whose specificity beats
+ * the :root mapping above — so without this the sidebar alone stays generic
+ * grey next to a concrete page. Re-point the same tokens at the brand's
+ * sidebar tokens at equal specificity (declared later, so it wins).
  */
-.dark #nd-sidebar {
+#nd-sidebar {
   --color-fd-muted: var(--sidebar-accent);
   --color-fd-secondary: var(--sidebar-accent);
   --color-fd-muted-foreground: var(--muted-foreground);
 }
 
 /*
- * The landing page body is `bg-zd-gradient` (a fixed background→card→
+ * The marketing site body is `bg-zd-gradient` (a fixed background→card→
  * background sweep), not flat --background. Reproduce it here so the two
  * hosts read as one continuous surface. Declared on body (not a utility
  * class in layout.tsx) so it outlives fumadocs' own body background from
@@ -93,7 +95,7 @@ body {
 }
 
 /*
- * Cyan-blue CONTENT links, same as the landing page's --link token.
+ * CONTENT links carry the brand's --link token, same as the marketing site.
  *
  * Set through the typography variable rather than a bare `a { color }`.
  * That selector matched every anchor on the page, and because it sits
