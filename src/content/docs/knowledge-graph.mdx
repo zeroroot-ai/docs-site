@@ -1,0 +1,206 @@
+---
+title: Knowledge Graph
+description: The per-tenant knowledge graph in Gibson, what it stores, how Gibson populates it, and how your agents query it.
+---
+
+Every Gibson tenant has a **knowledge graph**. The graph is a durable,
+queryable record of everything your agents and tools discovered. It
+holds hosts, ports, services, findings, attack patterns, the missions
+that produced each one, and the relationships between them.
+
+The graph is the single biggest reason Gibson missions get smarter over
+time. The agent of today does not repeat the recon of yesterday. The
+triage agent of today reads similar prior findings before it decides
+what to flag. You do not write retrieval code for any of this. Gibson
+maintains the graph for you, and the SDK exposes typed queries against
+it.
+
+## What the graph contains
+
+The graph stores **entities** (nodes) and **relationships** (edges).
+[Taxonomy](/docs/taxonomy) describes the standard entity types that
+ship with Gibson. At a high level:
+
+- **Asset entities**: hosts, ports, services, endpoints, domains,
+  subdomains, technologies, certificates.
+- **Security entities**: findings, evidence, attack patterns,
+  techniques.
+- **Provenance entities**: missions, mission nodes, agent executions,
+  decisions.
+- **Custom entities**: anything outside the standard taxonomy goes
+  here.
+
+Standard relationships connect them. A host **has port**. A port
+**runs service**. A finding **affects** a service. An attack pattern
+**uses technique**. Every entity has a **discovered in** link to one
+mission and a **produced by** link to one agent execution.
+
+## How Gibson populates the graph
+
+There are three paths into the graph:
+
+### 1. Auto-population from tool output
+
+Any tool that puts a `gibson.graphrag.v1.DiscoveryResult` in **field
+100** of its response proto gets free graph ingestion. Gibson reads
+field 100 after every tool call. Gibson then creates the corresponding
+nodes and relationships automatically. Your tool needs no graph code.
+
+```protobuf
+message Response {
+  repeated Row rows = 1;
+  gibson.graphrag.v1.DiscoveryResult discovery = 100;  // free ingestion
+}
+```
+
+We recommend this path for the bulk of discovery data. See
+[Tools](/docs/tools) for the full pattern.
+
+### 2. Findings submitted by agents
+
+When your agent calls `h.SubmitFinding(...)`, Gibson stores the finding
+as a `:finding` node. Gibson links the node to the target asset with
+`AFFECTS`. See [Findings](/docs/findings).
+
+### 3. Manual writes from agents
+
+If the standard taxonomy does not cover a shape, an agent can write
+nodes directly:
+
+```go
+err := h.StoreNode(ctx, agent.StoreNodeRequest{
+    Label: "decision",
+    Properties: map[string]any{
+        "reason":    "skipped this CVE, vendor disputed it",
+        "cve_id":    "CVE-2024-...",
+    },
+    Relationships: []agent.Relationship{
+        {Type: "PART_OF", To: h.Mission().Id},
+    },
+})
+```
+
+Use this path sparingly. Automatic population through `DiscoveryResult`
+keeps your data shape consistent with the rest of the platform. The
+dashboard and other agents find ad-hoc nodes harder to reason about.
+
+## Provenance
+
+Gibson automatically links every node it ingests back to:
+
+- the **mission** that discovered it
+- the **agent execution** that produced it
+- the **target reference** it belongs to
+
+You do not write provenance code. The ingestion pipeline stamps
+provenance on every node. This provenance powers the "show me
+everything this mission discovered" view in the dashboard. It also lets
+`Replay from checkpoint` know which downstream nodes to invalidate when
+you replay a step.
+
+## Query the graph from an agent
+
+The SDK exposes typed graph reads through the harness. None of these
+reads require Cypher or graph-database knowledge.
+
+### Free-form queries
+
+```go
+hosts, err := h.QueryNodes(ctx, agent.QueryNodesRequest{
+    Labels:  []string{"host"},
+    Filters: map[string]any{"target_ref": h.Target().Id},
+})
+```
+
+Filter by label, properties, and relationships. Use this read when you
+want a specific slice of the graph.
+
+### Similarity search
+
+These are the two main reads. Both use embedding similarity over the
+history of your tenant:
+
+```go
+similar, err := h.FindSimilarAttacks(ctx, agent.SimilarityRequest{
+    Description: "credential stuffing on web login",
+    Limit:       5,
+})
+
+prior, err := h.FindSimilarFindings(ctx, agent.SimilarityRequest{
+    Description: "exposed internal admin endpoint",
+    Limit:       5,
+})
+```
+
+Use these reads to ground LLM prompts ("here are five times we have
+seen something like this before"). Also use them to de-duplicate before
+you submit a finding.
+
+### Attack chain walks
+
+```go
+chains, err := h.GetAttackChains(ctx, agent.ChainQuery{
+    StartNodeId: someHost.Id,
+    MaxDepth:    4,
+})
+```
+
+This read walks attack-pattern relationships from a start node. Use it
+for narrative reports ("here is the path from this exposed service to
+the data we care about").
+
+## How agents use the graph in practice
+
+Common patterns:
+
+| Pattern | Pseudocode |
+|---|---|
+| **De-duplicate before submitting a finding** | `prior := h.FindSimilarFindings(...); if any(prior, similarEnough) { skip }` |
+| **Ground a triage prompt with context** | `nodes := h.QueryNodes(target=current); pass to LLM as evidence` |
+| **Skip recon you've done recently** | `existing := h.QueryNodes(host=target, mission_started_after=24h ago); if non-empty: re-use` |
+| **Cross-mission learning** | `tactics := h.FindSimilarAttacks(scenario); use as few-shot examples` |
+
+## Dashboard views
+
+The dashboard shows graph data wherever the data is useful in context:
+
+- **Mission detail page**: lists every node ingested during the run,
+  grouped by entity type, with click-through to the entity detail
+  page.
+- **Asset pages**: for any host, service, or endpoint, show every
+  finding ever filed against it. They also show every mission that
+  touched it and every attack pattern linked to it.
+- **Findings detail**: shows the affected asset, similar prior
+  findings, and the attack chain that led to the finding.
+- **Search**: global search across the graph, scoped to your tenant.
+
+## Per-tenant isolation
+
+The graph of your tenant is yours. There are no cross-tenant reads,
+ever. `FindSimilarAttacks` and `FindSimilarFindings` only consider your
+own history. Gibson does not pool embeddings across customers.
+
+## What about retention?
+
+Default retention is unlimited within a tenant. If you want to evict
+older data, tenant admins can set retention policies under
+**Settings → Knowledge graph**. You may want this for compliance, or
+to keep the graph focused.
+
+Gibson removes evicted nodes from the graph entirely, including their
+embeddings. There is no "soft delete" path.
+
+## Related
+
+- [Taxonomy](/docs/taxonomy): the full list of standard entities and
+  relationships, and how to extend them.
+- [Ontology](/docs/ontology): hierarchy-aware queries use the closure
+  built from `ontology.yaml`.
+- [Tools](/docs/tools): populate the graph automatically through
+  `DiscoveryResult` field 100.
+- [Findings](/docs/findings): how findings become `:finding` nodes and
+  link into the rest of the graph.
+- [Missions](/docs/missions): replay uses graph provenance to know what
+  to re-execute.
+- [Attack-path belief field](/docs/belief-field): the value and
+  attention scores on every host node, and what they drive.

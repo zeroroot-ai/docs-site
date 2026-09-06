@@ -1,0 +1,235 @@
+---
+title: Attack-path belief field
+description: How Gibson picks the next host and the three components it scores per host. Why the math is a Bayesian network and not a language model, and what you can see and control.
+---
+
+A scan hands you a list. Gibson hands you an ordering, and then acts
+on it.
+
+Behind that ordering is the **attack-path belief field**. The field is
+a set of probabilities that Gibson holds about every host it has
+discovered. Gibson updates the field as evidence arrives. The field is
+not a report. It is what the engine reads when it picks its next move.
+That is why "thinks in paths, not checklists" is a claim about the
+engine's behavior, not about the report format.
+
+This page explains what the field computes and why the math is a
+Bayesian network, not a language model. It also explains why a run
+replays and what you can see and control.
+
+## The problem it solves
+
+A vulnerability scanner is a classifier. It looks at each host in
+isolation, matches signatures, and emits one row per match. Nothing in
+that pipeline knows that host A only matters because host B can reach
+it. Nothing in it knows that the interesting thing about a host is a
+boring service one hop from something that is not boring at all.
+
+The output is a wall of findings. A severity number sorts them. Someone
+who had never seen your network assigned that number.
+
+The belief field asks a different question. It does not ask "what is
+wrong with this host". It asks "given everything observed so far, how
+likely is this host to be part of a path that goes somewhere". That
+question has one answer per environment. The answer changes as evidence
+arrives. It is the same answer for both sides of the line:
+
+- **Offense walks the path.** The highest-belief hosts are where the
+  next move is.
+- **Defense cuts it.** The highest-belief hosts are where a control
+  removes the most path, not the most rows.
+
+Same ordering, opposite intent. Purple teams get one artifact instead
+of two arguments.
+
+## What Gibson computes
+
+For every host in the World, Gibson holds three probabilities:
+
+| Component | The question it answers |
+|---|---|
+| **Reachable** | Can this host be touched from where the mission currently stands? |
+| **Exploitable** | Given what is exposed on it, is there a way in? |
+| **Valuable** | Is this host worth the next move? Shown in the dashboard as **Juicy**. |
+
+These are not three independent scores that Gibson averages. They are
+three variables in one network. The wiring makes reachability an input
+to exploitability, and makes both inputs to value. Evidence about one
+variable therefore moves the others. When Gibson confirms that a host
+is reachable, it raises the host's exploitability and value in the same
+pass. Nobody writes a rule that says so.
+
+The evidence that goes in is what the mission observed: open ports and
+identified services, in a stable order. The same host with the same
+observations always produces the same three numbers.
+
+### From belief to attention
+
+Value alone decides ranking. It does not decide everything the engine
+looks at. Gibson derives an **attention** score on top:
+
+```text
+attention = value + anomaly boost
+```
+
+The anomaly boost fires when Gibson observes something that contradicts
+its previous belief about an address. One example is the same address
+that answers as a different host. That is a strong signal, however
+valuable the host looked a moment ago. So Gibson adds the boost on top
+instead of folding it in.
+
+When the engine decides its next move, it does not read the whole
+World. It reads a bounded slice: the highest-attention hosts, **plus
+every anomalous host regardless of where it ranks**. The engine drops
+the periphery and reports it as a count. So the engine does not choose
+between a full picture and a usable one.
+
+That is the load-bearing part. The belief field is not a column in a
+report that the engine happens to also print. It is the input to what
+the engine does next.
+
+## Why a Bayesian network and not a language model
+
+Gibson never asks a language model for a probability.
+
+That is a deliberate design constraint, not an implementation detail.
+Three blunt reasons explain why:
+
+- **Language models are not probability calculators.** Ask one for
+  "the chance this host is exploitable" and you get a plausible-looking
+  number with no relationship to any underlying frequency. It will not
+  be the same number twice, and no one can audit it.
+- **Belief propagation over a graph is exactly what a Bayesian network
+  does.** The formalism exists to wire evidence into related
+  conclusions. There is no reason to approximate it with a text
+  generator.
+- **Cost and latency.** The field is always on and updates as evidence
+  lands. A per-host model call would be the single most expensive thing
+  in a mission, and it would still be worse.
+
+Two properties follow from the choice, and both matter more than the
+choice itself.
+
+**Inference is exact, never sampled.** Gibson computes the posteriors
+by variable elimination. There is no Monte Carlo step, no random seed,
+and no tolerance parameter. The same evidence produces the same
+numbers, bit for bit, on every machine.
+
+**The model is read-only while a mission runs.** Nothing a mission
+observes rewrites the network mid-run. With online learning, the field
+would drift underneath the run that produced it. Then no two readings
+of the same mission would agree. Any change to the model arrives as a
+separate, separately versioned artifact.
+
+Language models still do plenty of work inside a mission. They decide
+what to try, they read tool output, and they write up findings. Gibson
+never permits them anywhere near the arithmetic.
+
+## Why a run replays
+
+Pillar 3 of the product, rewind and scrub every decision, is
+downstream of the same design. Three things make it hold:
+
+1. **Every score change is an event.** Gibson records a recomputed
+   belief in the mission's timeline. It does not silently mutate the
+   belief in memory. The Scroller replays a run when it re-folds that
+   timeline. So a replayed frame is the run, not a re-simulation of it.
+2. **Inference is exact.** Even where Gibson recomputes a score instead
+   of reading it back, exactness means the score lands on the same
+   value. A sampled approach would put a random number in the middle
+   of your audit trail.
+3. **Every mission records the model version it ran under.** Gibson
+   stamps the version that scored a run on the mission. So a reviewer
+   six months later can tell whether the same model judged two runs.
+
+One more guarantee in the same spirit: if the belief model is
+unreachable, a host keeps no score instead of a fabricated one.
+Gibson does not fill the gap with a guess and then let the guess drive
+targeting.
+
+## What actually ships in the box
+
+The section above is about guarantees. This one is about calibration,
+and the honest answer is different.
+
+The base network that ships with Gibson is **small and deliberately
+conservative**. It reasons over reachability, a handful of common
+exposed services, and how those roll up into exploitability and value.
+Its numbers are a defensible starting point. They are not the output of
+a fit against a large corpus of real breaches.
+
+Practical consequences, so you can size your trust correctly:
+
+- Treat the score as a **relative ordering within your environment**.
+  Do not treat it as an absolute probability that a host will be
+  compromised. "This one before that one" is well supported. "There is
+  a 74% chance of compromise" is not a claim the base model can make.
+- When the network has no variable for a piece of evidence, Gibson
+  **reports it as unmodeled, not folded in as a guess**. A service the
+  base network does not know about does not silently nudge the score.
+- The determinism, replay, and version-pinning guarantees hold
+  regardless of which model version Gibson loads. They are properties
+  of how inference runs, not of how well any particular model is tuned.
+
+Richer models load as additional versioned artifacts. This needs no
+change to how a mission runs. That is why Gibson pins the version on
+the mission in the first place.
+
+## What you can observe
+
+You can see the belief field in three places.
+
+**The World view.** The dashboard's target table has a **Juicy** column
+and an **Attention** column. The table sorts by attention, descending.
+So the top of the table is literally the engine's own ordering. A host
+above the value threshold carries a `juicy` badge. A host with a
+contradiction carries an `anomaly` badge.
+
+**The Scroller.** Scrub the run and the scores move with it. The
+timeline is the source of the frame. So the value you see at tick 400
+is the value the engine acted on at tick 400. It is not today's value
+rendered against an old frame.
+
+**The knowledge graph.** Each host node carries its value score and its
+attention score as properties. So you can query the ordering the same
+way you query anything else in the graph. See
+[Knowledge graph](/docs/knowledge-graph) for the query surface.
+
+## What you can control
+
+| Control | Where | Effect |
+|---|---|---|
+| **Scope of the mission** | The mission's target and scope, see [Missions](/docs/missions) | Only hosts inside the scope enter the World, so only they are scored and only they compete for attention. |
+| **Review labels** | Dashboard review queue | Label surfaced anomalies and findings. Labels are recorded on your tenant's timeline and are the training signal offline refinement reads. They never touch a running mission. |
+| **Model version** | Self-hosted deployment setting | Self-hosted installs select which model version their deployment serves. Managed tenants run the version shipped with the platform release. |
+
+Two things are deliberately **not** controls:
+
+- There is no weight slider. Hand-tuned belief is the expert-system
+  pattern the whole design exists to avoid. Also, a hand-tuned field
+  would not be comparable between two runs.
+- Nothing you label changes a mission in flight. The model is read-only
+  at runtime. A refined model arrives only as a new version. Only a
+  mission that starts afterwards can pin it.
+
+## Where your data goes
+
+Your tenant's evidence, outcomes, and labels are yours.
+
+- Refinement from your data produces an artifact **for your tenant
+  only**. It never mixes with another customer's data. It never feeds
+  back into the shared base model.
+- The base model everyone starts from comes from vendor research and
+  public sources such as CVE and MITRE ATT&CK data. It does not come
+  from customer environments.
+
+## Related
+
+- [Missions](/docs/missions): the scope and target Gibson computes the
+  field over, and the mission lifecycle Gibson pins it to.
+- [Knowledge graph](/docs/knowledge-graph): where Gibson projects the
+  value and attention scores as host properties.
+- [Findings](/docs/findings): what happens after an anomaly is
+  investigated and confirmed.
+- [Observability](/docs/observability): the timeline, replay, and the
+  audit record a reviewer reads.

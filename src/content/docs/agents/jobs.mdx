@@ -1,0 +1,173 @@
+---
+title: Jobs
+description: A job is the unit of work a bank member holds. Send one from the console, give it repositories and acceptance, answer its questions, and close it with a verdict.
+---
+
+**Not yet released.** Jobs ship with epic
+[zeroroot-ai/gibson#1706](https://github.com/zeroroot-ai/gibson/issues/1706).
+This page describes the design the epic builds. Field names and screens can
+change before the release.
+
+A **job** is the unit of work a member of a [bank](/docs/agents/banks) holds.
+A job is one persistent Claude Code conversation. It owns its own worktrees.
+It stays open across many turns until a scorer closes it. Nothing arrives at
+a member as a bare string. Every input is a job, or a turn on a job.
+
+A chat message from the console is a job with only a goal. A structured job
+also names repositories, credentials, inputs, and acceptance. Unrelated jobs
+never share a conversation or a worktree.
+
+## Job states
+
+| State | Meaning |
+|---|---|
+| `open` | The job exists. It waits in the bank queue, or a member holds it and has not started a turn. |
+| `working` | A member runs a turn on the job. |
+| `waiting` | The turn ended. The job waits for the next input, or for an answer to a question. |
+| `closed` | A scorer closed the job. The member cleaned up. |
+
+## Send a job from the console
+
+The console is the [Agent Sandboxes](/docs/agent-sandboxes) page. A bank
+member appears there as a tile, like any other run.
+
+1. Open the member tile.
+2. Type a goal in the compose box at the bottom.
+3. Send it.
+
+With no job selected, the compose box opens a new job with only a goal. With
+a job selected, the compose box sends the next input to that job. The tile
+lists the member's jobs with their state, who opened them, the last input,
+and the cost. Select a job to filter the output stream to that job.
+
+A job waits in the bank queue when no member has a free slot. The queue is
+first in, first out, per bank. A member with a free slot pulls the next job.
+If the bank's spill policy is `ephemeral`, a job that waits 30 seconds runs
+as a one-shot instance instead, and the job records `spilled: true`.
+
+## Structured jobs
+
+A structured job is a `Task` with typed fields. You fill them in the console,
+in the [job node](/docs/missions/job-node) of a mission, or through the
+`OpenJob` tool of the [Gibson MCP server](/docs/integrations/mcp).
+
+| Field | What it is |
+|---|---|
+| **Goal** | What the member must do. Required. |
+| **Repositories** | One entry per repository: a connector ref, the project, the base branch, and the deliverable. |
+| **Credential names** | The names of tenant secrets the job may fetch. Names only. The values stay in the tenant vault. |
+| **Inputs** | World node ids, or the outputs of upstream mission nodes. |
+| **Acceptance** | A verifier component and a passing score. |
+| **Constraints** | Turns, budget in US dollars, and a deadline. |
+
+The daemon validates a job before it opens it. Each connector ref must exist
+and be enabled for the tenant. Each credential name must exist in the tenant
+vault. Each input node id must belong to the tenant. A job that fails
+validation never reaches a member.
+
+Before the first turn, the member prepares the workspace. It keeps one clone
+per repository, warm. It adds one worktree per job, on a branch named by the
+job id. It tells Claude Code the paths, the deliverable, and the job id in
+the system prompt. Claude Code commits on the job branch. It never holds the
+connector token.
+
+## Who can send
+
+`can_send` on the bank decides who may open a job or send input. Four kinds
+of sender exist.
+
+| Sender | How |
+|---|---|
+| A person | The compose box in the console. |
+| Another agent | The harness callback, which the Gibson MCP server exposes as a tool. |
+| A tool or a plugin | The same callback, under the tool's own grant. |
+| A mission | The [job node](/docs/missions/job-node), or `DelegateToAgent` with a bank id or a job id. |
+
+Every input carries the grant of its own sender. The member runs that turn
+under that grant, and every tool call in the turn uses it. Two senders on one
+job give two turns under two grants.
+
+## Back-and-forth with a verifier
+
+A job stays open while a verifier checks the work. The verifier is a
+component you name in the acceptance. It reads the deliverables and returns
+a report: pass or fail, a score, and the text of the report.
+
+On a fail, the verifier's report becomes the next input to the same job. The
+same Claude Code conversation takes the next pass, with its context intact.
+Each pass is an attempt in the run history. The loop stops when the verifier
+passes, or when the passes run out.
+
+The worker never closes its own job. Only a scorer does.
+
+## Questions
+
+When Claude Code needs a person, it calls the `ask` tool. The job goes to
+`waiting`. In the console, the compose box becomes an answer box. Your
+answer is the next input, and the turn continues. If nobody answers before
+the turn deadline, the tool returns a deny, and the turn ends.
+
+## Close a job
+
+A scorer closes a job with a verdict and a score. The scorer is a person with
+`can_close`, or the job node executor after its acceptance step.
+
+1. Select the job in the console.
+2. Click **Close**.
+3. Pick the verdict: `accomplished` or `failed`.
+4. Enter the score.
+5. Confirm.
+
+The member then runs one final wrap-up turn. Claude Code commits, pushes,
+opens the merge request, and writes a summary. The wrap-up shows as the last
+events on the tile. Then the job leaves the list.
+
+## What cleanup does
+
+After the wrap-up turn, the member cleans up.
+
+1. It removes the job's worktrees.
+2. It archives the transcript to the session store.
+3. It reports the deliverables and the verdict on the run.
+4. It drops the job from its table.
+5. It reports `idle` on its next heartbeat, if it has no other job.
+
+Nothing else deletes a worktree. A job with no input for the bank's stale
+limit closes with the verdict `abandoned`, and the same cleanup runs.
+
+## Deliverables
+
+A deliverable is an outward side effect. Claude Code runs with
+`--dangerously-skip-permissions` inside the gVisor sandbox. The sandbox and
+the per-turn grant are the controls. Outward effects go through the member
+driver, at wrap-up, under the job's declared deliverable and the connector
+token.
+
+| Kind | What it records |
+|---|---|
+| `BRANCH` | The job branch, pushed. |
+| `MERGE_REQUEST` | The merge request the driver opened, with its URL. |
+| `FINDING_STATUS` | A finding status the job changed. The daemon records it on its own. |
+| `ARTIFACT` | A file or a reference the job produced. |
+
+The daemon stores the deliverables on the job and mirrors them on the
+mission run. A caller that waits on `DelegateToAgent` gets them back with
+the result.
+
+## Resume
+
+A member restart inside the same sandbox recovers its job table from disk.
+The member reopens each job's Claude Code session with `--resume`.
+
+A sandbox death does not end a job. The `ResumeSession` RPC launches a new
+sandbox. It restores the job branch and the transcript. Then it starts
+Claude Code with `--resume`. The provider credential is never part of the
+checkpoint. It comes from the login shape again.
+
+## Related
+
+- [Banks](/docs/agents/banks), the pool a job runs in
+- [Job node](/docs/missions/job-node), the mission node that drives a job
+- [Gibson MCP server](/docs/integrations/mcp), the tools a job can call
+- [Connectors](/docs/connectors), where a repository ref comes from
+- [Secrets management](/docs/secrets-management), where credential names live

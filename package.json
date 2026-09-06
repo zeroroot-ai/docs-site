@@ -1,0 +1,46 @@
+{
+  "name": "@zeroroot/docs-site",
+  "version": "0.6.1",
+  "private": true,
+  "license": "Elastic-2.0",
+  "description": "ZeroRoot platform documentation site",
+  "scripts": {
+    "dev": "next dev",
+    "build": "npm run check:docs && next build && node scripts/check-static-export-standalone.mjs",
+    "start": "next start",
+    "gen:cli-reference": "node scripts/gen-cli-reference.mjs",
+    "regen:cli": "node scripts/regen-cli-reference.mjs",
+    "gen:api-reference": "node scripts/gen-api-reference.mjs",
+    "regen:api": "node scripts/regen-api-reference.mjs",
+    "check:docs": "node scripts/check-ste-prose.mjs && node scripts/check-ste-prose.mjs --selftest && node scripts/check-docs-links.mjs && node scripts/check-docs-cli-name.mjs && node scripts/check-cli-reference-fresh.mjs && node scripts/check-api-reference-fresh.mjs && node scripts/check-static-export-standalone.mjs --selftest && node scripts/check-no-british-spellings.mjs && node scripts/check-no-british-spellings.mjs --selftest"
+  },
+  "dependencies": {
+    "@zeroroot-ai/brand": "^0.3.1",
+    "fumadocs-core": "^16.7.16",
+    "fumadocs-mdx": "^14.3.0",
+    "fumadocs-ui": "^16.7.16",
+    "next": "16.2.6",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "remark-gfm": "^4.0.1",
+    "unist-util-visit": "^5.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/mdx": "^2.0.14",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^5.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zeroroot-ai/docs-site.git"
+  }
+}

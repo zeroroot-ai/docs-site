@@ -1,0 +1,55 @@
+---
+title: Contributing
+description: How to get productive in the Gibson codebase, file bugs and features, and land changes.
+---
+
+This section is the canonical home for contributor procedures. It covers how a
+developer or a coding agent builds against the platform. The repo keeps only
+architecture decision records (ADRs) and machine-facing files next to the code.
+If a procedure here and the code disagree, the code wins. File a docs bug.
+
+## The lay of the land
+
+- **`gibson`** is the platform monorepo. It holds the daemon, ext-authz, the
+  operators, and the shared infra packages. Most contributions land here.
+- **`sdk`** is the component-development surface. It holds the agent, tool, and
+  plugin interfaces, plus the customer-callable daemon protos. The SDK never
+  imports gibson.
+- **`dashboard`** is the web console. It talks to the daemon only through Envoy
+  and ext-authz, never over a direct gRPC channel.
+
+## Getting productive
+
+1. Read the repo's `CLAUDE.md` before your first edit. It names the build
+   gates and the regeneration commands that CI enforces.
+2. Build and test with the repo's `make` targets. `make check` runs the
+   analyzers and the race tests. `make lint` runs the pinned linter. Never use
+   a system-installed linter.
+3. Commit generated artifacts (proto bindings, the authz registry). When you
+   change a source, run the named regen target. Commit its output in the same
+   change. CI fails on drift.
+4. Work on a branch. Open a PR with a Conventional Commit title. Keep CI
+   green. Merges go through the merge queue.
+
+## Filing bugs and features
+
+- File issues on the matching GitHub repo. Say the problem in plain words
+  first. Then give the evidence: what you ran, what happened, what you
+  expected.
+- A bug report with a failing test or a minimal reproduction gets the fastest
+  fix.
+- For a feature, describe the outcome you need, not the implementation. If it
+  touches authorization or a component kind, read the guides below first.
+  The platform has one pattern for each. Features that follow the pattern
+  land quickly.
+
+## Procedures
+
+- [Add an RPC](/docs/contributing/add-an-rpc) covers the full path from proto
+  and authz annotation to handler, registry, and dashboard.
+- [Add a store operation](/docs/contributing/add-a-store-operation) extends
+  the per-tenant data plane and keeps tenant isolation intact.
+- [Add a component kind](/docs/contributing/add-a-component-kind) shows how a
+  new kind reuses the unified R/W/X machinery with zero model changes.
+- [Change the FGA model](/docs/contributing/change-the-fga-model) is the
+  rarer, sharper procedure. It covers append-only rules, gates, and delivery.

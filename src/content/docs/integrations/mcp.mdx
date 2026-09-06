@@ -1,0 +1,244 @@
+---
+title: Gibson MCP server
+description: Install the Gibson MCP server in Claude Code, opencode, Cursor, Codex CLI, Gemini CLI, and Windsurf. One server gives every coding agent every Gibson tool.
+---
+
+The **Gibson MCP server** is the one tool surface for every coding agent. It
+is a stdio [Model Context Protocol](https://modelcontextprotocol.io) server.
+You add it to your editor's MCP configuration. Your editor then has every
+Gibson tool.
+
+The server exposes everything the TypeScript SDK produces, 1:1. One tool per
+RPC of every SDK service. One tool per SDK helper. One tool per platform tool
+checked in to your tenant. There is one flat tier, and no curated subset. The
+tool table is generated from the SDK's proto descriptors, so an SDK bump
+regenerates it.
+
+The server lives in [sdk-ts](https://github.com/zeroroot-ai/sdk-ts) as the
+package `@zeroroot-ai/gibson-mcp`. It releases on the SDK train.
+
+**Not yet published.** `@zeroroot-ai/gibson-mcp` ships with epic
+[zeroroot-ai/gibson#1706](https://github.com/zeroroot-ai/gibson/issues/1706).
+Until the package is on npm, the `npx` command below does not resolve. The
+[Claude Code plugin](#claude-code) works today.
+
+## Prerequisites
+
+| Tool | Why |
+|---|---|
+| **Node 22 or later** | `npx` runs the server. |
+| **`gibson`** | Sign in with the device flow, or mint a bootstrap token. See [Install](/docs/install). |
+| **A Gibson tenant you are a member of** | If your account is not an active member, the check-in fails and the server runs standalone. |
+
+**Self-hosted install?** Where this page shows `https://api.zeroroot.ai`, use
+your platform's API host.
+
+## The command
+
+Every host runs the same command:
+
+```bash
+npx --package @zeroroot-ai/gibson-mcp gibson-mcp
+```
+
+`--transport stdio` is the default. It is the laptop path.
+`--transport http --listen 127.0.0.1:<port>` is the sandbox path a bank
+member uses. You do not need it on a laptop.
+
+Set `GIBSON_PLATFORM_URL` in the server's environment. Each snippet below
+shows where.
+
+## Claude Code
+
+Install the plugin. It is a bundle around the server, with the two hooks
+Claude Code needs.
+
+```bash
+claude plugin marketplace add zeroroot-ai/zerocool-plugins
+claude plugin install zerocool@zerocool
+```
+
+Or add the server by hand. Put this in `.mcp.json` at the root of your
+project:
+
+```json
+{
+  "mcpServers": {
+    "gibson": {
+      "command": "npx",
+      "args": ["--package", "@zeroroot-ai/gibson-mcp", "gibson-mcp"],
+      "env": { "GIBSON_PLATFORM_URL": "https://api.zeroroot.ai" }
+    }
+  }
+}
+```
+
+The plugin adds two hooks. `SessionStart` prints the ambient knowledge block.
+`SessionEnd` checkpoints the transcript to the session store. The model stays
+on your Claude login. The plugin never routes LLM traffic through Gibson.
+
+The plugin as a bundle around `@zeroroot-ai/gibson-mcp` ships with epic
+zeroroot-ai/gibson#1706, slice
+[zerocool-plugins#102](https://github.com/zeroroot-ai/zerocool-plugins/issues/102).
+Today the plugin runs a Claude-only server with the same tools, and the
+install commands above are the same.
+
+## opencode
+
+The [coding agent](/docs/coding-agent) plugin adds the server to opencode's
+`mcp` block when it loads. You configure nothing. See
+[Set up the coding agent](/docs/coding-agent/setup). The plugin also gives
+you the `gibson/<slot>` model provider. The server does not. The server is
+tools only.
+
+Without the plugin, put this in `opencode.json`:
+
+```json
+{
+  "mcp": {
+    "gibson": {
+      "type": "local",
+      "command": ["npx", "--package", "@zeroroot-ai/gibson-mcp", "gibson-mcp"],
+      "environment": { "GIBSON_PLATFORM_URL": "https://api.zeroroot.ai" },
+      "enabled": true
+    }
+  }
+}
+```
+
+The plugin loads the server from slice
+[zerocool-plugins#103](https://github.com/zeroroot-ai/zerocool-plugins/issues/103)
+on. Today the plugin registers the same tools in process.
+
+## Cursor
+
+Put this in `.cursor/mcp.json` in your project, or in `~/.cursor/mcp.json`
+for every project:
+
+```json
+{
+  "mcpServers": {
+    "gibson": {
+      "command": "npx",
+      "args": ["--package", "@zeroroot-ai/gibson-mcp", "gibson-mcp"],
+      "env": { "GIBSON_PLATFORM_URL": "https://api.zeroroot.ai" }
+    }
+  }
+}
+```
+
+## Codex CLI
+
+Add this to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.gibson]
+command = "npx"
+args = ["--package", "@zeroroot-ai/gibson-mcp", "gibson-mcp"]
+
+[mcp_servers.gibson.env]
+GIBSON_PLATFORM_URL = "https://api.zeroroot.ai"
+```
+
+## Gemini CLI
+
+Add this to the `mcpServers` object in `~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "gibson": {
+      "command": "npx",
+      "args": ["--package", "@zeroroot-ai/gibson-mcp", "gibson-mcp"],
+      "env": { "GIBSON_PLATFORM_URL": "https://api.zeroroot.ai" }
+    }
+  }
+}
+```
+
+## Windsurf
+
+Put this in `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "gibson": {
+      "command": "npx",
+      "args": ["--package", "@zeroroot-ai/gibson-mcp", "gibson-mcp"],
+      "env": { "GIBSON_PLATFORM_URL": "https://api.zeroroot.ai" }
+    }
+  }
+}
+```
+
+The snippets for Cursor, Codex CLI, Gemini CLI, and Windsurf live in the
+`hosts/` directory of
+[zerocool-plugins](https://github.com/zeroroot-ai/zerocool-plugins). Each
+host with a headless mode has a CI smoke test there. That directory ships
+with epic zeroroot-ai/gibson#1706, slice
+[zerocool-plugins#104](https://github.com/zeroroot-ai/zerocool-plugins/issues/104).
+
+## Check in
+
+The server needs a credential to reach your tenant. It picks one source by
+what is present when it starts. It never mixes them. It never mints an
+identity of its own.
+
+| Source | When | What happens |
+|---|---|---|
+| **Dispatched grant** | The daemon launched the process. `GIBSON_CG_JWT` and `GIBSON_CALLBACK_ENDPOINT` are set. | The server joins the run it was launched for. No enrollment, no state file. |
+| **Pre-minted token** | `GIBSON_BOOTSTRAP_TOKEN` is set and no host key exists. | The server checks in once with the token and writes a host key. Every later start uses the key. |
+| **Device-flow login** | Neither of the above. | The server offers `gibson_login` and `gibson_connect`. You sign in once in the session. |
+
+The dispatched grant wins when more than one source is present. The server
+logs that it ignored the host key.
+
+For the device flow, ask your editor to call `gibson_login`. It returns a URL
+and a code. Open the URL, sign in, and confirm the code. Then ask for
+`gibson_connect`. It enrolls this host, checks in, picks the tenant's target,
+and starts the live mission. The `gibson_status` tool shows the source, the
+posture, the platform URL, the tenant, and the mission and run ids.
+
+State lives in `~/.zerocool/`. The host key is `~/.zerocool/host.key`. To
+force a fresh enrollment, delete it. You then need a new bootstrap token or a
+new device-flow login.
+
+The server fails open. If the platform is unreachable, or the host is not
+enrolled, the server still starts, in standalone posture. Findings then go to
+a local log. One line on stderr says which posture you are in.
+
+## Tool names
+
+| Pattern | Example | What it is |
+|---|---|---|
+| `<service>_<method>` | `HarnessCallbackService_WorldView` | One tool per RPC of every SDK service. The input schema comes from the request message. |
+| The helper name | `remember`, `recall`, `world_view`, `submit_finding`, `delegate`, `create_mission`, `run_mission`, `wait_mission`, `list_agents`, `componentize` | One tool per SDK helper. |
+| `gibson_<tool>` | `gibson_nmap` | One tool per platform tool checked in to your tenant. The server discovers them at connect and every 60 seconds. |
+| The server's own tools | `gibson_status`, `gibson_login`, `gibson_connect`, `gibson_call_tool` | Posture, the device flow, and a call by name for a daemon without tool discovery. |
+| `ask` | `ask` | The permission prompt tool a bank member uses. On a laptop you do not need it. |
+
+A server-streaming RPC returns up to 500 messages as a JSON array, with
+`truncated: true` when the limit hit. Set `--stream-limit` to change it.
+
+When the set of platform tools changes, the server sends the MCP
+`tools/list_changed` notification. A host that honors it sees the new tool
+without a restart.
+
+Every tool call runs under the check-in credential. In a bank member, every
+turn brings its own grant. See [Jobs](/docs/agents/jobs).
+
+## Resources and prompts
+
+| Name | What it holds |
+|---|---|
+| `gibson://ambient` | The ambient knowledge block: prior findings and security facts for this codebase, one lookup per session. |
+| `gibson://session` | The live mission coordinates: mission id, run id, target. |
+| `gibson_ambient` (prompt) | The same ambient block, for a host with no hook surface. Ask the model to call it. |
+
+## Related
+
+- [Coding agent](/docs/coding-agent), the opencode plugin
+- [Component bootstrap & auth](/docs/component-bootstrap), the identity model behind the check-in
+- [Banks](/docs/agents/banks), always-on Claude Code with this server inside
+- [Tools](/docs/tools), how a platform tool gets checked in

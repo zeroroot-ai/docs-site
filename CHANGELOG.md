@@ -1,0 +1,143 @@
+# Changelog
+
+## [0.6.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.0...docs-site-v0.6.1) (2026-09-05)
+
+
+### Miscellaneous
+
+* baseline ([2034385](https://github.com/zeroroot-ai/docs-site/commit/20343858f3384a4147aec4def719db6bedcfe6bf))
+
+## [0.6.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.5.1...docs-site-v0.6.0) (2026-08-25)
+
+
+### Features
+
+* Google Analytics 4 tag on every page ([#81](https://github.com/zeroroot-ai/docs-site/issues/81)) ([ca77613](https://github.com/zeroroot-ai/docs-site/commit/ca77613db9b1f3d884bf40500189274957d1f5f4))
+
+## [0.5.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.5.0...docs-site-v0.5.1) (2026-08-25)
+
+
+### Documentation
+
+* add Contributing section, migrate the gibson how-to guides ([#77](https://github.com/zeroroot-ai/docs-site/issues/77)) ([bff2bfb](https://github.com/zeroroot-ai/docs-site/commit/bff2bfb2f63f1ad8fb1f6ffa8b304d7f5664548c)), closes [#75](https://github.com/zeroroot-ai/docs-site/issues/75)
+* add the component-kind and FGA-model contributor guides ([#78](https://github.com/zeroroot-ai/docs-site/issues/78)) ([0086966](https://github.com/zeroroot-ai/docs-site/commit/0086966e17e8370e0d5818244e25234e5a312da8)), closes [#76](https://github.com/zeroroot-ai/docs-site/issues/76)
+* **coding-agent:** document the tenant LLM-provider prerequisite ([#73](https://github.com/zeroroot-ai/docs-site/issues/73)) ([9741c9d](https://github.com/zeroroot-ai/docs-site/commit/9741c9d00219392e68a87c6ea115169a54f75651))
+* rewrite every page in Simplified Technical English, add the prose guard ([#80](https://github.com/zeroroot-ai/docs-site/issues/80)) ([f262c6d](https://github.com/zeroroot-ai/docs-site/commit/f262c6dfc8fd68a09bb0498ebe6eaa75035ff0f6))
+* **security:** remove the what-Gibson-does-not-do section ([#79](https://github.com/zeroroot-ai/docs-site/issues/79)) ([2610ec9](https://github.com/zeroroot-ai/docs-site/commit/2610ec97f5771d83dbf51eb392f2d6bd72af17b7))
+
+
+### Miscellaneous
+
+* **docs:** refresh api-spec from zeroroot-ai/sdk@v0.171.0 ([#72](https://github.com/zeroroot-ai/docs-site/issues/72)) ([63acd32](https://github.com/zeroroot-ai/docs-site/commit/63acd327c216faf28cc0d72456f78ea56f121f19))
+
+## [0.5.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.4.1...docs-site-v0.5.0) (2026-08-23)
+
+
+### Features
+
+* **content:** rewrite plugins, add connectors, update enrollment for ADR-0065/0066 ([#70](https://github.com/zeroroot-ai/docs-site/issues/70)) ([7464673](https://github.com/zeroroot-ai/docs-site/commit/7464673e279482c8bd8d29a972443d8980b9b13d))
+
+## [0.4.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.4.0...docs-site-v0.4.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **docs:** American English throughout, with a guard ([#68](https://github.com/zeroroot-ai/docs-site/issues/68)) ([a1571e8](https://github.com/zeroroot-ai/docs-site/commit/a1571e84b23f5ebae9ff08dcc6a345ab63332f31))
+
+## [0.4.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.3.1...docs-site-v0.4.0) (2026-08-19)
+
+
+### Features
+
+* **brand:** adopt the light acid-concrete brand ([#67](https://github.com/zeroroot-ai/docs-site/issues/67)) ([88a0f2f](https://github.com/zeroroot-ai/docs-site/commit/88a0f2f8812634dbb1542f462bd9c0e7d7953921))
+
+
+### Documentation
+
+* **connectors:** say where the vendor MCP server actually runs ([#64](https://github.com/zeroroot-ai/docs-site/issues/64)) ([60f72b7](https://github.com/zeroroot-ai/docs-site/commit/60f72b7f44c588e71fb67adb42c84208a119a111))
+
+## [0.3.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.3.0...docs-site-v0.3.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **release:** make docs and refactor releasable types ([#61](https://github.com/zeroroot-ai/docs-site/issues/61)) ([2537442](https://github.com/zeroroot-ai/docs-site/commit/2537442048002e1a0b095c98b8164ffab06d7203))
+
+
+### Documentation
+
+* **docs:** fold connectors into plugins as a runtime, not a peer page ([#60](https://github.com/zeroroot-ai/docs-site/issues/60)) ([03668fa](https://github.com/zeroroot-ai/docs-site/commit/03668fa9bf91b08d2feadcddc69611fce3ae453c))
+
+## [0.3.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.3...docs-site-v0.3.0) (2026-08-18)
+
+
+### Features
+
+* **ci:** publish the docs site to s3 on a release tag ([#57](https://github.com/zeroroot-ai/docs-site/issues/57)) ([491f549](https://github.com/zeroroot-ai/docs-site/commit/491f549ed48b9a2bfbb0f6ad9a72c902f8779d89))
+
+
+### Bug Fixes
+
+* **ci:** pin the real configure-aws-credentials sha ([#59](https://github.com/zeroroot-ai/docs-site/issues/59)) ([c236bbb](https://github.com/zeroroot-ai/docs-site/commit/c236bbbcf35ec904bf0001abc79f53433436b995))
+
+## [0.2.3](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.2...docs-site-v0.2.3) (2026-08-18)
+
+
+### Bug Fixes
+
+* **export:** make the static export serve without host-specific rules ([#56](https://github.com/zeroroot-ai/docs-site/issues/56)) ([39fe94c](https://github.com/zeroroot-ai/docs-site/commit/39fe94c2f0ac4ac7b7393d253eb650a04e0a0e03))
+
+
+### Miscellaneous
+
+* **docs:** remove the legacy vendor-name guard ([#48](https://github.com/zeroroot-ai/docs-site/issues/48)) ([cfd10d0](https://github.com/zeroroot-ai/docs-site/commit/cfd10d06892983a210f9016d9a76ecb8c0707da3))
+
+## [0.2.2](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.1...docs-site-v0.2.2) (2026-08-17)
+
+
+### Miscellaneous
+
+* **deps:** bump js-yaml ([#38](https://github.com/zeroroot-ai/docs-site/issues/38)) ([012297c](https://github.com/zeroroot-ai/docs-site/commit/012297c882d3176929d620422bae6d798fa82fe3))
+* **deps:** bump nanoid from 3.3.15 to 3.3.18 ([#37](https://github.com/zeroroot-ai/docs-site/issues/37)) ([ecb40c7](https://github.com/zeroroot-ai/docs-site/commit/ecb40c7a510f47f296d32ad965fd5d6db6636af5))
+
+## [0.2.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.2.0...docs-site-v0.2.1) (2026-08-17)
+
+
+### Miscellaneous
+
+* **docs:** refresh api-spec from zeroroot-ai/sdk@v0.163.0 ([#39](https://github.com/zeroroot-ai/docs-site/issues/39)) ([9c272c6](https://github.com/zeroroot-ai/docs-site/commit/9c272c628b2409702f6edf8f0bd86106c467cb06))
+
+## [0.2.0](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.1.0...docs-site-v0.2.0) (2026-08-15)
+
+
+### Features
+
+* **ci:** auto-refresh cli-spec/api-spec from adk and sdk releases ([#27](https://github.com/zeroroot-ai/docs-site/issues/27)) ([17b3410](https://github.com/zeroroot-ai/docs-site/commit/17b34106dd8d4b529e4a1c087e12f092a83328ff))
+* consume @zeroroot-ai/brand tokens (drop inlined CSS vars) ([#1](https://github.com/zeroroot-ai/docs-site/issues/1)) ([2d5a396](https://github.com/zeroroot-ai/docs-site/commit/2d5a39696e0d46c40306c30eb69eac2c40bfe775))
+* **content:** bring the real docs in, and fix the CSS reset that broke layout ([#12](https://github.com/zeroroot-ai/docs-site/issues/12)) ([41e50e5](https://github.com/zeroroot-ai/docs-site/commit/41e50e5622b047fc9a41faa9b832c5a5e5a7c433))
+* **docs:** auto-generate the API reference from the SDK protos ([#17](https://github.com/zeroroot-ai/docs-site/issues/17)) ([39ded3c](https://github.com/zeroroot-ai/docs-site/commit/39ded3cc8c8c23d5a0b28790946a54079f258993))
+* **docs:** auto-generate the CLI reference from the adk command spec ([#15](https://github.com/zeroroot-ai/docs-site/issues/15)) ([a1b094b](https://github.com/zeroroot-ai/docs-site/commit/a1b094b1d900d6a7f946241a2ee744ff0fe7142f))
+* initial Fumadocs docs site with brand tokens and nginx image ([2e6e8d8](https://github.com/zeroroot-ai/docs-site/commit/2e6e8d85792f28aabdc531ae9209e92936ee0e80))
+
+
+### Bug Fixes
+
+* **ci:** gate spec-sync refresh PRs on a full pnpm build ([#30](https://github.com/zeroroot-ai/docs-site/issues/30)) ([4181d82](https://github.com/zeroroot-ai/docs-site/commit/4181d82c0c0e03546ad628b3f753651aaa224144))
+* **ci:** remove pnpm cache — no pnpm-lock.yaml in repo ([#2](https://github.com/zeroroot-ai/docs-site/issues/2)) ([de06ed1](https://github.com/zeroroot-ai/docs-site/commit/de06ed176c31008ec81e12f46faef059f7f6d9aa))
+* **css:** adopt the full brand globals so the docs match the landing page ([#18](https://github.com/zeroroot-ai/docs-site/issues/18)) ([28808fb](https://github.com/zeroroot-ai/docs-site/commit/28808fb019f642d70fc4f392fab5341e5c461136))
+* **css:** reserve link-cyan for content, and drop the dead theme toggle ([#25](https://github.com/zeroroot-ai/docs-site/issues/25)) ([0be6da7](https://github.com/zeroroot-ai/docs-site/commit/0be6da751977cd39924b5a90866b40590458da8a))
+* **docker:** make the html tree writable by uid 101 so origin substitution can run ([#23](https://github.com/zeroroot-ai/docs-site/issues/23)) ([#24](https://github.com/zeroroot-ai/docs-site/issues/24)) ([122f42d](https://github.com/zeroroot-ai/docs-site/commit/122f42d23f719f4c72d1e33997b82536ea59dcf0))
+* **docker:** resolve fumadocs-ui@16 upgrade to fix npm ci ERESOLVE ([#5](https://github.com/zeroroot-ai/docs-site/issues/5)) ([7a62aff](https://github.com/zeroroot-ai/docs-site/commit/7a62aff4ba0bbb7b5537167476b8b44fde3f6a7f))
+* **docker:** serve from nginx-unprivileged on :8080 ([#10](https://github.com/zeroroot-ai/docs-site/issues/10)) ([26c394a](https://github.com/zeroroot-ai/docs-site/commit/26c394a3ce6145cc283ae3fa33895275f6fb376b))
+* **docker:** use npm instead of pnpm — pnpm ignores project .npmrc auth tokens ([#3](https://github.com/zeroroot-ai/docs-site/issues/3)) ([e63683a](https://github.com/zeroroot-ai/docs-site/commit/e63683ae971de06175a32afca8608ab369935105))
+* **install:** make the ADK the single entry point, and correct what it claims ([#14](https://github.com/zeroroot-ai/docs-site/issues/14)) ([04e0098](https://github.com/zeroroot-ai/docs-site/commit/04e0098e5bd146adc35d7ba685dd5f78bb35fe84))
+* **links:** env-derive functional cross-surface links at serve time ([#20](https://github.com/zeroroot-ai/docs-site/issues/20)) ([625aa1d](https://github.com/zeroroot-ai/docs-site/commit/625aa1d83b7d285b7bc9be7ab4c50d54c65fd277))
+* **routing:** serve the docs at / instead of an error shell ([#11](https://github.com/zeroroot-ai/docs-site/issues/11)) ([bdfbe3a](https://github.com/zeroroot-ai/docs-site/commit/bdfbe3aff543a4cc7e40f25368842c6ffdd71441))
+
+
+### Miscellaneous
+
+* add uniform Makefile contract (build/test/check) ([#7](https://github.com/zeroroot-ai/docs-site/issues/7)) ([b845985](https://github.com/zeroroot-ai/docs-site/commit/b845985b1b7927d5525f95bfd9dd21d60411dde7))
+* **ci:** pin actions to SHAs, tighten permissions, add Scorecard ([#31](https://github.com/zeroroot-ai/docs-site/issues/31)) ([a506622](https://github.com/zeroroot-ai/docs-site/commit/a506622d29970df4d5c236ab31b302f17cd6d4dd))
+* commit pnpm-lock.yaml for reproducible installs ([#9](https://github.com/zeroroot-ai/docs-site/issues/9)) ([8d02f62](https://github.com/zeroroot-ai/docs-site/commit/8d02f626cc0646d6509fb9876279161076044d0e)), closes [#8](https://github.com/zeroroot-ai/docs-site/issues/8)
+* **docs:** refresh api-spec from zeroroot-ai/sdk@v0.162.0 ([#28](https://github.com/zeroroot-ai/docs-site/issues/28)) ([8db571d](https://github.com/zeroroot-ai/docs-site/commit/8db571d7566d27a1986df4c0dbc93c4cb1b4fd3a))

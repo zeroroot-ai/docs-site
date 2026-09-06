@@ -1,0 +1,98 @@
+---
+title: Isolation
+description: One gate decides how a component runs. It denies the component, puts it in a Firecracker microVM, or runs it in process. It reads the component's declared content trust and the deployment shape, and it fails closed.
+---
+
+Component code does not decide where it runs. One gate decides. The gate is
+pure, total, and fail-closed: `internal/engine/harness/dispatchpolicy` (ADR-0010).
+
+Read that one file and you have reviewed the whole isolation boundary. That is
+why the gate lives in one place.
+
+## The gate
+
+The gate returns one of three answers:
+
+| Answer | Meaning |
+|---|---|
+| **Deny** | The component does not execute. |
+| **RequireSetec** | The component executes inside a Firecracker microVM, via Kata, orchestrated by the setec operator. |
+| **AllowInProcess** | The component may take the in-process path. |
+
+The gate decides from three inputs: whether a sandboxed dispatch is available,
+the component's declared content trust, and the deployment shape:
+
+```
+if a sandboxed dispatch is available   → RequireSetec
+if untrusted and hosted shape          → Deny
+otherwise                              → AllowInProcess
+```
+
+Two things follow. The short version gets misquoted in both directions, so be
+precise about them:
+
+- **When a sandbox is available, the gate always uses it.** This applies to
+  trusted components as well as untrusted ones. The sandbox is the default, not
+  the exception.
+- **Untrusted code has no in-process fallback in the hosted deployment.** If the
+  sandbox is unavailable, the gate refuses the call. The call does not degrade
+  into a run in the platform's address space.
+
+So the accurate claim is not "every invocation runs in a microVM". It is this:
+**untrusted code never runs outside a microVM on our infrastructure, and when a
+sandbox is there, everything uses it.**
+
+## Content trust
+
+A component declares in its manifest whether it handles untrusted input:
+
+```yaml
+spec:
+  policy:
+    content_trust: untrusted   # or: trusted
+```
+
+**The default is `trusted`.** A manifest that omits the field gets `trusted`.
+A descriptor registered before the field existed also gets `trusted`. The gate
+treats "unspecified" as trusted for backward compatibility.
+
+That matters for a review. Content trust is a **declaration by the component
+author**. The platform does not infer it. If a tool parses attacker-supplied
+output and does not say so, the gate treats the tool as trusted. Treat the
+field as part of component review, the same way you treat a requested
+permission.
+
+## Deployment shape
+
+The environment variable `GIBSON_UNTRUSTED_EXEC` selects who owns the isolation
+boundary:
+
+| Value | Meaning |
+|---|---|
+| `setec-only` | Hosted, multi-tenant. Untrusted execution is sandbox-or-denied. |
+| `customer-isolation` | Self-hosted. You own the boundary, and untrusted components may take the in-process path when no sandbox is configured. |
+
+`setec-only` is the default, the zero value, and the fallback for any
+unrecognized value. So a harness that was never wired fails closed, not open.
+
+The same shape also gates *where* a sandbox may isolate untrusted execution.
+The hosted shape permits only the platform-operated sandbox fleet. A
+self-hosted deployment may point at its own sandbox endpoint.
+
+## What that gets you
+
+A tool that parses attacker-controlled output cannot reach the host, the
+daemon, or the next tool. Examples of that output: a scanner report, a scraped
+page, or a model's own output fed back as input. The tool gets a
+hardware-virtualized boundary, not a container namespace.
+
+A reviewer usually asks about one failure mode: "what happens when the sandbox
+is down". That question has a stated answer. On our infrastructure, untrusted
+work stops. It does not quietly run somewhere less safe.
+
+## What to check
+
+1. `dispatchpolicy` is the only decision site, and it is pure and total.
+2. Content trust defaults to trusted when the manifest omits it.
+3. `GIBSON_UNTRUSTED_EXEC` fails closed to `setec-only` on any unrecognized value.
+4. There is no in-process fallback for untrusted code in the hosted shape.

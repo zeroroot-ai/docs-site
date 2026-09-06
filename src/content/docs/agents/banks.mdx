@@ -1,0 +1,184 @@
+---
+title: Banks
+description: A bank is a pool of always-on Claude Code instances that Gibson keeps running for you. Create one, sign in, and send it jobs.
+---
+
+**Not yet released.** Banks ship with epic
+[zeroroot-ai/gibson#1706](https://github.com/zeroroot-ai/gibson/issues/1706).
+This page describes the design the epic builds. Field names and screens can
+change before the release.
+
+A **bank** is a pool of always-on Claude Code instances. You declare how many
+you want. The daemon keeps that many running, each in its own gVisor sandbox.
+One instance in a bank is a **member**. Anyone with `can_send` on the bank
+gives a member work as a [job](/docs/agents/jobs).
+
+A bank is declarative. You state the desired count and the policies. The
+daemon does the rest. It launches members until the desired count runs. It
+relaunches a member that dies. It holds a member at `needs sign-in` until the
+owner signs in. Members stay up until the bank scales down, so the reaper
+leaves them alone.
+
+## Who owns a bank
+
+A bank has one owner. The owner is a person, or the tenant.
+
+| Owner | Login shape | Sign-in step |
+|---|---|---|
+| A person | Subscription, Anthropic API key, or a cloud provider | Yes, for a subscription. The sign-in is yours. |
+| The tenant | Anthropic API key or a cloud provider | No. The credential comes from the tenant provider configuration. |
+
+A member is an always-on mission the owner originated. This is the same shape
+as the `watch` task kind. The owner's identity is the root of every grant the
+member receives.
+
+## Create a bank
+
+1. Open **Agents** in the dashboard sidebar, then **Banks**.
+2. Click **Create**.
+3. Fill in the form.
+4. Click **Create** again.
+
+| Field | What it sets |
+|---|---|
+| **Name** | The name other people and missions use to pick the bank. |
+| **Owner** | You, or the tenant. Only a tenant admin can pick the tenant. |
+| **Count** | The desired number of members. The tenant cap bounds it. The default cap is 10. |
+| **Login shape** | Subscription, API key, or cloud provider. Subscription needs a person as owner. |
+| **Provider configuration** | The tenant provider configuration that holds the API key or the cloud credential. Hidden for a subscription. |
+| **Model** | The Claude model the members run. |
+| **Jobs in flight cap** | How many jobs one member runs at the same time. |
+| **Stale limit** | How long a job can sit with no input before the daemon abandons it. |
+| **Spill policy** | What happens when no member has a free slot: queue the job, or launch a one-shot instance for it. |
+
+After you create the bank, the daemon launches the members. A member with an
+API key or a cloud credential goes to `idle` on its own. A member on a
+subscription goes to `needs sign-in` and waits for you.
+
+Bank actions are RPCs on `BankService`: `CreateBank`, `GetBank`, `ListBanks`,
+`UpdateBank`, `DeleteBank`, and `ListMembers`. The
+[Gibson MCP server](/docs/integrations/mcp) exposes each one as a tool, so an
+agent can create a bank too.
+
+## Sign in on a subscription
+
+A subscription member runs Claude Code on your own Claude account. The
+platform never stores your subscription. You sign in inside the sandbox,
+through Anthropic's own flow. The dashboard relays the two things the flow
+needs: a URL for you, and a code from you.
+
+1. Open the bank page.
+2. On a member that shows `needs sign-in`, click **Sign in**.
+3. Open the URL the panel shows.
+4. Sign in to your Claude account in the browser.
+5. Copy the code the browser shows.
+6. Paste the code into the panel and submit it.
+7. Wait until the member shows `idle`.
+
+Behind the panel, the member runs the unmodified `claude` binary and its own
+login command. The daemon relays the URL and the code through `StartSignIn`,
+`StreamSignIn`, and `SubmitSignInCode`. It stores state transitions and
+nothing else. No URL, no code, and no token reach the database or the logs.
+
+A subscription login expires. Claude Code warns some days before. The member
+then shows `sign-in expiring`, and the bank page shows a banner with a
+**Sign in again** action. Only the bank owner sees the sign-in panel, because
+the sign-in is theirs.
+
+## API key and cloud shapes
+
+The other two login shapes need no sign-in. The credential comes from the
+tenant provider configuration and the manifest `credentials` block. The
+daemon injects it into the sandbox at launch.
+
+| Shape | What Claude Code needs |
+|---|---|
+| Anthropic API key | `ANTHROPIC_API_KEY`. |
+| Amazon Bedrock | An AWS credential and a region. |
+| Google Vertex AI | A Google Cloud credential and a project. |
+| Microsoft Foundry | An endpoint and a key. |
+
+Configure the provider on the tenant first. Then pick it in the bank form.
+A tenant-owned bank always uses one of these shapes. The credential never
+leaves the sandbox, and the member never checkpoints it.
+
+## The Claude Code terms
+
+Anthropic sets conditions for a platform that runs Claude Code. The conditions
+come from the Claude Code documentation, page **Legal and compliance**,
+section **Can customers offer Claude Code in their products?** (read
+2026-09-01). The wording below is verbatim.
+
+| Condition | Verbatim text |
+|---|---|
+| The binary | "The Claude Code binary must not be modified. Claude Code must be installed and run as published by Anthropic, and customers may not remove, disable, or restrict any authentication method built into it (including methods that permit signing in with a Claude account or the user's own API key)." |
+| The billing | "Customers may not pay for, resell, or intermediate Claude usage on their end users' behalf. Each end user must authenticate with their own Anthropic API key, Claude subscription plan credentials, or 3P inference provider credential (Amazon Bedrock, Google Cloud's Agent Platform, Microsoft Foundry). That usage is billed directly to the end user under their own agreement with Anthropic or, for third-party inference providers, with the applicable provider." |
+
+Read the source at
+[code.claude.com/docs/en/legal-and-compliance](https://code.claude.com/docs/en/legal-and-compliance).
+
+In plain words, this is what the conditions mean for a bank:
+
+- **Your own login.** A member signs in with your Claude account, your API
+  key, or your cloud credential. Gibson offers all three shapes and blocks
+  none.
+- **Billed to you.** Anthropic, or your cloud provider, bills the usage to
+  you under your own agreement. ZeroRoot does not pay for it and does not
+  resell it.
+- **ZeroRoot never sees the token.** The sign-in completes on claude.ai,
+  inside the sandbox, in the unmodified `claude` binary. The daemon relays a
+  URL and a code. It never holds the credential.
+- **The binary is not modified.** The member driver spawns the published
+  `claude` binary. It never uses the Agent SDK in its place.
+
+## Member states
+
+| State | Meaning |
+|---|---|
+| `idle` | The member runs, and it has a free slot. |
+| `busy N/cap` | The member has N jobs in flight, and N equals its cap. |
+| `needs sign-in` | The member waits for the owner to sign in. |
+| `sign-in expiring` | The login expires soon. Sign in again. |
+| `draining` | The bank scaled down. The member finishes its open jobs and then exits. |
+| `dead` | The sandbox died. The daemon launches a replacement. |
+
+A member reports its state on every heartbeat, together with the jobs in
+flight, the cap, and the Claude Code version. A member with a free slot pulls
+the next queued job for its bank. The capacity of a bank is the member count
+multiplied by the cap.
+
+The bank page lists each member with its state, its last heartbeat, its
+Claude Code version, its cost to date, and its open jobs. Each member links
+to the [Agent Sandboxes](/docs/agent-sandboxes) console, where you send jobs
+and read the output.
+
+## Cost
+
+Every turn of Claude Code ends with a `result` event that carries the cost.
+The daemon sums that cost on the job, on the member, and on the bank. The
+bank page shows it per member. No harness budget applies to a bank, because
+the login owner pays the provider. A job can still carry its own budget cap
+in its constraints.
+
+## Who can do what
+
+| Relation | Who holds it | What it allows |
+|---|---|---|
+| `can_manage` | The owner. On a tenant bank, tenant admins. | Edit the count and the policies. Delete the bank. Start a sign-in. |
+| `can_send` | Whoever the owner grants. On a tenant bank, every member of the tenant by default. | Open a job and send input. |
+| `can_view` | Whoever the owner grants. | See the bank page and the console. |
+| `can_close` | The owner, tenant admins, and the job node executor. | Close a job with a verdict. |
+
+## Scale down and delete
+
+Lower the count to scale down. The daemon drains the extra members. A
+draining member finishes its open jobs, then exits. Delete removes the bank.
+The confirm dialog lists the open jobs the delete abandons. An abandoned job
+closes with the verdict `abandoned`.
+
+## Related
+
+- [Jobs](/docs/agents/jobs), the work a member holds
+- [Job node](/docs/missions/job-node), how a mission drives a bank
+- [Gibson MCP server](/docs/integrations/mcp), the tool surface inside a member
+- [Agent sandboxes](/docs/agent-sandboxes), the console

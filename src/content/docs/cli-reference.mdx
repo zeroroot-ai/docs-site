@@ -1,0 +1,732 @@
+---
+title: CLI Reference
+description: Complete reference for every gibson command, flag, and default, generated from the CLI.
+---
+
+{/* GENERATED FILE — do not edit by hand. Rendered from src/generated/cli-spec.json
+    by scripts/gen-cli-reference.mjs. Run `pnpm regen:cli` after a CLI change. */}
+
+`gibson` is the local command-line interface for the Gibson platform. This page lists every command exhaustively; the guides walk you through the common workflows.
+
+```text
+gibson — tooling for the Gibson agent / tool / plugin
+development lifecycle.
+
+Subcommands:
+  login      authenticate the CLI against the platform (device flow)
+  logout     end the CLI session and remove stored credentials
+  init       initialise a Gibson workspace (.gibson/workspace.yaml)
+  component  scaffold, validate, register, run components (agent | tool | plugin)
+  docs       emit machine-readable docs (JSON Schemas, etc.)
+  inspect    show what this principal can do (calls WhoAmI)
+  mission    author, validate, render, submit gibson missions
+  target     create, list, inspect, update, delete assessment targets
+  agent      manage agent/tool/plugin machine identities
+```
+
+## Global flags
+
+Available on every command.
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--ca-cert` | string | — | PEM file with a CA certificate to trust IN ADDITION to the system store (env: GIBSON_CA_CERT) |
+
+## Commands
+
+### `gibson agent`
+
+Manage agent/tool/plugin machine identities (AgentIdentityService)
+
+```text
+gibson agent — provision and manage machine identities for
+agents, tools, and plugins via AgentIdentityService on the Gibson
+daemon. Authenticated as you: run `gibson login` first.
+
+Subcommands:
+  enroll  provision a new machine identity and print the one-time secret
+  list    list all identities for the tenant
+  revoke  permanently revoke an identity by principal ID
+```
+
+#### `gibson agent enroll`
+
+Provision a new machine identity and print the one-time bootstrap token
+
+```text
+Call AgentIdentityService.CreateAgentIdentity to provision a new
+machine identity, authenticated as you (run `gibson login` first).
+The one-time bootstrap token is printed to stdout — store it immediately;
+it cannot be retrieved again. Run the printed enroll_command (or
+`gibson component register --token`) to complete the capability-grant
+handshake (ADR-0045). The same flow serves every component kind.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--description` | string | — | Human-readable description |
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--kind` | string | `agent` | Component kind: agent \| tool \| plugin |
+| `--name` | string | — | Identity name (required) |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | RPC deadline |
+
+#### `gibson agent list`
+
+List all machine identities for the tenant
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--kind` | string | — | Filter by kind: agent \| tool \| plugin (default: all) |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | RPC deadline |
+
+#### `gibson agent revoke`
+
+Permanently revoke a machine identity
+
+```text
+Call AgentIdentityService.RevokeAgentIdentity. The identity is
+immediately invalidated; existing JWTs for the principal stop being
+accepted by the daemon. This action is irreversible.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | RPC deadline |
+
+### `gibson component`
+
+Scaffold, validate, register, and run Gibson components (agent | tool | plugin)
+
+```text
+component — kind-aware tooling for the Gibson developer workflow.
+
+Subcommands:
+  init      scaffold a new component directory from templates
+  generate  regenerate gen/ from taxonomy.yaml and ontology.yaml
+  build     generate + validate + go build (one-step developer loop)
+  validate  local schema + proto checks against component.yaml / plugin.yaml
+  register  consume a dashboard-issued enroll_command (no admin RPC auto-mint)
+  run       run the compiled component binary, supervising signals and exit code 75
+
+In a directory containing a component.yaml, --kind is auto-detected
+from the file. Outside such a directory, --kind is required.
+```
+
+#### `gibson component build`
+
+Generate, validate, and compile the component binary
+
+```text
+build is the one-step developer loop command:
+
+  1. generate  — regenerate gen/ from taxonomy.yaml + ontology.yaml
+  2. validate  — run all local checks (component.yaml, proto field 100,
+                 buf lint, ontology YAML parse)
+  3. mod tidy  — populate go.sum on a freshly scaffolded component
+                 (skipped once go.sum exists)
+  4. go build  — compile the component binary into the component directory
+
+build delegates to the generate and validate subcommands, resolves
+modules when go.sum is absent, then runs `go build ./...` in the
+component directory. Use `gibson component generate`
+or `gibson component validate` individually if you want finer control.
+
+Exit codes:
+  0  build succeeded
+  1  generate / validate / compile error (details on stderr)
+
+Examples:
+  gibson component build
+  gibson component build --dir ./my-tool
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-d, --dir` | string | `.` | component directory (containing component.yaml) |
+
+#### `gibson component generate`
+
+Generate Go bindings from taxonomy.yaml and ontology.yaml
+
+```text
+generate reads taxonomy.yaml and ontology.yaml (if present) in the
+component directory and emits Go source files under gen/:
+
+  gen/ontology_extension.go  — exports OntologyExtension() returning a
+                               graphrag.OntologyExtension populated from
+                               the parsed ontology.yaml
+
+Generated files are byte-stable across runs: map keys are sorted and
+go/format is applied. Commit the gen/ directory; diffs reflect only
+intentional ontology changes.
+
+generate is a no-op if neither YAML file is present (it prints a notice
+and exits 0 rather than failing).
+
+Examples:
+  gibson component generate
+  gibson component generate --dir ./my-tool
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-d, --dir` | string | `.` | component directory (containing component.yaml) |
+
+#### `gibson component init`
+
+Scaffold a new component directory (agent | tool | plugin)
+
+```text
+init scaffolds a new Gibson component directory from embedded
+templates. The kind selects which template set to render and what file
+shape the new directory has:
+
+  agent:  component.yaml + main.go (sdk.NewAgent + sdk.ServeAgent) +
+          go.mod + Makefile + Dockerfile + README + AGENTS.md +
+          CLAUDE.md + prompts/ + .claude/settings.json
+
+  tool:   like agent, plus api/proto/gibson/tools/<pkg>/v1/<pkg>.proto with
+          field 100 = gibson.graphrag.v1.DiscoveryResult, buf.yaml,
+          buf.gen.yaml, and proto/vendor/ for the SDK protos
+
+  plugin: plugin.yaml manifest + main.go (plugin.Serve + Echo handler)
+          + .proto + Makefile + Dockerfile + README + AGENTS.md +
+          CLAUDE.md + prompts/ + .claude/settings.json
+
+The name must match ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ (DNS-label style).
+
+--with-secret is plugin-only. agent and tool kinds do not declare
+broker secrets.
+
+Examples:
+  gibson component init my-agent --kind agent
+  gibson component init my-scanner --kind tool
+  gibson component init my-plugin --kind plugin --with-secret cred:api_key=startup:live
+  gibson component init my-plugin --kind plugin --dir ~/projects --force
+
+A connector is a kind: plugin component whose runtime is mcp-bridge — it fronts
+a vendor MCP server and is manifest-only (no Go code). Scaffold one with
+--runtime mcp-bridge (replaces the retired "gibson connector init"):
+  gibson component init github --kind plugin --runtime mcp-bridge \
+    --command npx --arg=-y --arg=@modelcontextprotocol/server-github \
+    --secret cred:github_token=GITHUB_PERSONAL_ACCESS_TOKEN
+  gibson component init internal-api --kind plugin --runtime mcp-bridge \
+    --transport http --endpoint https://mcp.example.com/mcp
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--arg` | stringArray | — | mcp-bridge stdio: argument passed to --command (repeatable, in order) |
+| `--command` | string | — | mcp-bridge stdio: executable that runs the vendor MCP server (e.g. npx, uvx) |
+| `--description` | string | — | mcp-bridge: human-readable connector description |
+| `-d, --dir` | string | — | destination directory (default: current directory) |
+| `--endpoint` | string | — | mcp-bridge http: base URL of the running vendor MCP server |
+| `--force` | bool | — | overwrite existing files |
+| `--kind` | string | — | component kind: agent \| tool \| plugin (required) |
+| `--runtime` | string | — | plugin runtime: process (default) \| mcp-bridge (a connector fronting a vendor MCP server) |
+| `--secret` | stringArray | — | mcp-bridge: secret mapping &lt;broker-name>=&lt;ENV_VAR> (repeatable) |
+| `--transport` | string | `stdio` | mcp-bridge: stdio \| http |
+| `--with-secret` | stringArray | — | plugin-only: declare a secret name=scope:rotation (repeatable) |
+
+#### `gibson component register`
+
+Register this component via its bootstrap token (Capability-Grant handshake)
+
+```text
+register performs first-time registration of this component install.
+
+The CLI does NOT mint identity. Run the dashboard's "Register Agent /
+Tool / Plugin" wizard (or `gibson agent enroll`) first; it
+returns a one-time bootstrap token. Paste it here:
+
+  gibson component register --token <bootstrap-token>
+
+This runs the Capability-Grant handshake (Discover → Register) and
+persists, under ~/.gibson/<kind>/ (relocatable via GIBSON_HOME):
+
+  <name>.host_key      host key for idempotent re-registration
+  <name>.runtime.json  the runtime credential gibson inspect / serve reuse
+
+The kind is auto-detected from component.yaml in --dir.
+
+NEVER paste the token into shell history. Use stdin ("-") or set
+GIBSON_BOOTSTRAP_TOKEN in your shell.
+
+Examples:
+  gibson component register --token eyJhbGci...
+  gibson component register --token -            # read from stdin
+  gibson component register --kind plugin --token eyJhbGci...   # override kind
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-d, --dir` | string | `.` | component directory (containing component.yaml) |
+| `--gibson-url` | string | — | Gibson platform URL; falls back to env / workspace. |
+| `--kind` | string | — | override kind (agent \| tool \| plugin); auto-detected from component.yaml when unset |
+| `--name` | string | — | optional install name (allows multiple credentials per kind on one host) |
+| `--token` | string | — | bootstrap token. Use "-" to read from stdin or set GIBSON_BOOTSTRAP_TOKEN. |
+
+#### `gibson component run`
+
+Run the compiled component binary, supervising signals + exit code 75
+
+```text
+run starts the compiled component binary in this directory, forwards
+its stdout/stderr to the operator's terminal, hooks SIGINT/SIGTERM, and
+waits up to --drain-timeout (default 30s) for graceful shutdown before
+escalating to SIGKILL.
+
+run is a thin process supervisor — it does NOT compile the binary
+(use `make build` first) and it does NOT mock handlers. The
+component's existing graceful-drain logic in plugin.Serve / serve.Agent /
+serve.Tool is the contract; this verb just supervises it.
+
+Pre-flight: refuses to launch if the kind-appropriate credential file
+is missing (~/.gibson/<kind>/credentials for agent/tool;
+~/.gibson/plugin/<name>/host_key for plugin) and points at
+`gibson component register`.
+
+Exit codes are surfaced verbatim from the child. Notably:
+  75  the SDK's plugin rotation contract — not a crash; the platform
+      should restart the binary. The CLI prints a clear note.
+
+Examples:
+  gibson component run
+  gibson component run --dir ./my-tool
+  gibson component run --drain-timeout 60s
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-d, --dir` | string | `.` | component directory (containing component.yaml + compiled binary) |
+| `--drain-timeout` | duration | `30s` | max wait between SIGTERM and SIGKILL on shutdown |
+| `--kind` | string | — | override kind (agent \| tool \| plugin); auto-detected from component.yaml when unset |
+
+#### `gibson component validate`
+
+Local schema + proto checks against component.yaml / plugin.yaml
+
+```text
+validate runs kind-aware local checks against the component in --dir
+(default: current directory). The kind is auto-detected from
+component.yaml; pass --kind to override.
+
+  agent:  component.yaml shape, main.go parses
+  tool:   agent checks, plus proto field 100 = DiscoveryResult, plus
+          buf lint when buf is on PATH
+  plugin: agent checks, plus the SDK manifest validator
+
+Exit codes:
+  0  no errors
+  2  validation errors (one or more findings printed to stderr)
+  1  I/O / setup error (e.g. component.yaml missing)
+
+Examples:
+  gibson component validate
+  gibson component validate --dir ./my-tool
+  gibson component validate --kind plugin   # override auto-detect
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-d, --dir` | string | `.` | component directory (containing component.yaml) |
+| `--kind` | string | — | override kind: agent \| tool \| plugin |
+
+### `gibson docs`
+
+Emit machine-readable docs (JSON Schemas, etc.)
+
+```text
+docs — emit developer-facing reference material.
+
+Subcommands:
+  schema    JSON Schema (Draft 2020-12) for component.yaml / plugin.yaml
+  cli       the command tree as machine-readable JSON (drives the CLI reference)
+```
+
+#### `gibson docs cli`
+
+Emit the command tree as machine-readable JSON
+
+```text
+cli walks the whole gibson command tree and writes it to stdout as a
+stable JSON document (sorted, deterministic). It is the source of truth
+for the auto-generated CLI reference in the documentation site: the
+generator renders the reference from this JSON, and a drift gate fails
+if the committed page no longer matches.
+
+Regenerate the committed spec after any command, flag, or help-text
+change:
+
+  gibson docs cli > cli-spec.json
+```
+
+#### `gibson docs schema`
+
+Emit JSON Schema for component.yaml / plugin.yaml
+
+```text
+schema emits the JSON Schema (Draft 2020-12) for a Gibson YAML
+shape. With no name, lists available schemas. With one of the
+supported names, writes the schema to stdout (or --output <dir>).
+
+Editor and AI-coder integration: pipe the output into your project's
+schema config (e.g. yaml-language-server settings, JetBrains schema
+registry) and your editor will validate component.yaml / plugin.yaml
+inline.
+
+Examples:
+  gibson docs schema                       # list available schemas
+  gibson docs schema component-yaml        # emit to stdout
+  gibson docs schema plugin-yaml | jq .    # validate JSON
+  gibson docs schema --output ./schemas    # write both schemas to disk
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--output` | string | — | directory to write *.schema.json into (writes both schemas) |
+
+### `gibson init`
+
+Initialise a Gibson workspace (writes .gibson/workspace.yaml)
+
+```text
+init writes a workspace.yaml that pins GIBSON_URL for this workspace,
+so subsequent `gibson component <verb>` calls do not require
+the flag every time.
+
+By default the file is written to ./.gibson/workspace.yaml (per-project).
+Pass --global to write to ~/.gibson/workspace.yaml (machine-wide
+fallback).
+
+The workspace file is non-secret. It MUST NOT contain client_id /
+client_secret / bootstrap_token / host_key / password / secret / token
+fields — Load() rejects them at parse time. Credentials live at
+~/.gibson/{agent,tool,plugin}/credentials with mode 0600. Tenant
+context is embedded in those credentials, so workspace.yaml carries
+no tenant pin.
+
+Examples:
+  gibson init --gibson-url https://api.zeroroot.ai
+  gibson init --global --gibson-url https://api.zeroroot.ai
+  gibson init --force --gibson-url ...   # overwrite existing
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--comment` | string | — | Optional free-form note. |
+| `--force` | bool | — | Overwrite an existing workspace file. |
+| `--gibson-url` | string | — | Gibson platform URL (e.g. https://api.zeroroot.ai). Required. |
+| `--global` | bool | — | Write to ~/.gibson/workspace.yaml instead of ./.gibson/workspace.yaml. |
+
+### `gibson inspect`
+
+Show what this principal can do (calls WhoAmI on the Gibson daemon)
+
+```text
+inspect loads the local runtime credential at
+~/.gibson/<kind>/<name>.runtime.json (written by gibson component
+register), signs a per-RPC Capability-Grant JWT with the registered
+agent key, and calls IdentityService.WhoAmI to print the principal's
+effective Gibson permissions.
+
+Auto-detection: when --kind is unset, inspect scans ~/.gibson/{agent,
+tool,plugin}/*.runtime.json and, when exactly one exists, picks that.
+Multiple installs require --kind (and --name). GIBSON_AGENT_KEY (a
+base64 runtime credential) overrides the on-disk lookup for CI / k8s.
+
+Output formats:
+  default  human-friendly tree with stable action labels for grep
+  --json   raw WhoAmIResponse as canonical proto-JSON (for scripts)
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--json` | bool | — | Emit raw WhoAmIResponse JSON instead of the tree |
+| `--kind` | string | — | agent \| tool \| plugin (auto-detected when only one exists) |
+| `--name` | string | — | Install name when multiple of the same kind exist |
+
+### `gibson login`
+
+Authenticate the CLI against the Gibson platform (device flow)
+
+```text
+login runs the OAuth 2.0 Device Authorization Grant against the
+platform's identity service: it prints a URL + short code, you approve
+in a browser, and the CLI stores the resulting session at
+~/.gibson/auth/credentials (mode 0600). Every subsequent gibson command
+then acts as you. The session refreshes silently; run gibson logout to
+end it.
+
+The CLI learns its issuer + public client_id from the platform
+(GET {GIBSON_URL}/.well-known/gibson-login); pass --issuer/--client-id to
+override for local or air-gapped setups.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--client-id` | string | — | Override the CLI OAuth client_id (skips platform bootstrap). |
+| `--gibson-url` | string | — | Gibson platform URL; falls back to env / workspace. |
+| `--issuer` | string | — | Override the OIDC issuer (skips platform bootstrap). |
+| `--no-browser` | bool | — | Do not attempt to open a browser; just print the URL. |
+| `--tenant` | string | — | Active tenant slug to pin for this session. |
+| `--timeout` | duration | `10m0s` | Overall deadline for the login flow. |
+
+### `gibson logout`
+
+End the CLI session and remove stored credentials
+
+### `gibson mission`
+
+Author, validate, render, and submit gibson missions
+
+```text
+gibson mission — author missions in CUE / YAML / JSON
+and submit them to the daemon.
+
+Subcommands:
+  new       scaffold a new mission (--from-template <name> | minimal)
+  validate  run cue vet / proto validation against an input file
+  render    compile the input to proto-shaped JSON or YAML
+  submit    validate + define + run via the daemon (full CUE→define→run)
+```
+
+#### `gibson mission new`
+
+Scaffold a new mission file
+
+```text
+Scaffold a new mission file.
+
+With --from-template <name>, writes the named template's content. Use
+--list-templates to see available templates. Without flags, writes a
+minimal scaffold with FIXME placeholders.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--from-template` | string | — | Name of a built-in template to scaffold from |
+| `--list-templates` | bool | — | List available templates and exit |
+| `-o, --output` | string | `-` | Output path; '-' for stdout |
+
+#### `gibson mission render`
+
+Compile a mission file to proto-shaped JSON or YAML
+
+```text
+Render the input mission file as the canonical proto-shaped JSON
+the daemon expects. With --out-format yaml, JSON is converted to YAML
+via sigs.k8s.io/yaml (round-trip-equivalent).
+
+Useful for:
+- Reviewing what the daemon will see before submitting.
+- Diffing two mission files semantically (compile both then diff JSON).
+- Piping into other tooling (`gibson mission render m.cue | jq …`).
+
+Output is deterministic: protojson controls proto field ordering (camelCase,
+stable); encoding/json.Indent normalises whitespace, eliminating the
+binary-hash-seeded extra space that protojson's internal detrand inserts
+after colons to make builds non-reproducible.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--format` | string | — | Override input format detection: cue\|yaml\|json |
+| `--out-format` | string | `json` | Output format: json\|yaml |
+
+#### `gibson mission submit`
+
+Validate, define, and run a mission via the daemon
+
+```text
+Full CUE/YAML/JSON → define → run submit:
+
+1. Load + parse the mission file (CUE / YAML / JSON detected from
+   extension or --format).
+2. Run protovalidate on the parsed *missionv1.MissionDefinition.
+3. With --dry-run, print the rendered JSON and exit; otherwise:
+4. Call DaemonService/CreateMissionDefinition to register the
+   definition and obtain a mission_definition_id.
+5. Call DaemonService/CreateMission with the definition ID.
+6. Print the returned mission ID.
+
+The daemon URL is taken from your login session (run `gibson login`
+first); override it with --gibson-url. Production use should
+route through the dashboard's Server Action path — this command
+is the CLI escape hatch for development and CI.
+
+Auth: the call is made over the authenticated login session
+(bearer token + x-gibson-tenant); there is no plaintext or
+unauthenticated path.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--dry-run` | bool | — | Print rendered JSON; do not contact the daemon |
+| `--format` | string | — | Override input format detection: cue\|yaml\|json |
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--target` | string | — | Target id to bind the mission to (overrides the definition's target_ref) |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | Submit deadline |
+
+#### `gibson mission validate`
+
+Validate a mission file (CUE / YAML / JSON)
+
+```text
+Validate a mission file.
+
+Steps:
+1. Read and parse the file (CUE → JSON via cuelang; YAML → JSON via
+   sigs.k8s.io/yaml; JSON passes through). Format detected from the
+   file extension; override with --format.
+2. Unmarshal into *missionv1.MissionDefinition via protojson.
+3. Run protovalidate against the message — every
+   (buf.validate.field).* annotation declared in the SDK protos
+   is enforced here, matching what the daemon applies at submit
+   time.
+
+Exits non-zero with the underlying library's error message on any
+failure. Use '-' as the file path to read from stdin.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--format` | string | — | Override format detection: cue\|yaml\|json |
+
+### `gibson target`
+
+Create, list, inspect, update, and delete assessment targets
+
+```text
+gibson target — manage the systems your missions assess.
+
+A target is identified by a server-minted UUID; the name and other fields are
+metadata. Missions reference a target by its UUID — names are never resolved.
+
+Subcommands:
+  create  register a new target (prints the minted UUID)
+  list    list your targets (UUID + metadata)
+  get     show a single target by UUID
+  update  replace a target's metadata by UUID
+  delete  remove a target by UUID
+```
+
+#### `gibson target create`
+
+Register a new target and print its minted UUID
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--description` | string | — | Free-text description |
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--name` | string | — | Human-readable target name (metadata) |
+| `--provider` | string | — | Backing provider (e.g. openai) |
+| `--tag` | stringSlice | — | Tag (repeatable) |
+| `--target-timeout` | int32 | — | Per-operation timeout in seconds |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | Request deadline |
+| `--type` | string | — | Target type (e.g. llm_chat, custom) |
+| `--url` | string | — | Target endpoint URL |
+
+#### `gibson target delete`
+
+Remove a target by UUID
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | Request deadline |
+
+#### `gibson target get`
+
+Show a single target by UUID
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | Request deadline |
+
+#### `gibson target list`
+
+List your targets (UUID + metadata)
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--limit` | int32 | — | Max results (0 = server default) |
+| `--offset` | int32 | — | Skip the first N results |
+| `--provider` | string | — | Filter by provider |
+| `--status` | string | — | Filter by status |
+| `--tag` | stringSlice | — | Filter by tag (repeatable; target must carry all) |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | Request deadline |
+| `--type` | string | — | Filter by type |
+
+#### `gibson target update`
+
+Replace a target's metadata by UUID
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--description` | string | — | Free-text description |
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--name` | string | — | Human-readable target name (metadata) |
+| `--provider` | string | — | Backing provider |
+| `--tag` | stringSlice | — | Tag (repeatable) |
+| `--target-timeout` | int32 | — | Per-operation timeout in seconds |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | Request deadline |
+| `--type` | string | — | Target type |
+| `--url` | string | — | Target endpoint URL |

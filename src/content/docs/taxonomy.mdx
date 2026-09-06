@@ -1,0 +1,202 @@
+---
+title: Taxonomy
+description: The standard entity types and relationships that Gibson recognizes, and how to extend the taxonomy from your component repo with taxonomy.yaml.
+---
+
+Gibson ships a **standard taxonomy** of entities and relationships
+(the SDK's `core.yaml`). Every mission, every tool output, and every
+finding references the same set of well-known types. This consistency
+lets the dashboard, the knowledge graph, and downstream agents reason
+about data that they did not produce.
+
+This page lists what Gibson recognizes out of the box. It also explains
+how to add your own node types and relationships with `taxonomy.yaml`.
+
+For hierarchy, equivalence, and identity mappings, see
+[Ontology](/docs/ontology). Examples are *"`CWE-79` is a kind of
+injection"* and *"our `LeakedSecret` category is equivalent to
+`gibson:disclosure`"*.
+
+## Standard entity types
+
+Asset entities describe what the target system is and what it exposes:
+
+| Entity | What it represents |
+|---|---|
+| **Host** | A reachable host: IP address, hostname, or both. |
+| **Port** | A port on a host. |
+| **Service** | A service identified on a port (SSH, HTTP, …). |
+| **Endpoint** | A specific URL or API endpoint exposed by a service. |
+| **Domain** | A registrable domain (`example.com`). |
+| **Subdomain** | A subdomain of a registered domain (`api.example.com`). |
+| **Technology** | A software / framework / library identified on a target (`nginx 1.25.0`, `Spring Boot 3.x`). |
+| **Certificate** | An X.509 certificate observed on a service. |
+
+Security entities describe what is interesting about the target:
+
+| Entity | What it represents |
+|---|---|
+| **Finding** | A security finding. Severity, evidence, target, description. The output that matters. |
+| **Evidence** | A structured payload supporting a finding (request/response, config, trace). |
+| **Attack pattern** | A reusable attack pattern (e.g. "credential stuffing"). Often crosswalked to MITRE ATT&CK. |
+| **Technique** | A specific technique used by an attack pattern. |
+
+Provenance entities record who did what, and when:
+
+| Entity | What it represents |
+|---|---|
+| **Mission** | A mission run. |
+| **Mission node** | A node within a mission run. |
+| **Agent execution** | One `Execute` call by an agent during a mission. |
+| **Decision** | A reasoned decision an agent or the orchestrator made (with rationale). |
+
+Compliance entities are entities that Gibson emits, not your components:
+
+| Entity | What it represents |
+|---|---|
+| **Compliance signal** | A normalized marker tying observed behavior to a compliance framework (PCI, SOC 2, HIPAA, …). |
+
+The SDK's
+[`taxonomy/core.yaml`](https://github.com/zeroroot-ai/sdk/blob/main/taxonomy/core.yaml)
+holds the authoritative field-by-field schema. Do not duplicate it in
+your `taxonomy.yaml`.
+
+## Standard relationships
+
+| Relationship | From → To | Means |
+|---|---|---|
+| `HAS_PORT` | host → port | The port was found on the host. |
+| `RUNS_SERVICE` | port → service | The service was identified on the port. |
+| `AFFECTS` | finding → (host \| service \| endpoint \| …) | The finding applies to this asset. |
+| `USES_TECHNIQUE` | attack pattern → technique | Composition. |
+| `DISCOVERED_IN` | (any) → mission | Provenance, which mission produced this node. |
+| `PRODUCES` | agent execution → (any) | An agent execution emitted this node. |
+| `SIMILAR_TO` | (any) → (any) | Embedding-similarity edge written by the platform. |
+| `DEPENDS_ON` | mission node → mission node | Mirrors mission DAG edges in graph form. |
+| `PART_OF` | (any) → (parent) | Containment (e.g. a subdomain is `PART_OF` a domain). |
+| `EMITTED_SIGNAL` | agent execution → decision (or signal) | Audit-friendly trace of why something happened. |
+
+## Where you populate the taxonomy
+
+Most nodes come from tool output. Reserve **field 100** of your
+tool's response proto for a `gibson.graphrag.v1.DiscoveryResult`.
+Gibson ingests it with the correct labels, relationships, and
+provenance. From an agent, `h.SubmitFinding(...)` stores a finding and
+links it to its target with an `AFFECTS` relationship. See
+[Findings](/docs/findings) and [Knowledge graph](/docs/knowledge-graph).
+
+## Extending the taxonomy
+
+The standard set does not cover every shape. Examples are a
+`secret_finding` with team-specific fields, or a `MANAGES`
+relationship between hosts and IoT devices. When you need such a node
+or relationship, declare it in a **`taxonomy.yaml`** at the root of
+your component repo.
+
+The build flow:
+
+1. You write `taxonomy.yaml` with your custom node types and
+   relationships.
+2. `gibson component build` validates it against the SDK's
+   `core.yaml`. The validator checks for name collisions, correct
+   property types, and parent/category references that resolve.
+3. The ADK emits `gen/taxonomy_extension.go`. This file holds a
+   `TaxonomyExtension` value that the build bakes into your component
+   binary.
+4. Your component contributes the extension to the daemon at
+   registration. The daemon merges it into the tenant's working
+   taxonomy.
+5. From then on, the graph, the dashboard, and any sibling component
+   in the same tenant treat your custom shapes as first-class.
+
+The file uses the same YAML shape as the SDK's `core.yaml`, scoped to
+your component:
+
+```yaml
+version: "0.1.0"
+kind: extension
+node_types:
+  - name: secret_finding
+    category: security
+    description: "A leaked credential discovered in source or config."
+    properties:
+      - name: severity
+        type: string
+        enum: [critical, high, medium, low]
+        required: true
+      - name: source_file
+        type: string
+        required: true
+    parent: finding
+    identifying_properties: [source_file, severity]
+
+relationships:
+  - name: MANAGES
+    from: [host]
+    to: [iot_device]
+    description: "Host manages an IoT device over some control protocol."
+    properties:
+      - name: protocol
+        type: string
+```
+
+For the full field reference, see the SDK's
+[`taxonomy/core.yaml`](https://github.com/zeroroot-ai/sdk/blob/main/taxonomy/core.yaml).
+It covers property types, enums, validations, and parent chains.
+
+## Compliance signals
+
+If your agent identifies behavior relevant to a compliance framework,
+emit a **`ComplianceSignal`**. Do not declare a custom node. Gibson
+recognizes a curated list of frameworks and shows them in the
+dashboard's compliance view:
+
+```go
+h.EmitComplianceSignal(ctx, agent.ComplianceSignal{
+    Framework: "PCI-DSS-4.0",
+    Control:   "8.3.1",
+    Status:    agent.SignalFail,
+    Evidence:  "TLS 1.0 detected on cardholder service.",
+    TargetRef: serviceId,
+})
+```
+
+To map a custom finding category to a control id, declare the mapping
+in [`ontology.yaml`](/docs/ontology). Do not reinvent the framework in
+`taxonomy.yaml`.
+
+## Runtime escape hatch
+
+The legacy `DiscoveryResult.custom_node` and
+`DiscoveryResult.explicit_relationship` fields still work for
+one-shot tools that do not ship a `taxonomy.yaml`. They are useful for
+quick experiments. But they bypass validation, and the dashboard does
+not show their named types. Prefer `taxonomy.yaml` for anything you
+intend to keep.
+
+## Prompting your assistant
+
+When you ask Claude, Cursor, or Copilot to extend the taxonomy, give
+it a concrete shape. Examples:
+
+- *"Open `taxonomy.yaml` and add a `secret_finding` node type with a
+  `severity` enum (`critical|high|medium|low`) and a required
+  `source_file` string. Parent is `finding`. Then run `gibson
+  component build` and stop if it fails validation."*
+- *"In `taxonomy.yaml`, add a `MANAGES` relationship from `host` to
+  our existing `iot_device` custom node, with a `protocol` string
+  property. Run `gibson component build` and surface any validator
+  errors verbatim."*
+- *"Read the SDK `core.yaml` and tell me whether `web_request` is
+  already a standard node type before I add it to `taxonomy.yaml`."*
+
+## Related
+
+- [Ontology](/docs/ontology) covers hierarchy, equivalence, and
+  identity mappings between your custom types and industry vocabulary.
+- [Knowledge graph](/docs/knowledge-graph) explains what the graph is
+  and how to query it.
+- [Findings](/docs/findings) covers the highest-leverage entity in the
+  taxonomy.
+- [Tools](/docs/tools) shows how to populate `DiscoveryResult` field
+  100.

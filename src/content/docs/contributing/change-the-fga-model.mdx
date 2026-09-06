@@ -1,0 +1,71 @@
+---
+title: Change the FGA model
+description: The rules for edits to model.fga, append only and never rename, and how a change reaches clusters.
+---
+
+The OpenFGA model lives at `internal/platform/authz/model.fga` in gibson, and
+humans maintain it by hand. It is the one authorization brain (ADR-0014).
+ext-authz, the daemon, and the engine all Check against it. Changes here have
+the largest blast radius in the platform. Most feature work does not need one.
+Read [Add a component kind](/docs/contributing/add-a-component-kind) first.
+
+## The rules
+
+1. **Append, never rename.** If you rename a type or a relation, you orphan
+   every existing tuple written against the old name. There is no tuple
+   migration tool. Add new types after the existing ones. Add new relations
+   at the end of a type.
+2. **Deletion is a project, not an edit.** A relation with live tuples needs
+   a reseed plan before the relation goes. In that plan, the owning
+   reconciler converges to the new shape.
+3. **Computed relations take no tuples.** `can_read` / `can_configure` /
+   `can_execute` are computed unions. Seeders write the `direct_*` and
+   scope-disable relations only. OpenFGA rejects writes against computed
+   relations.
+4. **New subject types need the guard.** The ListUsers subject-type guard
+   embeds the model (`model_subject_types.go`). A new subject type that can
+   hold grants must appear there, or reads fail.
+5. **A new deriver is an SDK change.** ext-authz resolves registry entries
+   to objects through a fixed deriver set (`tenant_from_identity`,
+   `component_from_identity`, `system_tenant`, `from_field('x')`,
+   `tenant_and_field('x')`). Anything else means a change to the allow-list
+   in the SDK's `authz-registry-gen` and ext-authz's `resolveObject` together.
+6. **The registry never drives the model.** Tooling generates the registry
+   from proto annotations. Humans maintain the model by hand. The link
+   between them is the cross-check test.
+
+## The gates
+
+- `make check-fga-headers` asserts the `AUTHORITATIVE-FGA-MODEL` marker.
+- `model_relations_test.go` parses `model.fga`. It fails if any generated
+  registry entry names an `(object_type, relation)` the model does not
+  define. This catches the rename-in-proto-only regression class.
+- The isolation tests freeze invariants like "only a `plugin_principal` can
+  ever resolve a secret". These tests parse the model's admitted subject
+  types. If your change trips one, that is a design conversation, not a test
+  update.
+
+## How a change reaches a cluster
+
+The `gibson-fga-init` Job applies the model on every helm install/upgrade.
+`cmd/gen-fga-model-json` generates the JSON the Job loads from `model.fga`.
+Work is under way to move the delivery path to `gibson dump-fga-model`
+(gibson#1544). There, the init Job seeds straight from the daemon image, and
+no vendored copy exists. Until that lands fully, confirm the chart's model
+artifact regenerates with your change. A model edit that never reaches the
+cluster fails at login with `relation not found`. This has happened.
+
+Existing FGA stores get the new authorization model version on the next
+fga-init run. If you followed the append-only rules, tuples written under the
+old model stay valid.
+
+## Review expectations
+
+A model PR carries:
+
+- the `model.fga` edit with a comment block that explains the new relations'
+  tuple shapes and who writes them
+- the seeder change in the owning reconciler
+- regenerated registry artifacts if any annotation changed
+- a test that exercises the new relation through a real Check
+- an ADR when the change encodes a real trade-off (most do)

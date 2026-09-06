@@ -1,0 +1,50 @@
+---
+title: Deployment
+description: Run the whole stack on your own Kubernetes cluster, bring your own model keys, and choose who owns the isolation boundary.
+---
+
+## Self-hosted
+
+The whole platform installs on your own Kubernetes cluster. It installs from
+the same versioned chart that the hosted fleet uses. See
+[Supply chain](/docs/security/supply-chain). You bring your own relational
+database, cache, and identity provider.
+
+The platform does not need to phone home to function.
+
+## Bring your own model keys
+
+Model provider credentials stay where your team puts them. The platform does
+not hold them in custody. The platform is not a proxy that holds a key for you.
+
+Components also do not embed a provider SDK. An agent declares the *slot* it
+needs, for example "give me the primary model". The platform resolves the slot
+to a provider and a model at runtime. A provider change is configuration, not
+a component rebuild.
+
+**What that gets you:** two separate questions get separate answers. *Who holds
+the key* is you. *Which model runs* is a runtime decision. You can change it
+without a change to a component or its review.
+
+## You choose who owns the isolation boundary
+
+`GIBSON_UNTRUSTED_EXEC` selects the deployment shape. When you self-host, you
+can own the sandbox boundary yourself. You do not have to inherit ours. See
+[Isolation](/docs/security/isolation) for the exact decision table and the
+fail-closed default.
+
+## Agents run where the work is
+
+A component does not have to run in the cluster. It can run on a laptop, a CI
+runner, a VPS, or your own cluster. It reaches the control plane over the
+Capability Grant Protocol. See [Identity](/docs/security/identity).
+
+**What that gets you:** an agent that needs to touch an internal network can sit
+inside that network. You do not have to open that network to the control plane.
+
+## What to check
+
+1. The self-hosted install uses the same chart artifact as the hosted fleet.
+2. The platform never holds model credentials in custody.
+3. A component declares a model slot, not a provider.
+4. When you self-host, the isolation boundary is yours to own.

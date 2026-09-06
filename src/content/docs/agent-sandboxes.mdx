@@ -1,0 +1,102 @@
+---
+title: Agent sandboxes
+description: The live, read-only view of every agent your tenant runs in an isolated setec sandbox.
+---
+
+Gibson runs each dispatched agent, and each tool it calls, in its own
+ephemeral sandbox. The **Agent Sandboxes** page shows those runs while
+they happen. Open it at `/dashboard/sandboxes`.
+
+The page is a wall of tiles. One tile is one run. Each tile streams that
+run's output as the agent produces it.
+
+## What the page shows
+
+The wall lists everything your tenant is running in a sandbox right now.
+This includes the coding agent, but it is not limited to it. Any agent a
+mission dispatches, and any tool it runs, appears here.
+
+| On a tile | What it means |
+|---|---|
+| **Status dot** | Green and pulsing while the run streams. Grey when it finished or stopped. Red on a stream error. |
+| **Agent name** | The name of the dispatched agent. |
+| **Run id** | The first eight characters of the run id. Hover for the full id. |
+| **Kind** | Whether this run is an agent or a tool. |
+| **Sandbox class** | The setec isolation class the run was launched under. |
+| **Turns** | Agent turns so far in this run. |
+| **Elapsed** | Time since dispatch. It stops when the run stops. |
+| **Cost** | Spend on this run so far, in US dollars. |
+
+Tools appear here too. Gibson runs a tool in its own sandbox, the same
+way it runs an agent. A port scan and a coding agent sit side by side on
+the wall. The **kind** chip on each tile says which one you are looking
+at.
+
+## What the page cannot do
+
+The surface is read-only. It renders events and nothing else. There is
+no input box, no terminal session, and no path back to the agent. To
+drive an agent yourself, run it from your own machine.
+
+Your tenant is the only scope. The server derives the tenant from your
+identity, so a run that belongs to another tenant is invisible and its
+run id is not resolvable.
+
+## How the wall fits your runs
+
+The grid adapts to the number of running agents.
+
+| Running agents | Columns |
+|---|---|
+| 1 | 1 |
+| 2 to 4 | 2 |
+| 5 to 9 | 3 |
+| 10 to 25 | 5 |
+| More than 25 | 6 |
+
+Two controls sit in the header. **Density** switches between comfortable
+and compact tiles. **Sort** orders the wall by start time, by name, or by
+cost. Both choices persist in your browser.
+
+## Live streams and the queue
+
+A browser cannot hold many server-sent streams at once, so the page caps
+them. Only tiles you can see hold a live stream. A tile you scroll away
+from releases its slot, and the next tile in the queue takes it.
+
+The header reports this as `live N/cap`, and adds `M waiting` when tiles
+are queued. A tile you scroll back to resumes from the last event it saw. The tail
+fills in without a gap and without a repeated line.
+
+## Full screen
+
+Click a tile, or press `Enter` or `F` on it, to open that run near full
+screen. The pop-out shares the tile's stream, so nothing reconnects and
+nothing replays.
+
+| Key | What it does |
+|---|---|
+| `Esc` | Close the pop-out and return focus to the tile. |
+| `Left` | Go to the previous running agent. |
+| `Right` | Go to the next running agent. |
+
+A rail beside the output shows the run's facts. These are status, agent,
+run id, sandbox, sandbox class, model, session, start time, elapsed,
+turns, cost and agent time. The rail also offers **Open mission**,
+**Stop mission** and **Copy run id**.
+
+The address bar carries the open run as `?run=<id>`. That link is
+shareable inside your tenant. It opens the pop-out for that run.
+
+## After a run ends
+
+A finished run stays on the wall for one minute with a ribbon that reads
+**Completed**, **Failed** or **Stopped**. It then folds into the
+**Recent runs** list under the wall, with a link to its mission.
+
+## Getting there
+
+The sidebar entry is **Sandboxes**. It carries a live count of the agents
+your tenant is running. The mission page, the missions list and the
+agents page each show a **Live sandbox** link. That link appears while
+the mission or the agent has a run in flight.

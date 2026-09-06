@@ -1,0 +1,110 @@
+---
+title: Gibson ADK
+description: Build agents, tools, and plugins on zeroroot.ai, the zero-trust agent factory. Run them on Gibson, the flagship security engine. Your first agent runs in under an hour.
+---
+
+Gibson is **zeroroot.ai's** autonomous security engine, the flagship of
+the zero-trust agent factory. You build agents, tools, and plugins.
+Gibson runs them as missions. It builds a living model of your
+environment in a knowledge graph. It gives your team a dashboard to
+monitor, replay, and act on what it finds.
+
+These docs are for builders, engineers, and security teams who use
+Gibson to ship autonomous workflows.
+
+## What you build
+
+Gibson exposes three component kinds, each suited to a different shape
+of work:
+
+| Component | Use it when… |
+|---|---|
+| **Agent** | You want autonomous reasoning. Agents pick what to do next, call tools, query the knowledge graph, and submit findings. They run inside a mission. |
+| **Tool** | You have a stateless capability with a fixed input/output contract, for example a port scan, an HTTP probe, or a CVE lookup. Agents call tools. |
+| **Plugin** | You need a long-running, stateful integration, for example a Shodan client, a SIEM connector, or a custom database. Plugins hold credentials. Tools call plugins. |
+
+You write components against the **Gibson SDK** (Go). You register them
+with `gibson component register`. They then connect to your tenant on
+`api.zeroroot.ai`.
+
+## What Gibson does for you
+
+- **Mission orchestration**: you describe work as a DAG of nodes
+  (agents, tools, plugins, conditions, parallel branches). Gibson runs
+  it, with pause/resume and checkpoint replay.
+- **Knowledge graph**: Gibson stores every host, port, service, finding,
+  and attack pattern your agents see in a per-tenant graph. Future
+  agents query it before they redo work.
+- **Three-tier memory**: working memory lives inside one agent
+  invocation. Every node in the run shares mission memory. Long-term
+  memory persists across missions.
+- **LLM slot routing**: agents declare slots (`primary`, `summarizer`,
+  and so on). Your tenant's policy maps each slot to a real model. Bring
+  your own provider keys.
+- **Secrets management**: bind credentials to plugins. Rotate them with
+  no redeploy.
+- **Findings + audit**: every discovery is structured and
+  severity-tagged. Gibson ties it back to the mission, agent, and target
+  that produced it.
+- **Observability**: LLM tracing, cost/latency metrics, per-mission
+  replay.
+
+## Start here
+
+The fastest path from "signed up" to "my first agent is running" takes
+roughly 60 minutes:
+
+1. **[Install](/docs/install)**: sign up, install the `gibson` CLI, and
+   point it at your tenant.
+2. **[Getting Started](/docs/getting-started)**: the 7-step walkthrough.
+   You issue a credential, register on your machine, build the agent,
+   and run a mission.
+3. **[Your First Agent](/docs/first-agent)**: go deeper on the Agent
+   builder, the Harness, and a more realistic example.
+4. **[Component bootstrap & auth](/docs/component-bootstrap)**: read it
+   only if you get a 401. It covers the layered checks for the
+   credential lifecycle.
+
+If you want to go straight to a specific task:
+
+| If you want to… | Read |
+|---|---|
+| Set up your account and install the CLI | [Install](/docs/install) |
+| See the whole flow end-to-end | [Getting Started](/docs/getting-started) |
+| Ship your first agent | [Your First Agent](/docs/first-agent) |
+| Add a stateless capability | [Tools](/docs/tools) |
+| Connect a stateful integration | [Plugins](/docs/plugins) |
+| Add an agent-driven MCP integration | [Connectors](/docs/connectors) |
+| Store and rotate credentials | [Secrets management](/docs/secrets-management) |
+
+## Reference
+
+These pages go deep. Read them when you need them:
+
+- **[Missions](/docs/missions)**: DAG model, lifecycle, replay, supported
+  file formats.
+- **[Tools](/docs/tools)**: define and call a stateless capability.
+- **[Plugins](/docs/plugins)**: build a stateful integration with secret
+  bindings.
+- **[Connectors](/docs/connectors)**: enable an agent-driven MCP
+  integration from a short declaration.
+- **[Secrets management](/docs/secrets-management)**: bind, rotate, audit.
+- **[Findings](/docs/findings)**: submit, triage, export.
+- **[Knowledge graph](/docs/knowledge-graph)**: how Gibson populates the
+  graph, and how to query it from the Harness API.
+- **[Attack-path belief field](/docs/belief-field)**: how Gibson ranks
+  what it has found and decides what to look at next.
+- **[Taxonomy](/docs/taxonomy)**: the standard entity types Gibson
+  recognizes, and how to extend them.
+- **[Ontology](/docs/ontology)**: industry-vocab mappings on top of the
+  taxonomy.
+- **[Roles & permissions](/docs/rbac)**: tenant roles, per-component
+  grants, plugin invocation gates.
+- **[Observability](/docs/observability)**: traces, metrics, audit log,
+  replay.
+- **[CLI reference](/docs/cli-reference)**: every `gibson` command.
+
+The Gibson SDK is at
+[`github.com/zeroroot-ai/sdk`](https://github.com/zeroroot-ai/sdk).
+The ADK (which ships the `gibson` CLI) is at
+[`github.com/zeroroot-ai/adk`](https://github.com/zeroroot-ai/adk).

@@ -1,0 +1,113 @@
+---
+title: Add a component kind
+description: Add a fourth-style component kind (like connector) that reuses the unified R/W/X authorization machinery end to end.
+---
+
+Gibson authorizes agents, tools, plugins, and connectors against **one** FGA
+object type: `component` (ADR-0046, ADR-0067). A kind is a name inside an
+object ref, `component:<kind>/<name>`. It is not a new model type. The worked
+example throughout is the connector kind (ADR-0067).
+
+## The zero-model-change rule
+
+**A new kind normally needs zero `model.fga` changes.** The `component` type
+already carries the full contract:
+
+- `can_read` / `can_configure` / `can_execute` are the R/W/X verbs. The UI
+  word for `can_configure` is **Write**.
+- Deny-wins layering: broad `direct_*` grants. The `tenant_*`, `team_*`, and
+  `user_*` per-action disables narrow them.
+- `tenant_enabled` is the tenant catalog gate.
+- `platform_enabled` / `tenant_published` are the platform catalog gate.
+
+If you believe your kind needs a new relation, stop and read
+[Change the FGA model](/docs/contributing/change-the-fga-model) first. The
+bar is high. Most "new relation" ideas are really a new kind that uses the
+existing relations.
+
+Decide one thing up front: is the kind an FGA **object only**, or also a
+**subject**? A kind gets a principal type only if it calls into gibson.
+A connector receives calls and never makes calls, so it has no principal.
+This is deliberate. Do not add a principal to "complete the pattern"
+(ADR-0067).
+
+## Step 1: Extend the kind list on the discovery surface
+
+Add the kind to the discovery proto's catalog item (the `kind` field on
+`gibson.daemon.discovery.v1` items). Then implement listing in the discovery
+service. Compute per-caller `rwx` and `denying_gates` exactly as the existing
+kinds do.
+
+Gate: the dashboard fails closed on unknown kinds, and the discovery tests
+enumerate the kind list.
+
+## Step 2: Add the object constructor
+
+Add a `<Kind>Object()` constructor next to the existing component
+constructors in `internal/platform/authz/objects.go`. Never format object
+refs inline in handlers. The constructor is the one place where the ref shape
+lives.
+
+## Step 3: Annotate the kind's RPCs and regenerate
+
+Every RPC carries `option (gibson.auth.v1.authz)`. Lifecycle RPCs that put
+the kind into the tenant catalog are tenant-level (`admin@tenant`). A
+per-component relation cannot gate its own catalog entry (see ADR-0067
+decision 4). Post-enable checks use the component relations.
+
+```bash
+make proto        # regenerates bindings AND the four registry artifacts
+```
+
+Gates: the `authz-required` buf plugin fails CI on a missing annotation. The
+`authz-registry-drift` step fails on uncommitted regen output. The per-RPC
+deny walker (`rpc_authz_deny_test.go`) fails on an unenforceable entry. The
+`model_relations_test.go` test fails if an annotation names a relation the
+model does not define.
+
+## Step 4: Seed tuples from the kind's reconciler
+
+The reconciler that owns the kind's lifecycle writes the FGA tuples. The RPC
+handler never writes them. Nobody writes them by hand. Converge to the
+standard default posture:
+
+- `tenant_enabled` for the enabling tenant
+- `direct_read` and `direct_execute` for `tenant#member`
+- configure through `owner`/admin
+
+Admins then narrow with the standard deny toggles. Write `direct_*`
+relations only. The `can_*` relations are computed, and OpenFGA rejects
+tuple writes against them. On disable, the reconciler removes what it wrote.
+Reseed, do not migrate: treat the tuple set as desired state so upgrades
+converge existing objects.
+
+Gate: a converge test. It seeds, re-runs with no duplicate writes, repairs a
+deleted tuple, and removes on disable.
+
+## Step 5: Widen the dashboard
+
+1. Widen the kind union in the discovery read path and the security-policy
+   page.
+2. Add the kind's page section that renders the shared RWX matrix and scope
+   selector. The UI column for `can_configure` says **Write**.
+3. Regenerate the dashboard authz registry. The client authz hook fails
+   closed (`unknown_method`) for any RPC missing from the generated
+   registry. A skipped regen makes the UI controls silently disappear.
+   That is the gate at work.
+
+## Step 6: Ship the e2e spec
+
+Add an `e2e/<kind>.spec.ts` that proves the arc. The spec enables the kind as
+admin. It proves that a member cannot enable. It proves that a team deny
+blocks that team's use while another team still works. The kind is not
+done until this spec passes.
+
+## Checklist
+
+- [ ] Discovery lists the kind with rwx + denying gates
+- [ ] Object constructor in `objects.go`
+- [ ] RPC annotations + committed regen output
+- [ ] Reconciler-seeded tuples with the default posture, converge test
+- [ ] Dashboard kind union + registry regen + security-policy coverage
+- [ ] e2e spec green
+- [ ] Zero `model.fga` changes (or an ADR that explains why not)

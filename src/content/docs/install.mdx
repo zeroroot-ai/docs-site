@@ -1,0 +1,173 @@
+---
+title: Install
+description: Sign up, install the gibson CLI, point it at your Gibson tenant, and verify the connection.
+---
+
+This page connects your workstation to Gibson. Gibson is a hosted
+service. There is nothing to install on the server side.
+
+**The ADK is your entry point.** One repository,
+[`zeroroot-ai/adk`](https://github.com/zeroroot-ai/adk), ships the
+`gibson` binary and everything that it scaffolds. You do not need to
+clone the SDK, install `protoc`, or set up proto tooling yourself. The
+SDK is a dependency of your components. `gibson component init` writes a
+working `buf.yaml` and `buf.gen.yaml` into the directory that it creates.
+
+## Prerequisites
+
+| Tool | Why |
+|---|---|
+| **Go 1.26+** | Builds the CLI and your components. The ADK pins the exact version in `gibson/go.mod` |
+| **Docker** | Optional, only if you will run plugins as pods |
+
+That is the whole list. No `protoc`, no separate SDK checkout.
+
+## 1. Sign up for a Gibson tenant
+
+Go to [zeroroot.ai](https://zeroroot.ai) and create an account. Gibson
+provisions your tenant automatically. You are the **owner** of the
+tenant.
+
+Trial accounts include 14 days of full platform access. See
+[zeroroot.ai/pricing](https://zeroroot.ai/pricing).
+
+## 2. Get the CLI from the ADK
+
+Clone the ADK and build it. This is the preferred path. You get the CLI,
+the mission templates, and the scaffolding that the AI-coding workflow
+uses, all at one commit.
+
+```bash
+git clone https://github.com/zeroroot-ai/adk.git
+cd adk
+make build
+export PATH="$PWD/gibson/bin:$PATH"
+```
+
+`make build` compiles `gibson/bin/gibson`. If you only want the binary on
+your `PATH` and nothing else, this command also works:
+
+```bash
+go install github.com/zeroroot-ai/adk/gibson/cmd/gibson@latest
+```
+
+Verify:
+
+```bash
+gibson --help
+```
+
+You should see the top-level command groups: `init`, `login`, `logout`,
+`component`, `agent`, `mission`, `target`, `inspect`, and `docs`.
+
+## 3. Point at your tenant
+
+Run `gibson init` once per workspace. It writes `.gibson/workspace.yaml`.
+This file pins the platform URL so that you do not pass the URL on every
+command:
+
+```bash
+gibson init --gibson-url https://api.zeroroot.ai
+```
+
+Use `--global` to write `~/.gibson/workspace.yaml` instead. Then every
+directory shares one default. The CLI and the SDK also accept
+`GIBSON_URL` from the environment. When set, `GIBSON_URL` overrides the
+workspace file.
+
+## 4. Sign in
+
+Authenticate the CLI as yourself with `gibson login`. It runs the OAuth
+2.0 Device Authorization Grant. The CLI prints a URL and a short code.
+You approve in a browser, and the CLI stores the session at
+`~/.gibson/auth/credentials` (mode `0600`). Every later `gibson` command
+then acts as you. The session refreshes silently.
+
+```bash
+gibson login
+```
+
+The CLI discovers the identity issuer from the platform automatically.
+Run `gibson logout` to end the session.
+
+## 5. Enroll a component
+
+Enrollment mints a **single-use bootstrap token** for a machine
+identity. Every kind (agent, tool, plugin) enrolls the same way. The
+token is the only credential that the component needs to bootstrap.
+There is no client secret anywhere.
+
+```bash
+gibson agent enroll --name my-first-agent --kind agent
+```
+
+The CLI prints the token once. The token expires in 24 hours. Copy the
+token, then exchange it for a persistent runtime credential. Run
+`register` from the component directory that `gibson component init`
+scaffolded. The command reads the kind and the name from
+`component.yaml`:
+
+```bash
+gibson component register --token <bootstrap-token>
+```
+
+You can also pass the token on stdin (`--token -`) or in
+`GIBSON_BOOTSTRAP_TOKEN`. Use `--kind`, `--name`, and `--dir` to override
+the auto-detected kind, name, or directory.
+
+`register` runs the capability-grant handshake and writes two files at
+mode `0600`. The first file is an Ed25519 **host key** at
+`~/.gibson/<kind>/<name>.host_key`. The second file is a **runtime
+credential** at `~/.gibson/<kind>/<name>.runtime.json`. Treat both files
+like private keys. They identify your component to Gibson.
+
+If registration fails, see
+[Component bootstrap & auth](/docs/component-bootstrap#troubleshooting-a-401)
+for the layered checks.
+
+## 6. Verify with `inspect`
+
+```bash
+gibson inspect              # auto-detects the local credential
+gibson inspect --kind agent --name my-first-agent
+gibson inspect --json       # raw output, scriptable
+```
+
+`inspect` reads your local runtime credential and calls Gibson's
+identity service. Then it prints who you are and the permissions that
+you hold. If `inspect` succeeds, your credential is healthy and you can
+continue.
+
+## What is next
+
+- **[Getting Started](/docs/getting-started)**. The 15-minute
+  walkthrough from zero to a running agent.
+- **[Your First Agent](/docs/first-agent)**. Write and ship an agent
+  with the SDK.
+- **[Plugins](/docs/plugins)**. Build a stateful integration with secret
+  bindings.
+
+## Storing credentials safely
+
+Credential files live in `~/.gibson/`. `register` restricts them to mode
+`0600`. Do not commit them. For CI and production deployments:
+
+- **Headless runtimes**: do not write files. Pass the runtime
+  credential as `GIBSON_AGENT_KEY` (the base64-encoded credential) and
+  the daemon endpoint as `GIBSON_URL`. Source both values from a secret.
+  The SDK reads them automatically. This is the same for every component
+  kind.
+- **Fresh runtime instances**: put the host key into the deployment
+  artifact, or register again on each instance with a newly issued
+  bootstrap token.
+- **Workload identity**: if your runtime exposes a workload-identity
+  socket, the SDK detects the socket automatically and uses mTLS with
+  the bearer credential. No extra configuration is needed.
+
+## Multi-environment setups
+
+You can operate against more than one Gibson tenant (for example
+staging and production). If you do, point `GIBSON_URL` at the correct
+tenant per shell session or per CI job. Keep the credentials separate.
+Set `GIBSON_HOME` to a distinct config directory per tenant. In headless
+runtimes, you can supply a per-tenant `GIBSON_AGENT_KEY` instead.

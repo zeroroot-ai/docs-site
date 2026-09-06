@@ -1,0 +1,154 @@
+---
+title: Job node
+description: The job node drives a job on a bank from a mission. Its executor runs the verify loop until the acceptance passes or the passes run out.
+---
+
+**Not yet released.** The job node ships with epic
+[zeroroot-ai/gibson#1706](https://github.com/zeroroot-ai/gibson/issues/1706).
+The field names below come from the design. The final names come from the
+mission protos when
+[zeroroot-ai/sdk#547](https://github.com/zeroroot-ai/sdk/issues/547)
+publishes.
+
+A **job node** is a mission node of type `NODE_TYPE_JOB`. It opens a
+[job](/docs/agents/jobs) on a [bank](/docs/agents/banks), checks the work
+with a verifier, and closes the job with a verdict. It is the seventh node
+type, next to the six in [Missions](/docs/missions#node-types).
+
+The mission graph stays a DAG. The back-and-forth between the worker and the
+verifier lives inside the node's executor, not in the graph. There are no
+loop edges.
+
+## What the executor does
+
+1. It opens the job on the node's bank with the node's job spec.
+2. It resolves the inputs from upstream node outputs and World node ids.
+3. It waits until the member finishes a turn.
+4. It dispatches the acceptance step to the verifier component, with the job's deliverables and inputs.
+5. It reads the verifier's report.
+6. If the verifier fails the work, it sends the report as the next input to the same job, then returns to step 3.
+7. When the verifier passes, or the passes run out, it closes the job with the verdict and the score.
+
+Only the job node executor, the bank owner, and tenant admins may close a
+job. The worker never closes its own job.
+
+## Configuration
+
+| Field | What it sets |
+|---|---|
+| `bank` | The bank the job runs on. You need `can_send` on it. |
+| `job.goal` | What the member must do. |
+| `job.repositories` | One entry per repository: connector ref, project, base branch, deliverable. |
+| `job.credential_names` | Tenant secret names the job may fetch. |
+| `job.inputs` | Upstream node outputs, or World node ids. |
+| `job.constraints` | Turns, budget in US dollars, deadline. |
+| `acceptance.verifier_component` | The tool or agent component that checks the work. |
+| `acceptance.passing_score` | The score the verifier must reach. |
+| `max_passes` | How many verifier passes the node allows. |
+| `timeout` | The wall clock cap for the whole loop. |
+
+One job node after one tool node:
+
+```yaml
+name: scan-fix-verify
+description: Scan a repository, fix what the scanner found, verify the fix.
+version: "1.0.0"
+target_ref: example.com
+
+nodes:
+  scan:
+    id: scan
+    type: NODE_TYPE_TOOL
+    tool_config:
+      tool_name: scanner
+      input:
+        repo: "https://gitlab.com/acme/api"
+  fix:
+    id: fix
+    type: NODE_TYPE_JOB
+    dependencies: ["scan"]
+    timeout: "2h"
+    job_config:
+      bank: "acme-fixers"
+      job:
+        goal: "Fix the findings from the scan node. Open a merge request."
+        repositories:
+          - connector: "connector/gitlab"
+            project: "acme/api"
+            base_branch: "main"
+            deliverable: MERGE_REQUEST
+        credential_names: ["gitlab-ci-token"]
+        inputs:
+          from_nodes: ["scan"]
+        constraints:
+          max_turns: 40
+          max_budget_usd: 20
+      acceptance:
+        verifier_component: "tool/verify-fix"
+        passing_score: 0.8
+      max_passes: 3
+
+entry_points: ["scan"]
+exit_points: ["fix"]
+```
+
+## Acceptance
+
+The verifier is a normal component dispatch. The executor calls it the way a
+tool node or an agent node calls a component. The verifier returns a
+structured report.
+
+| Field | Meaning |
+|---|---|
+| `pass` | `true` when the work meets the acceptance. |
+| `score` | A number the executor compares with `passing_score`. |
+| `report` | The text the executor sends back to the job on a fail. |
+
+A report without this shape fails the attempt with a clear error. A verifier
+can be a tool you write, an agent, or a plugin method.
+
+## Passes
+
+Each verifier pass is one attempt on the node in the run history. The attempt
+records the verifier's report, pass or fail, and the score. When the passes
+run out, the executor closes the job with the verdict `failed`. The node's
+`timeout` bounds the whole loop, the same way a node timeout bounds an agent
+node.
+
+The verifier fails pass one, and the same Claude Code conversation takes pass
+two. That is the point of a job. The member does not start from zero.
+
+## Deliverables
+
+The run view shows, per job node: the attempts, the job id with a link to the
+console, the deliverables, and the cost. Deliverables are the pushed branch,
+the merge request URL, and the finding status changes. `GetMissionResults`
+and `GetMissionRunHistory` return the same data.
+
+## Dispatch targets
+
+An agent node can also reach a bank without a job node. `DelegateToAgent`
+carries a target selector.
+
+| Target | What happens |
+|---|---|
+| `ephemeral` | Launch a new sandbox for this dispatch. This is the default, and the only target today. |
+| `bank_id` | Open a job on that bank. The call returns the first turn result and the job id, so the caller can keep sending. |
+| `job_id` | Send the next input to an open job. The call returns that turn's result. |
+
+The dispatch gate applies to every target. The caller needs `can_execute` on
+the agent component.
+
+## The mission builder
+
+The node palette in the dashboard has a **Job** entry. The form offers a bank
+picker, the job spec editor, the verifier picker, the passing score, the max
+passes, and the constraints. The form runs the same validation the daemon
+runs on `OpenJob`, so errors show before you submit. The templates page has
+one template for this pattern, **Scan, fix, verify**.
+
+## Related
+
+- [Missions](/docs/missions), the authoring reference for every other node type
+- [Jobs](/docs/agents/jobs), what a job is and how it closes
+- [Banks](/docs/agents/banks), the pool a job runs on

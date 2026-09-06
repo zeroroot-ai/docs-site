@@ -1,0 +1,160 @@
+---
+title: Add an RPC
+description: Add a new RPC handler to the Gibson daemon, from proto and authz annotation to handler, registry, and dashboard.
+---
+
+This page gives the steps to add a new RPC handler to the daemon. Worked
+example: **"add `ListMyMissions`, which returns the caller's mission
+summaries."**
+
+The proto for SDK-owned services lives in the OSS `sdk` repo. Daemon-local
+protos live in gibson at `internal/server/daemon/api/gibson/<pkg>/v1/`. This
+guide covers both halves. Pick the matching path. If you have not read the
+repo's `docs/auth.md`, read it first.
+
+## Step 1: Decide which service the RPC belongs on
+
+| Service | Proto in | Use when |
+|---|---|---|
+| `gibson.daemon.v1.DaemonService` | SDK | Public mission/component/agent control plane (most user-facing RPCs). |
+| `gibson.daemon.admin.v1.DaemonAdminService` | gibson | Privileged ops (Shutdown, ImpersonateTenant, capability-grant ops, audit reads). |
+| `gibson.component.v1.ComponentService` | SDK | Agent / tool / plugin → daemon (RegisterComponent, PollWork, SubmitResult). |
+| `gibson.harness.v1.HarnessCallbackService` | SDK | Agent → daemon callbacks during a mission task (LLMComplete, MemoryGet, …). |
+| `intelligence.v1.IntelligenceService` | SDK | Cross-mission analytics. |
+
+For `ListMyMissions` the right place is `DaemonService` (SDK).
+
+## Step 2: Add the proto + authz annotation
+
+If the RPC is on an SDK-owned service, do the work in the `sdk` repo and
+follow its own how-to. If it is daemon-local, edit the proto in gibson:
+
+```proto
+import "gibson/auth/v1/options.proto";
+
+service DaemonAdminService {
+  rpc ListMyMissions(ListMyMissionsRequest) returns (ListMyMissionsResponse) {
+    option (gibson.auth.v1.authz) = {
+      relation: "member"
+      object_type: "tenant"
+      object_deriver: "tenant_from_identity"
+      allowed_identities: 1   // USER
+    };
+  }
+}
+```
+
+The annotation is mandatory. The `authz-required` buf lint plugin fails CI on
+omission. The daemon's startup self-check refuses to serve if the registry
+has no entry for a registered method.
+
+## Step 3: Regenerate code
+
+```bash
+make proto       # gibson: regenerates bindings AND the authz registry
+```
+
+For SDK-owned services, `make proto` happens in the `sdk` repo. The daemon
+gets the new types after you bump the SDK pin.
+
+## Step 4: Implement the handler
+
+Add the method in `internal/server/daemon/api/server.go` or in a
+`server_<area>.go` split file. Current splits include
+`server_capabilitygrant.go`, `server_audit.go`, and `server_chat.go`.
+
+```go
+func (s *Server) ListMyMissions(ctx context.Context, req *adminpb.ListMyMissionsRequest) (*adminpb.ListMyMissionsResponse, error) {
+    // 1. Identity is on the context — placed there by the SDK auth
+    //    interceptor, which read the x-gibson-identity-* headers that
+    //    ext-authz emitted.
+    id, err := auth.IdentityFromContext(ctx)
+    if err != nil {
+        return nil, status.Error(codes.PermissionDenied, "no identity on context")
+    }
+
+    // 2. Tenant — sealed type. Never reads from req.
+    tenant, ok := auth.TenantFromContext(ctx)
+    if !ok {
+        return nil, status.Error(codes.PermissionDenied, "no tenant on context")
+    }
+
+    // 3. Per-tenant connection bundle (data-plane spec).
+    conn, err := s.pool.For(ctx, tenant)
+    if err != nil {
+        var notProv *datapool.NotProvisionedError
+        if errors.As(err, &notProv) {
+            return nil, status.Error(codes.NotFound, notProv.Error())
+        }
+        return nil, status.Errorf(codes.Internal, "data plane: %v", err)
+    }
+    defer conn.Release()
+
+    // 4. Ordinary handler logic. No tenant filter, no key prefix.
+    out, next, err := conn.Missions().ListSummaries(ctx, req.PageSize, req.PageToken)
+    if err != nil {
+        return nil, status.Errorf(codes.Internal, "list missions: %v", err)
+    }
+
+    // 5. Audit-emit if the RPC is privileged. id.Subject is the principal.
+    s.audit.EmitInvocation(ctx, id.Subject, "ListMyMissions", tenant)
+
+    return &adminpb.ListMyMissionsResponse{Missions: out, NextToken: next}, nil
+}
+```
+
+Existing handlers in `internal/server/daemon/api/server.go` follow the same
+pattern: identity, then tenant, then pool, then release. Copy one.
+
+## Step 5: Wire the handler
+
+The generated code wires most handlers automatically, because `Server` is the
+registered gRPC service implementer (`pb.RegisterDaemonServiceServer(srv, s)`
+in `internal/server/daemon/grpc.go`). It is enough to add a method to the
+`Server` struct. The generated `RegisterFooServiceServer` enforces interface
+satisfaction at compile time.
+
+If the new RPC requires a new dependency (for example a new store), thread it
+through `Server` with the existing constructor option pattern. Do not add
+globals.
+
+## Step 6: Verify the startup self-check passes
+
+Boot the daemon (or run `go test ./internal/server/daemon/...`). If the
+registry has no entry for the new method, the daemon panics and names
+the method. Two common fixes:
+
+1. If the SDK proto change is not yet released, tag a new SDK version. Then
+   bump the pin in `go.mod`.
+2. If the local proto change is not regenerated, run `make proto`.
+
+## Step 7: Build guards
+
+Before you open a PR:
+
+```bash
+make check                         # gibsoncheck analyzers + test-race
+make test-race
+./scripts/check-no-tenant-id-column.sh
+./scripts/check-no-redis-prefix.sh
+```
+
+If any analyzer fires, fix the code. Do not allowlist or comment-disable the
+check. The allowlists in `tools/gibsoncheck/checks/` are already narrow. If
+you widen them, you re-introduce the boundary the spec deleted.
+
+## Step 8: Update the dashboard (if user-facing)
+
+If the RPC is reachable from a dashboard route, regenerate the TS bindings on
+the dashboard side. Use `userClient(svc)` for user-acting calls and
+`serviceClient(svc, tenantId)` for in-cluster service-acting calls. See the
+dashboard repo's `docs/auth.md`.
+
+The corresponding `permissions.ts` constant gates the UI control. UI gating is
+informational. ext-authz remains the authoritative enforcement point.
+
+## Step 9: End-to-end validation
+
+For non-trivial RPCs, ship an integration test that exercises the full chain
+(Envoy, then ext-authz, then daemon) against the local kind deployment. Do
+not mark the task done until the test exits 0 with evidence.

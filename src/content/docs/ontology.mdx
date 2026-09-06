@@ -1,0 +1,141 @@
+---
+title: Ontology
+description: Map your custom node types to industry vocabularies (CWE, SOC 2, MITRE ATT&CK, OWASP) with ontology.yaml. The ontology enriches reads over the taxonomy and does not change writes.
+---
+
+[Taxonomy](/docs/taxonomy) answers one question. *Is this a valid node*?
+Ontology answers two more questions. *Is `CWE-79` a kind of injection*?
+*Does `SOC2 CC6.1` roll up to `CC6`*?
+
+The ontology enriches reads on top of the typed graph. The write path
+does not change.
+
+## When you need it
+
+- You map your custom finding categories to an industry vocabulary
+  (`mycorp:HardcodedAWSKey ⊑ cwe:CWE-798`). Then queries on the
+  industry term include your nodes.
+- You declare sub-control relationships in a compliance framework. Then
+  a filter on `SOC2 CC6` returns everything under `CC6.1`, `CC6.2`, …
+- You tell Gibson that the outputs of two scanners refer to the same
+  host or artifact. Identity-forming properties do this (see IFPs
+  below).
+- You bridge your taxonomy to MITRE ATT&CK tactics. Then the
+  attack-pattern views of the dashboard show the techniques that your
+  component contributes.
+
+If you have none of these needs, you do not need an `ontology.yaml`.
+The taxonomy alone is enough.
+
+## The four building blocks
+
+- **Prefixes** are short labels for the IRIs of external vocabularies
+  (`cwe:`, `attack:`, `asvs:`, `mycorp:`). Each prefix takes one line.
+- **Hierarchies** are `subClassOf` edges. Example: *"`mycorp:LeakedSecret`
+  is a kind of `mycorp:ProprietaryFinding`."*
+- **Equivalences** are `sameAs` or `equivalentClass` edges. Example:
+  *"`mycorp:LeakedSecret` is the same class as `gibson:disclosure`."*
+  A query on either class returns the nodes labeled with the other
+  class.
+- **IFPs (identity-forming properties)** are the property set that
+  uniquely identifies a custom node. With IFPs, Gibson deduplicates
+  nodes when two components emit the same conceptual entity.
+
+## YAML shape
+
+A minimal `ontology.yaml`:
+
+```yaml
+version: "0.1.0"
+prefixes:
+  mycorp: "https://mycorp.example/sec/"
+hierarchies:
+  - parent: mycorp:ProprietaryFinding
+    children: [mycorp:LeakedSecret, mycorp:HardcodedKey]
+equivalences:
+  - [mycorp:LeakedSecret, gibson:disclosure]
+ifps:
+  - node_type: my_custom_artifact
+    properties: [content_hash]
+```
+
+Put this file at the root of your component repository, next to
+`taxonomy.yaml`.
+
+## Build flow
+
+1. You write `ontology.yaml`.
+2. `gibson component build` validates the file. The validator checks
+   five things. The YAML is well formed. Every IRI prefix is declared.
+   The `hierarchies` list has no cycles. Every IFP `node_type` exists in
+   `core.yaml` or your `taxonomy.yaml`. No entry in `equivalences`
+   conflicts with an extension already registered for the tenant.
+3. The ADK emits `gen/ontology_extension.go`. This file holds an
+   `OntologyExtension` value. The value becomes part of your component
+   binary.
+4. The component registers the extension with the daemon at component registration.
+5. The daemon's reasoner merges the extension into the tenant's closure.
+   Then it rebuilds the derived indices.
+
+## What lights up in the dashboard
+
+- A dashboard user filters findings by **`SOC2 CC6`**. Your custom
+  finding category, mapped under `CC6.2`, now appears in the list. You
+  do not need to change the UI.
+- A user opens the **MITRE ATT&CK** matrix. The corresponding cell
+  lights up for each custom technique that you declared as `subClassOf`
+  an existing tactic.
+- The **deduplication** view collapses two findings from different
+  scanners that share an IFP-defined identity. It does not show them as
+  separate rows.
+- Knowledge-graph queries that walk `subClassOf` (`h.QueryNodes`
+  with hierarchy expansion) return your custom subclasses. You do not
+  change the query.
+
+## Failure modes
+
+The validator catches these errors before your component reaches the
+daemon. This table shows what to do with each error:
+
+| Error | What it means | Fix |
+|---|---|---|
+| `cycle in hierarchies` | Your `subClassOf` chain loops back on itself. | Read the cycle the validator prints. Drop one edge or restructure so the chain is a DAG. |
+| `unknown prefix: <p>` | You used `<p>:Foo` without declaring `<p>` in `prefixes`. | Add the prefix-to-IRI mapping. Use the canonical IRI for industry vocab (`cwe:` → `https://cwe.mitre.org/data/definitions/`, etc.). |
+| `IFP property <prop> not on node_type <n>` | The IFP references a property that does not exist on the named node type. | Either add the property in `taxonomy.yaml` first, or fix the IFP entry. Run `gibson component build` once after the taxonomy edit to refresh validation. |
+| `conflicting equivalence: <A> <-> <B>` | Another extension already registered an equivalence touching `<A>` or `<B>` that contradicts yours. | Decide whether your component should override or follow the existing mapping. If override, coordinate with the tenant admin. The daemon will not silently merge contradictions. |
+
+When an assistant hits one of these errors, it must read the validator
+output verbatim, fix the YAML, and rerun the build. Do not use `--force`
+to skip the error. The daemon rejects an extension that fails validation
+at registration.
+
+## Power-user note
+
+A raw `.ttl` (Turtle) file can sit next to `ontology.yaml`. Use it for
+axioms that the YAML shape does not express (for example property
+restrictions, cardinality, disjointness). The ADK passes the file to the
+daemon's reasoner unchanged. You do not need this file for the common
+cases above. It exists for teams that already use OWL.
+
+## Prompting your assistant
+
+- *"Add the OWASP ASVS L1 control hierarchy under prefix `asvs:`,
+  pointing at `https://owasp.org/www-project-application-security-verification-standard/asvs/`.
+  Then map our existing `gibson:input-validation` finding category as
+  `equivalentClass` to `asvs:V5`. Run `gibson component build` and
+  paste any validator errors."*
+- *"Open `ontology.yaml` and declare that our custom
+  `mycorp:HardcodedAWSKey` is a `subClassOf` `cwe:CWE-798`. Use the
+  existing `cwe:` prefix if it is already there. If not, add it."*
+- *"In `ontology.yaml`, add an IFP for our `my_custom_artifact` node
+  type with `content_hash` as the identity property. Confirm that
+  `content_hash` is declared in `taxonomy.yaml` before you save."*
+
+## Related
+
+- [Taxonomy](/docs/taxonomy). Declare custom node types and
+  relationships first. The ontology references them.
+- [Findings](/docs/findings). This page shows what the ontology
+  mappings enrich.
+- [Knowledge graph](/docs/knowledge-graph). Hierarchy-aware queries
+  use the closure built from `ontology.yaml`.

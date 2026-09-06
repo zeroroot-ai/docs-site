@@ -1,0 +1,58 @@
+---
+title: Supply chain
+description: One versioned OCI chart that pins every first-party image by digest at package time, so a version is an exact reproducible deployable. Big Bang compatible.
+---
+
+The product is **one self-contained umbrella Helm chart**, published as a
+versioned OCI artifact:
+
+```
+ghcr.io/zeroroot-ai/charts/gibson:X.Y.Z
+```
+
+It carries the CRDs, the operators, and the workloads as ordered dependencies.
+It also carries the secret-sync resources, bringup jobs, and database cluster.
+
+## A version is a pin
+
+The chart's values **pin every first-party image by digest at package time**. The
+chart version is therefore not a label that points at the most recent build. It
+names an exact set of image digests.
+
+**What that gets you:**
+
+- One string answers *"What is running in production"* exactly.
+- When you install the same version twice, you get the same bits.
+- **To roll back, pin the previous version.** That is one line, deterministic,
+  with no rebuild and no question about what you go back to.
+
+Promotion is a one-line version bump, in one direction, after the previous
+environment is green. No rebuild promotes anything.
+
+## Everyone installs the same artifact
+
+The hosted fleet, ephemeral environments, a customer who self-hosts with `helm
+install`, and a federal Big Bang package all install the **same** chart. The
+GitOps tool consumes the artifact. It is never the unit of deployment.
+
+**What that gets you:** the artifact you self-host is the artifact we test. It
+is not a re-derived approximation of it. A difference in behavior between your
+install and ours is a configuration difference, not a build difference.
+
+## Big Bang compatible
+
+The chart is deliberately compatible with the DoD Big Bang platform:
+
+- wrappable in a Flux `HelmRelease`
+- hardened, digest-pinned images
+- **no service-mesh assumption**. It does not require Istio
+
+We hold the chart to this design constraint. It is not a claim made after the
+fact.
+
+## What to check
+
+1. The chart version pins image digests, so two installs of one version match.
+2. Rollback is a version pin, not a rebuild.
+3. Self-hosted and hosted install the same artifact.
+4. The chart imposes no service mesh.

@@ -1,0 +1,10 @@
+{
+  "title": "Contributing",
+  "pages": [
+    "index",
+    "add-an-rpc",
+    "add-a-store-operation",
+    "add-a-component-kind",
+    "change-the-fga-model"
+  ]
+}

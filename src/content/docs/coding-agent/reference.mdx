@@ -1,0 +1,121 @@
+---
+title: Configuration & troubleshooting
+description: Environment variables, on-disk files, and the optional exec and sessions plugins. What to do when the coding agent starts standalone or a tool reports unavailable.
+---
+
+## Environment variables
+
+| Variable | Default | What it does |
+|---|---|---|
+| `GIBSON_PLATFORM_URL` | none | The platform endpoint. Without it the plugin stays standalone. |
+| `GIBSON_BOOTSTRAP_TOKEN` | none | The one-time bootstrap token. The plugin reads it only on the first start. Once a host key exists, the plugin ignores it. |
+| `GIBSON_HOST_KEY_PATH` | `~/.zerocool/host.key` | Where the plugin writes and reads the host key. |
+| `GIBSON_DAEMON_URL` | discovered | Overrides the daemon endpoint. |
+| `GIBSON_AGENT_MODE` | `autonomous` | The agent mode the plugin reports at registration. |
+| `GIBSON_SHIM_PORT` | `8787` | The port of the local OpenAI-compatible endpoint. If the port is taken, change it. |
+| `ZEROCOOL_AMBIENT_QUERY` | prior findings and security facts for this codebase | The knowledge query the plugin injects into the system prompt. |
+| `ZEROCOOL_FINDINGS_LOG` | `~/.zerocool/findings.jsonl` | Where the plugin writes standalone findings. |
+
+## Files on disk
+
+| Path | What it is |
+|---|---|
+| `~/.zerocool/host.key` | The persistent identity of this install. When it exists, a start is unattended. |
+| `~/.zerocool/findings.jsonl` | The standalone findings log. The plugin writes it only when the platform is not reachable. |
+| `.opencode/plugin/zerocool.ts` | The project-level plugin entry point. |
+| `~/.config/opencode/plugin/zerocool.ts` | The same, for every project. |
+
+To force a fresh enrollment, delete the host key. You then need a new
+bootstrap token. The first check-in spent the old one.
+
+## Optional plugins
+
+Install these next to the main plugin. They share its Gibson session, so
+they add no second sign-in.
+
+### `@zerocool/opencode-gibson-exec`
+
+This plugin routes execution into a setec Devbox instead of your
+workstation. It uses opencode's remote-workspace protocol. Untrusted
+code then runs in a microVM, not on your machine.
+
+This plugin is invasive. It changes where your commands run. Adopt it
+deliberately.
+
+### `@zerocool/opencode-gibson-sessions`
+
+This plugin mirrors local session context into the daemon store. A
+session then survives the workstation. The plugin changes where your
+state lives, so it is also opt-in.
+
+## Troubleshooting
+
+### `GIBSON_PLATFORM_URL is set but this host has not checked in`
+
+The plugin found a platform URL, no host key, and no usable bootstrap
+token. Either the environment had no token, or the variable name was
+wrong. Check the spelling of `GIBSON_BOOTSTRAP_TOKEN`. Then repeat
+[step 4](/docs/coding-agent/setup).
+
+If the token expired, mint another with `gibson agent enroll --name
+zerocool`. Tokens live 24 hours.
+
+### `Gibson connect failed; continuing standalone`
+
+The plugin reached the check-in and it failed. The message carries the
+reason. Common causes:
+
+1. **Your membership is not active.** Enrollment authorizes against your
+   tenant membership. Accept the invitation in the dashboard first.
+2. **The platform URL is wrong or unreachable.** Confirm it with
+   `gibson inspect` against the same URL.
+3. **The token was already spent.** One check-in consumes a bootstrap
+   token. Mint a new one.
+
+In all of these cases, opencode still works, in standalone mode.
+
+### A tool reports "unavailable"
+
+When the platform seam behind a tool is not enabled for your deployment,
+the tool answers with an unavailable note. This is not an error in your
+session. It does not stop the agent. Ask your operator which
+capabilities your tenant has.
+
+### The model list has no `gibson/` entries
+
+The plugin registers the provider at config-load time, and only when
+check-in succeeds. If check-in switched to standalone, no provider
+appears. Read the `[zerocool]` lines on stderr first. They say which
+mode the session is in.
+
+### A `gibson/` model returns a server error (500)
+
+Enrollment can work in full. The `gibson` provider appears, and you
+selected a `gibson/<slot>` model. Completions still fail with
+`Unexpected server error` or a 500 from `http://127.0.0.1:8787/v1`. The
+shim and the check-in are fine. The problem is downstream. The harness
+has no **LLM provider** to route the completion to.
+
+The `gibson` provider does not carry a model of its own. It routes each
+completion through the harness to a provider **configured on your
+tenant** (slots, budget, per-tenant credentials). If the tenant has no
+provider, the route fails. If the provider's key is unfunded or invalid,
+the route also fails. The failure surfaces as a 500 on the first prompt.
+
+Ask your operator to configure a provider for the tenant. The operator
+does this in the dashboard, under provider settings. On a self-hosted
+install, this is an operator step. The operator seeds a provider key and
+sets the tenant default. A provider that exists but is out of credits
+fails in the same way. Confirm that the key is funded.
+
+### Port 8787 is in use
+
+Set `GIBSON_SHIM_PORT` to a free port. The provider follows the shim
+automatically.
+
+## Related
+
+- [Set up the coding agent](/docs/coding-agent/setup)
+- [Component bootstrap & auth](/docs/component-bootstrap), and its
+  guidance on a 401
+- [Observability](/docs/observability), where the sessions appear

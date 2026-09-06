@@ -1,0 +1,251 @@
+---
+title: Plugins
+description: Build a deterministic, credential-bearing integration from a vendor SDK. You write one handler.go, GitOps deploys it, and its SPIFFE identity enrolls it.
+---
+
+A **plugin** is a deterministic, credential-bearing integration. It wraps
+a vendor's own SDK, or a hand-written API client, in the Gibson plugin
+harness. It exposes the wrapped client as a handful of typed methods. The
+plugin holds the credential, calls the vendor, and returns a curated
+result. It is the only Gibson component kind that reads secrets at
+runtime.
+
+Use a plugin when you want a **direct, typed API client** that the caller
+drives with known inputs. No LLM decides the calls. The plugin does not
+use MCP. A plugin fits when you want to:
+
+- talk to a stateful or credentialed backend (GitHub, GitLab, Splunk, your CRM)
+- expose a stable, mission-shaped surface over a large vendor API
+- keep credentials in a component that an agent never touches
+
+If you want an **agent-driven** integration over an existing vendor MCP
+server, build a [connector](/docs/connectors) instead. Plugins and
+connectors are separate, first-class component kinds with separate
+lifecycles. A plugin is code you write. A connector is a short
+declaration. A vendor can offer both.
+
+## The shape of a plugin
+
+A plugin is one small Go module with two files that matter:
+
+- **`handler.go`** holds the typed Go request and response structs and
+  their handler functions. You register them with `plugin.Serve`.
+- **`plugin.yaml`** is a manifest that names the plugin, its methods, and
+  the secrets it needs.
+
+There is **no `.proto` and no generated code**. The Go type *is* the method
+contract. The SDK derives each method's JSON-Schema input and output from
+the structs you register (ADR-0065). You write the types once, in Go, and
+you are done.
+
+### `handler.go`
+
+```go
+package main
+
+import (
+	"context"
+
+	"github.com/google/go-github/v90/github"
+	"github.com/zeroroot-ai/sdk/plugin"
+)
+
+// A typed method contract. The SDK derives the method's JSON-Schema from
+// these structs at registration — expose a curated, mission-shaped subset
+// of the vendor's API, not its entire surface.
+type GetRepositoryRequest struct {
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+}
+
+type GetRepositoryResponse struct {
+	Repository Repository `json:"repository"`
+}
+
+func handleGetRepository(ctx context.Context, req GetRepositoryRequest) (GetRepositoryResponse, error) {
+	// The credential you declared in plugin.yaml is resolved by the broker —
+	// never an env var. ResolveSecret returns the plaintext for this call only.
+	token, err := plugin.ResolveSecret(ctx, "cred:github_token")
+	if err != nil {
+		return GetRepositoryResponse{}, err
+	}
+	gh, err := github.NewClient(github.WithAuthToken(string(token)))
+	if err != nil {
+		return GetRepositoryResponse{}, err
+	}
+	repo, _, err := gh.Repositories.Get(ctx, req.Owner, req.Repo)
+	if err != nil {
+		return GetRepositoryResponse{}, err
+	}
+	return GetRepositoryResponse{Repository: curate(repo)}, nil
+}
+
+func main() {
+	_ = plugin.Serve(
+		plugin.WithManifest(manifestPath()),
+		plugin.WithHandler("GetRepository", handleGetRepository),
+		// ...one WithHandler per method declared in plugin.yaml
+	)
+}
+```
+
+`plugin.Serve` runs the whole lifecycle. It loads the manifest, enrolls the
+plugin's identity, and resolves startup secrets. Then it polls for work,
+dispatches each call to the matching handler, and submits the result. The
+[GitHub plugin](https://github.com/zeroroot-ai/integrations/tree/main/plugins/github)
+is a complete worked example.
+
+### `plugin.yaml`
+
+```yaml
+apiVersion: plugin.gibson.zeroroot.ai/v1
+kind: Plugin
+metadata:
+  name: github
+  version: 0.1.0
+  description: Curated read/write over the GitHub REST API.
+  author: you@example.com
+spec:
+  workload_class: plugin
+  runtime: process              # process | pod | setec
+
+  # Go-first: a method declares only its name and description. Its
+  # request/response contract is derived from the typed Go structs you
+  # register with plugin.WithHandler — there is no request_proto here.
+  methods:
+    - name: GetRepository
+      description: Fetch a repository by owner and name.
+    - name: ListIssues
+      description: List issues for a repository.
+    - name: CreateIssue
+      description: Open a new issue (write).
+
+  # The only credential channel is the secrets broker — never env vars.
+  secrets:
+    - name: cred:github_token
+      scope: startup             # startup | per_call
+      rotation: live             # live | restart
+      required: true
+
+  health:
+    startup_timeout: 30s
+    liveness_interval: 10s
+
+  egress:
+    - host: api.github.com
+      protocol: https
+      port: 443
+      purpose: GitHub API calls
+```
+
+### Runtime modes
+
+| Mode | Where the plugin runs | Pick this when |
+|---|---|---|
+| `process` (default) | A bare process — your laptop or a dev container | Local development, the fastest loop. Enrol with a one-time token (see below). |
+| `pod` (default in-cluster) | A Kubernetes pod, deployed by Helm/GitOps | Production. Auto-enrols via its SPIFFE identity — no token. |
+| `setec` | A microVM under the [Setec](https://github.com/zeroroot-ai/setec) sandbox operator | Hardened isolation for sensitive workloads. |
+
+### Secrets and egress
+
+Each `spec.secrets` entry declares a credential. The plugin resolves the
+credential at runtime through the broker. With `scope: startup`, the
+plugin reads the secret once at boot. With `per_call`, the plugin reads
+the secret again on each invocation, with a small cache. `rotation` says
+what the plugin does when the value changes. A plugin's identity gets
+**exactly the secrets it declared** and nothing else. See
+[Secrets management](/docs/secrets-management).
+
+`spec.egress` lists the outbound destinations the plugin dials. It
+documents the network footprint. Where the runtime supports it, the
+runtime enforces the list. Setec enforces it, and the pod runtime enforces
+it with the per-plugin NetworkPolicy.
+
+## Deploying a plugin
+
+The plugin lifecycle is **author → build → deploy → enroll**. None of it
+is a dashboard upload.
+
+### 1. Author it in the integrations repo
+
+First-party plugins live in the
+[`integrations`](https://github.com/zeroroot-ai/integrations) monorepo,
+under `plugins/<vendor>/`. Each plugin is one Go module, so each plugin
+has an isolated dependency graph. **Self-hosted customers fork this repo.**
+They add their own plugins in the same layout. Then they point their
+install's GitOps at their fork. Copy an existing plugin (`plugins/github`)
+as your starting point. Then replace the handlers.
+
+### 2. Open a pull request so CI builds the image
+
+The repo's CI builds each changed plugin module into a container image in
+your registry (`ghcr.io/<org>/integrations/<vendor>`). There is no
+in-cluster build. There is no artifact you upload to us. You own the
+source and the image.
+
+### 3. Enable it in your GitOps values
+
+The platform Helm chart deploys a plugin. Add an entry under `plugins`,
+keyed by vendor, that names the image CI built:
+
+```yaml
+plugins:
+  github:
+    enabled: true
+    image:
+      repository: ghcr.io/your-org/integrations/github
+      tag: v0.1.0
+    runtime: pod          # pod (default) | setec
+```
+
+The chart renders the Deployment, ServiceAccount, and per-plugin
+NetworkPolicy. This is the platform's existing GitOps path. Argo, Flux,
+or `helm upgrade` already syncs the same chart.
+
+### 4. The plugin enrolls itself
+
+A `pod`-runtime plugin **auto-enrolls with its SPIFFE SVID**. The SPIRE
+agent issues the pod an identity. The plugin presents that identity to
+register with the platform. There is no bootstrap token and no manual
+step. The plugin re-enrolls cleanly on every restart. See
+[Component bootstrap & auth](/docs/component-bootstrap) for the identity
+model.
+
+After the plugin registers and reports `Ready`, it appears on the
+**Plugins** page in the dashboard. On that page you grant which tenants,
+teams, or agents may use it.
+
+### Local development
+
+The `process` runtime on your own machine has no SPIRE socket. So you
+enroll once with a short-lived bootstrap token that you mint as yourself:
+
+```bash
+gibson agent enroll --name my-plugin --kind plugin   # prints a one-time token
+gibson component register --kind plugin --token <T>  # persists a host key
+gibson component run                                  # runs plugin.Serve(ctx)
+```
+
+`register` exchanges the token for a persistent Ed25519 host key at
+`~/.gibson/plugin/<name>/host_key`. Every start after that is unattended.
+This is the local-dev path only. In-cluster plugins never need it.
+
+## Calling a plugin
+
+A tool's harness invokes a plugin. An agent never invokes a plugin
+directly:
+
+```go
+out, err := h.QueryPlugin(ctx, "github", "GetRepository", req)
+```
+
+This keeps agents one hop away from the credential-bearing plugin. That
+gives you a single place to gate plugin invocation. See
+[Roles & permissions](/docs/rbac#plugin-invocation).
+
+## Testing
+
+Plugins ship **hermetic fixtures**. `handler_test.go` replays a committed
+cassette. So tests run fully offline, per module, with no live vendor
+credentials. An AI-authored plugin is green from its first commit. A
+re-recorded fixture catches vendor API drift. A live gate does not.

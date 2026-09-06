@@ -1,0 +1,112 @@
+---
+title: Runtime
+description: How an always-on agent runs. A persistent event-sourced loop, goal missions that never finish on their own, mission constraints as the stop button, and no human approval mid-run.
+---
+
+This page answers the question that a reviewer really has: *once I start
+this thing, what stops it?*
+
+The answer is not an approval queue. It is a set of limits that you
+declare before the mission starts. This page states those limits,
+including the one that surprises people.
+
+## The runtime is a loop, not a job runner
+
+The engine ticks on a short fixed interval over a live world model. The
+engine appends every change to a timeline as an event. A periodic
+snapshot-and-trim keeps the replay cost after a restart bounded. The
+replay cost does not grow with the mission's age.
+
+**What that gets you:** the runtime is built for a mission that runs for
+weeks, not for a batch job that someone left running. A restart resumes
+from a snapshot. It does not replay everything since the beginning.
+
+## A goal mission never finishes on its own
+
+Missions come in two shapes. The difference between them is the whole
+always-on story:
+
+| Mission | How it ends |
+|---|---|
+| **No goal** | Mechanically, at quiescence: when nothing is running and no remaining work can be dispatched. |
+| **Has a goal** | Only when the Decider ends it. |
+
+The completion system explicitly skips missions that have a goal. So a
+mission with a goal like *"watch for newly published CVEs affecting
+services in the graph"* keeps running. That is by design, not a leak.
+
+The loop is event-driven, not polled. When new evidence lands and no
+decision is in flight, the loop asks the Decider what to do next. The
+Decider reads the mission's own slice of the world and the catalog of
+components that it may use. Then it dispatches more work. The results
+become new evidence, and the loop repeats.
+
+## Gibson owns no clock
+
+There is no cron in the platform, and no trigger field on a mission. **A
+mission starts because something outside Gibson started it.** That
+something is your CI, a webhook, your alert manager, or your own
+scheduler.
+
+This is deliberate, and this page states it plainly. An "always-on
+agent" here means a mission that stays alive and reacts to evidence. It
+does not mean a scheduler that wakes things up. If you want a nightly
+sweep, you own the nightly trigger.
+
+## No human approves an action mid-run
+
+After a mission starts inside its declared bounds, it runs to completion
+with no human checkpoint. There is no approval step and no escalation
+step. The runtime removed them deliberately and recorded the reasoning
+in an ADR.
+
+The argument has two parts. Runtime gates contradict an autonomous
+Decider. Bounds that you declare up front express safety better than a
+prompt that somebody clicks through at 2am. The ADR states the
+consequence without softening: **a mission launched inside its Rules of
+Engagement can run to completion with no human checkpoint. Safety rests
+entirely on those bounds, the grants, and the budget being correct.**
+
+Say that out loud in your review. This page exists to prevent one
+outcome: a reviewer assumes there is an approval step and discovers
+otherwise later.
+
+A human still controls three things at any time: the grants (see
+[Authorization](/docs/security/authorization)), whether the component is
+enabled at all, and the constraints below.
+
+## Mission constraints are the stop button
+
+The mission definition itself carries the constraints. So a published
+mission is self-describing. It does not depend on whoever launches it to
+supply limits. **Zero means unlimited** for every numeric field.
+
+| Constraint | Bounds |
+|---|---|
+| `max_duration` | Wall-clock for the whole mission |
+| `max_cost` | Cumulative model spend, in USD |
+| `max_tokens` | Cumulative tokens across every agent |
+| `max_tokens_per_call` | Ceiling on any single model call |
+| `max_turns_per_agent` | Observe/think/act iterations for one agent |
+| `max_findings` | Stop after this many findings |
+| `blocked_tools` | Tools that must not be invoked |
+| `blocked_domains` | Network domains agents must not contact |
+| `allowed_techniques` / `blocked_techniques` | Allow-list and block-list of technique IDs |
+| `severity_threshold` | Minimum severity required to record a finding |
+| `require_evidence` | Findings must carry proof |
+
+An always-on mission is therefore a deliberate configuration. Leave
+`max_duration` at zero and put a ceiling on cost instead. The budget is
+also the runaway guard on the Decider itself.
+
+The daemon enforces the constraints, not the agent. The daemon applies
+`blocked_tools` at dispatch. The budget accumulates on every model call
+and stops the mission when the mission exceeds it.
+
+## What to check
+
+1. A mission with a goal does not complete mechanically.
+2. Nothing in the platform starts a mission on a timer.
+3. There is no approval or escalation step at runtime.
+4. Constraints live on the mission definition, and zero means unlimited.
+5. The daemon enforces `blocked_tools` at dispatch, not the agent.

@@ -1,0 +1,15 @@
+{
+  "title": "Security architecture",
+  "pages": [
+    "index",
+    "identity",
+    "authorization",
+    "isolation",
+    "tenancy",
+    "runtime",
+    "audit",
+    "supply-chain",
+    "deployment",
+    "licensing"
+  ]
+}

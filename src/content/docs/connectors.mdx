@@ -1,0 +1,97 @@
+---
+title: Connectors
+description: Enable an agent-driven MCP integration from a short declaration. You write no code. OAuth authorizes it, and Gibson reconciles it onto ToolHive.
+---
+
+A **connector** is an agent-driven integration over the
+[Model Context Protocol](https://modelcontextprotocol.io) (MCP). A vendor
+already ships an MCP server. A connector is a short declaration that points
+Gibson at that server, binds a credential, and makes the vendor's tools
+available to your agents. There is **no code to write**. A connector is one
+`connector.yaml`.
+
+Use a connector when a vendor **already exposes an MCP server** and you want
+an agent to discover and choose its tools. If you instead want a
+deterministic, typed API client that the caller drives, build a
+[plugin](/docs/plugins). If the vendor has no MCP server, also build a plugin.
+Plugins and connectors are separate, first-class component kinds. A vendor can
+offer both.
+
+## The shape of a connector
+
+```yaml
+id: gitlab
+vendor: gitlab
+displayName: GitLab
+description: >-
+  GitLab's hosted MCP server — projects, issues, merge requests, pipelines.
+shape: Remote                       # Remote | Hosted
+endpoint: https://gitlab.com/api/v4/mcp
+transport: streamable-http
+egressAllow:
+  - gitlab.com:443
+auth: oauth
+oauthScope: mcp
+```
+
+There are two shapes:
+
+| Shape | Where the MCP server runs | Use it when |
+|---|---|---|
+| `Remote` | The vendor hosts it; Gibson proxies to `endpoint` | The vendor runs a hosted MCP server (GitLab, GitHub). No image to run. |
+| `Hosted` | Gibson runs the vendor's prebuilt MCP image in-cluster | The vendor ships an MCP server image but no hosted endpoint. |
+
+`auth: oauth` with an `oauthScope` means the connector negotiates access on
+your behalf through the vendor's OAuth flow (see **Authorize** below). A
+connector that uses a static token declares a secret instead. The broker
+resolves that secret exactly like a plugin's secret.
+
+## Enable a connector
+
+In the dashboard, connectors are a first-class item in the left navigation.
+The flow is **enable → authorize → live**:
+
+1. **Enable.** Pick a connector from the catalog and enable it for your
+   tenant. Gibson writes a `ConnectorInstance`. The connector-operator
+   reconciles it onto [ToolHive](https://github.com/stacklok/toolhive), which
+   runs (Hosted) or proxies to (Remote) the vendor's MCP server.
+2. **Authorize.** For an OAuth connector, Gibson sends you to the vendor's
+   consent screen. Approve the requested scope. The vendor redirects back.
+   Gibson stores the resulting credential and keeps it fresh. A token-based
+   connector skips this step. You provide the token once as a secret.
+3. **Live.** Once the instance runs and, if needed, is authorized, its tools
+   are discoverable. Agents find them through the platform's tool search and
+   call them like any other tool.
+
+> Enable and authorize are tenant-admin actions. If enable returns an
+> authentication error, your dashboard session has expired. Sign in again
+> and retry.
+
+## Author a new connector
+
+First-party connectors live in the
+[`integrations`](https://github.com/zeroroot-ai/integrations) monorepo under
+`connectors/<vendor>/`. Each connector is a single `connector.yaml`. A
+`Remote` connector has no Go module and no image. **Self-hosted customers
+fork the repo** and add their own. Then they point their install's GitOps at
+the fork. The product catalog derives from these manifests, so a new
+connector never rebuilds Gibson.
+
+The authoring work is deliberately small:
+
+1. Copy `connectors/gitlab/` (or `connectors/github/`) as a template.
+2. Set `id`, `vendor`, `displayName`, `endpoint` (Remote) or the image
+   (Hosted), the `transport`, the `egressAllow` list, and the `auth` block.
+3. Open a pull request. CI validates the manifest. For a Hosted connector, CI
+   also boots the vendor image to assert its `tools/list`.
+4. Reconcile the fork through GitOps. The connector appears in the catalog.
+
+## How a connector runs
+
+A connector never becomes a plugin and never touches the plugin runtime.
+Gibson mediates it. The catalog, authorization, tool search, and dispatch are
+Gibson's control plane. ToolHive, behind Gibson's `ConnectorInstance` wrapper,
+is the substrate that runs or proxies the vendor's MCP server. The credential
+is injected into the ToolHive proxy. An agent sees the tools, never the
+secret. See [Roles & permissions](/docs/rbac) for who may enable, authorize,
+and invoke a connector's tools.
