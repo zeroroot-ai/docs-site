@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.3](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.2...docs-site-v0.6.3) (2026-09-06)
+
+
+### Miscellaneous
+
+* **deps:** bump postcss and next ([#6](https://github.com/zeroroot-ai/docs-site/issues/6)) ([2a9e0e5](https://github.com/zeroroot-ai/docs-site/commit/2a9e0e59836d0a56ecd5006b2184ab356b3af341))
+* **deps:** take @zeroroot-ai/brand from registry.npmjs.org ([#4](https://github.com/zeroroot-ai/docs-site/issues/4)) ([e637d48](https://github.com/zeroroot-ai/docs-site/commit/e637d48913ca48799ccdfe4c43263087b0688061))
+
 ## [0.6.2](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.1...docs-site-v0.6.2) (2026-09-06)
 
 
