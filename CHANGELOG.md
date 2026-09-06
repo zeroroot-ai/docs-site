@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.2](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.1...docs-site-v0.6.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* **analytics:** load the GA4 tag only in the docs.zeroroot.ai publish build ([#5](https://github.com/zeroroot-ai/docs-site/issues/5)) ([cf3f98c](https://github.com/zeroroot-ai/docs-site/commit/cf3f98cd0ef1f39f469aff5fd06549776121aa13))
+
+
+### Miscellaneous
+
+* baseline ([f8665fe](https://github.com/zeroroot-ai/docs-site/commit/f8665fe73cb5119791563f8e5318d0decaa538a8))
+
 ## [0.6.1](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.0...docs-site-v0.6.1) (2026-09-05)
 
 
