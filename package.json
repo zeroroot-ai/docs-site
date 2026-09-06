@@ -19,7 +19,7 @@
     "fumadocs-core": "^16.7.16",
     "fumadocs-mdx": "^14.3.0",
     "fumadocs-ui": "^16.7.16",
-    "next": "16.2.6",
+    "next": "16.3.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "remark-gfm": "^4.0.1",
@@ -32,7 +32,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "postcss": "^8.5.15",
+    "postcss": "^8.5.23",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.0.0"
   },
