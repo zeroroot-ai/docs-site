@@ -12,8 +12,7 @@
 #
 # Dev installs use pnpm (mirroring ci.yml); the container image builds with
 # npm from the committed package-lock.json (see Dockerfile). @zeroroot-ai/brand
-# resolves from GitHub Packages (see .npmrc) — bootstrap and image need
-# NODE_AUTH_TOKEN set to a token with read:packages.
+# resolves from registry.npmjs.org; no token is needed anywhere (attic#17).
 # ============================================================================
 
 PNPM ?= pnpm
@@ -37,8 +36,7 @@ test: ## No unit-test suite (static docs site) — the build is the gate; see `c
 check: build ## CI-equivalent gate (mirrors ci.yml: the production build)
 
 image: ## Build the production container image (npm/package-lock.json path)
-	docker build --build-arg NODE_AUTH_TOKEN=$(NODE_AUTH_TOKEN) \
-		-t $(IMAGE_NAME):$(IMAGE_TAG) .
+	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \

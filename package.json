@@ -15,7 +15,7 @@
     "check:docs": "node scripts/check-ste-prose.mjs && node scripts/check-ste-prose.mjs --selftest && node scripts/check-docs-links.mjs && node scripts/check-docs-cli-name.mjs && node scripts/check-cli-reference-fresh.mjs && node scripts/check-api-reference-fresh.mjs && node scripts/check-static-export-standalone.mjs --selftest && node scripts/check-no-british-spellings.mjs && node scripts/check-no-british-spellings.mjs --selftest"
   },
   "dependencies": {
-    "@zeroroot-ai/brand": "^0.3.1",
+    "@zeroroot-ai/brand": "^0.4.0",
     "fumadocs-core": "^16.7.16",
     "fumadocs-mdx": "^14.3.0",
     "fumadocs-ui": "^16.7.16",

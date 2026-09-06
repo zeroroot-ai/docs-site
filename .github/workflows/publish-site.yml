@@ -63,19 +63,13 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://npm.pkg.github.com
-          scope: "@zeroroot"
 
       - run: pnpm install --frozen-lockfile --ignore-scripts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # `build` runs check:docs and then check-static-export-standalone.mjs, so
       # an export that would need host-specific rewrite rules never reaches the
       # bucket.
       - run: pnpm build
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:

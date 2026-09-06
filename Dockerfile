@@ -1,14 +1,9 @@
 # Stage 1: build
-# Use npm (has package-lock.json) instead of pnpm so NODE_AUTH_TOKEN is
-# expanded correctly in .npmrc for the private @zeroroot-ai/brand package.
-# pnpm ignores project-level .npmrc auth tokens that reference env vars as
-# a security measure (they could leak to attacker-controlled registries).
+# npm with the committed package-lock.json; @zeroroot-ai/brand comes from
+# registry.npmjs.org (attic#17), so no registry credential is involved.
 FROM node:22-alpine AS builder
 WORKDIR /app
-# Pass NODE_AUTH_TOKEN for @zeroroot scoped packages from GitHub Packages.
-ARG NODE_AUTH_TOKEN
-ENV NODE_AUTH_TOKEN=${NODE_AUTH_TOKEN}
-COPY package.json package-lock.json .npmrc ./
+COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
