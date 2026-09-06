@@ -19,23 +19,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://npm.pkg.github.com
-          scope: "@zeroroot"
 
       - run: pnpm install --frozen-lockfile --ignore-scripts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - run: pnpm build
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   docker:
     runs-on: ubuntu-latest
@@ -64,8 +56,6 @@ jobs:
           tags: |
             ghcr.io/zeroroot-ai/docs-site:${{ github.sha }}
             ghcr.io/zeroroot-ai/docs-site:main
-          build-args: |
-            NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
       # Boot the image exactly as the chart does (uid 101 by base USER) with
       # substitution env and assert a page whose functional links were
@@ -73,7 +63,7 @@ jobs:
       # that dies at start fails the curl loop.
       - name: Smoke-run the image with substituted origins
         run: |
-          docker build -t docs-smoke --build-arg NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }} .
+          docker build -t docs-smoke .
           docker run -d --name docs-smoke -p 8080:8080 \
             -e APP_ORIGIN=https://app.staging.example \
             -e WWW_ORIGIN=https://www.staging.example \

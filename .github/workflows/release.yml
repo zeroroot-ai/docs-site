@@ -47,5 +47,3 @@ jobs:
           tags: |
             ghcr.io/zeroroot-ai/docs-site:${{ needs.release-please.outputs.tag_name }}
             ghcr.io/zeroroot-ai/docs-site:latest
-          build-args: |
-            NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
