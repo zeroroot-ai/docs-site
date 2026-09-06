@@ -39,6 +39,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # The GA4 Measurement ID for docs.zeroroot.ai. Public by design (every
+      # visitor's browser receives it), so a variable, not a secret. Only
+      # this publish build sets it: the container image is built without it
+      # and loads no analytics (src/lib/analytics.ts).
+      NEXT_PUBLIC_GA_MEASUREMENT_ID: G-MWCBPPC5F7
     permissions:
       contents: read
       packages: read

@@ -23,14 +23,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <body className="flex flex-col min-h-screen">
         <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
-        {/* The Google tag (gtag.js), verbatim from the GA4 property. */}
-        <Script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />
-        <Script id="ga4-config" strategy="afterInteractive">{`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', '${GA_MEASUREMENT_ID}');
-        `}</Script>
+        {/* The Google tag (gtag.js), verbatim from the GA4 property. Only the
+            public docs.zeroroot.ai build sets the ID (src/lib/analytics.ts);
+            the shipped image renders nothing here. */}
+        {GA_MEASUREMENT_ID !== '' && (
+          <>
+            <Script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />
+            <Script id="ga4-config" strategy="afterInteractive">{`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${GA_MEASUREMENT_ID}');
+            `}</Script>
+          </>
+        )}
       </body>
     </html>
   );
