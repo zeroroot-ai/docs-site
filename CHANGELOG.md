@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.5](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.4...docs-site-v0.6.5) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ci:** one Node version file on Node 26, read by setup-node, guarded against the image ([#16](https://github.com/zeroroot-ai/docs-site/issues/16)) ([769af23](https://github.com/zeroroot-ai/docs-site/commit/769af232d3a101e41611731db6c8bd36ed68e3ac))
+
 ## [0.6.4](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.3...docs-site-v0.6.4) (2026-09-07)
 
 
