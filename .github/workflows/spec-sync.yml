@@ -297,13 +297,26 @@ jobs:
             echo "::notice::opened refresh PR #${PR}"
           fi
 
-          # Auto-merge is best-effort and its failure is LOUD (sdk#301's lesson:
-          # a swallowed warning here leaves PRs piling up unnoticed). It needs
-          # the repo's "Allow auto-merge" setting on; without it the PR stays
-          # open for a human.
-          if ! gh pr merge --auto --squash "$PR"; then
-            echo "::error::Could not arm auto-merge on PR #${PR}. Check the repo's 'Allow auto-merge' setting. The PR is open and awaiting a human merge."
-          fi
+          # The build above is the gate (main has no required checks, so a
+          # PR is CLEAN the moment it opens). GitHub refuses to arm
+          # auto-merge on a PR that is already mergeable: "Pull request is
+          # in clean status (enablePullRequestAutoMerge)" (run 34119646934,
+          # 2026-09-07). So merge a CLEAN PR directly and arm auto-merge
+          # only while checks are still pending. A failure is LOUD
+          # (sdk#301's lesson: a swallowed warning leaves PRs piling up).
+          STATE=$(gh pr view "$PR" --json mergeStateStatus --jq .mergeStateStatus)
+          case "$STATE" in
+            CLEAN)
+              if ! gh pr merge --squash "$PR"; then
+                echo "::error::Could not merge refresh PR #${PR} (mergeStateStatus=${STATE}). The PR is open and awaiting a human merge."
+              fi
+              ;;
+            *)
+              if ! gh pr merge --auto --squash "$PR"; then
+                echo "::error::Could not arm auto-merge on PR #${PR} (mergeStateStatus=${STATE}). Check the repo's 'Allow auto-merge' setting. The PR is open and awaiting a human merge."
+              fi
+              ;;
+          esac
 
       # ------------------------------------------------------------------
       # Failure signal. This workflow runs on dispatch and on a schedule —
