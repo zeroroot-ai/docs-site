@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.4](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.3...docs-site-v0.6.4) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ci:** pin Dockerfile bases by digest and scope token permissions ([#12](https://github.com/zeroroot-ai/docs-site/issues/12)) ([48a3eac](https://github.com/zeroroot-ai/docs-site/commit/48a3eac0f22d3dfa80fc1d2b9a7d8a6af910bf75)), closes [#1](https://github.com/zeroroot-ai/docs-site/issues/1)
+* **spec-sync:** merge a refresh PR directly when GitHub refuses auto-merge on a clean PR ([#15](https://github.com/zeroroot-ai/docs-site/issues/15)) ([e5f21c8](https://github.com/zeroroot-ai/docs-site/commit/e5f21c8bebfd96fe0b54f0067411cfa0cfe4cdd7))
+
+
+### Miscellaneous
+
+* **deps:** bump node from 22-alpine to 26-alpine ([#13](https://github.com/zeroroot-ai/docs-site/issues/13)) ([8c83f69](https://github.com/zeroroot-ai/docs-site/commit/8c83f69422a8d2058f136da48053b07e680d39fc))
+* **docs:** refresh api-spec from zeroroot-ai/sdk@v0.177.1 ([#10](https://github.com/zeroroot-ai/docs-site/issues/10)) ([501de4c](https://github.com/zeroroot-ai/docs-site/commit/501de4cd84d4026953493860c9ee46b999d61d85))
+* **docs:** refresh cli-spec from zeroroot-ai/adk@v0.109.1 ([#14](https://github.com/zeroroot-ai/docs-site/issues/14)) ([a34bde1](https://github.com/zeroroot-ai/docs-site/commit/a34bde18c6dc268362ff1a8506a26ef83ba21dc0))
+
 ## [0.6.3](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.2...docs-site-v0.6.3) (2026-09-06)
 
 
