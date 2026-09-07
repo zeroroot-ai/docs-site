@@ -108,9 +108,11 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The branch push, the PR and the auto-merge all run with
+    # RELEASE_PLEASE_TOKEN (see the header). The default token only files
+    # the failure issue, so it gets issues:write and nothing else.
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
       issues: write
     strategy:
       fail-fast: false
@@ -154,7 +156,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # PAT (not GITHUB_TOKEN) so the branch push + PR trigger ci.yml.
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
       - name: Checkout source repo
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -254,7 +256,7 @@ jobs:
       - name: Open or update the refresh PR
         if: steps.drift.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           SPEC: ${{ matrix.spec }}
           SOURCE_REPO: ${{ steps.cfg.outputs.source_repo }}
           SOURCE_REF: ${{ steps.ref.outputs.ref }}

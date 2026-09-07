@@ -1,7 +1,7 @@
 # Stage 1: build
 # npm with the committed package-lock.json; @zeroroot-ai/brand comes from
 # registry.npmjs.org (attic#17), so no registry credential is involved.
-FROM node:22-alpine AS builder
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
@@ -17,7 +17,7 @@ RUN npm run build
 #   [emerg] bind() to 0.0.0.0:80 failed (13: Permission denied)
 # and the docs vhost answered 503. The unprivileged image is built for exactly
 # this: it owns its own cache/run paths and defaults to :8080.
-FROM nginxinc/nginx-unprivileged:alpine AS runner
+FROM nginxinc/nginx-unprivileged:alpine@sha256:2ddec616f1cb58bcac057aa388f28cb81e35137641ef4226d321714499329bd1 AS runner
 # Recreate the html tree owned by the runtime uid: the base image ships
 # /usr/share/nginx/html owned by root (with a stock 50x.html), and
 # 40-substitute-origins.sh sed-edits in place as uid 101 — sed's temp file

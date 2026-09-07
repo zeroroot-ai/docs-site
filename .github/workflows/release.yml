@@ -4,9 +4,11 @@ on:
   push:
     branches: [main]
 
+# The GITHUB_TOKEN gets read access only. release-please runs with
+# RELEASE_PLEASE_TOKEN (a PAT), so it needs no write scope on the default
+# token. publish-image scopes its own packages:write below.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   release-please:
