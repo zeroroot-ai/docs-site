@@ -198,6 +198,12 @@
               "number": 11,
               "type": "int32",
               "comment": "Run number - sequential number for this mission (1, 2, 3...).\nUsed for mission memory queries and historical comparisons."
+            },
+            {
+              "name": "job_id",
+              "number": 12,
+              "type": "string",
+              "comment": "job_id names the job this execution serves (gibson#1706). A one-shot\ndispatch and a bank job then share one result path. Empty for a\ndispatch that opens no job."
             }
           ]
         },
@@ -216,6 +222,18 @@
               "number": 2,
               "type": "gibson.common.v1.Error",
               "comment": ""
+            },
+            {
+              "name": "deliverables",
+              "number": 3,
+              "type": "repeated gibson.job.v1.Deliverable",
+              "comment": "deliverables lists what left the sandbox for this execution: a pushed\nbranch, an opened merge request (gibson#1706). Empty when nothing left."
+            },
+            {
+              "name": "claude_session_id",
+              "number": 4,
+              "type": "string",
+              "comment": "claude_session_id is the coding-agent session that ran this execution,\nso a later turn resumes the same conversation. Empty for an agent that\nholds no session."
             }
           ]
         },
@@ -474,6 +492,12 @@
               "number": 4,
               "type": "repeated ComponentGrant",
               "comment": "component_grants is an optional list of FGA capability grants to apply at\ncreation."
+            },
+            {
+              "name": "capability_ceiling",
+              "number": 5,
+              "type": "repeated string",
+              "comment": "capability_ceiling names the session capabilities the enrolling admin\ngrants this identity, minted into its bootstrap credential's ceiling\n(ADR-0045). Only the reserved names are accepted: \"mission:originate\"\n(start a mission of its own, the interactive coding-agent case,\ngibson#1593 decision 9) and \"mission:delegate\". Empty means neither."
             }
           ]
         },
@@ -603,6 +627,731 @@
               "name": "PRINCIPAL_KIND_PLUGIN",
               "number": 3,
               "comment": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gibson.bank.v1",
+      "comment": "Package gibson.bank.v1 declares banks of always-on coding agents and their\nmembers (gibson#1706, ADR-0017).\n\nA bank is a declarative, daemon-reconciled pool of always-on Claude Code\ninstances. The daemon keeps desired_count members running in sandboxes,\nrelaunches a dead member, and holds a member at NEEDS_SIGN_IN until its\nowner completes the in-sandbox sign in. A member signs in once inside its\nsandbox through Anthropic's own flow, or runs on the tenant's API key or\ncloud credentials. Callers with can_send on a bank open jobs on its members\nthrough gibson.job.v1.JobService.",
+      "services": [
+        {
+          "name": "BankService",
+          "comment": "BankService creates, reads, updates and deletes banks, lists their\nmembers, and relays the in-sandbox subscription sign in to the owner.\nPeople and platform services call it. A dispatched component reaches\nbanks through gibson.job.v1.JobService and the harness callback under its\nown grant, not through this service.",
+          "methods": [
+            {
+              "name": "CreateBank",
+              "input": "CreateBankRequest",
+              "output": "CreateBankResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "CreateBank declares a bank. The daemon starts to launch members until\ndesired_count of them run. The caller owns the bank unless\ntenant_owned is true."
+            },
+            {
+              "name": "DeleteBank",
+              "input": "DeleteBankRequest",
+              "output": "DeleteBankResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "DeleteBank drains every member, closes their open jobs with verdict\nABANDONED, and removes the bank."
+            },
+            {
+              "name": "GetBank",
+              "input": "GetBankRequest",
+              "output": "GetBankResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "GetBank returns one bank by id."
+            },
+            {
+              "name": "ListBanks",
+              "input": "ListBanksRequest",
+              "output": "ListBanksResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ListBanks returns the banks of the caller's tenant, newest first."
+            },
+            {
+              "name": "ListMembers",
+              "input": "ListMembersRequest",
+              "output": "ListMembersResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ListMembers returns the members of a bank with their last reported\nstatus."
+            },
+            {
+              "name": "StartSignIn",
+              "input": "StartSignInRequest",
+              "output": "StartSignInResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "StartSignIn asks a member at NEEDS_SIGN_IN to run the Anthropic sign in\ninside its sandbox. Follow it with StreamSignIn to read the URL and\nthe code prompt, then SubmitSignInCode. Only the owner signs in: the\nsubscription is theirs."
+            },
+            {
+              "name": "StreamSignIn",
+              "input": "StreamSignInRequest",
+              "output": "StreamSignInResponse",
+              "clientStreaming": false,
+              "serverStreaming": true,
+              "comment": "StreamSignIn relays the sign-in flow of one member: the URL to open,\nthe code prompt when the flow asks for one, and done or error at the\nend. The stream closes after done or error."
+            },
+            {
+              "name": "SubmitSignInCode",
+              "input": "SubmitSignInCodeRequest",
+              "output": "SubmitSignInCodeResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "SubmitSignInCode passes the code the person got from Anthropic to the\nsign-in flow that runs inside the member's sandbox."
+            },
+            {
+              "name": "UpdateBank",
+              "input": "UpdateBankRequest",
+              "output": "UpdateBankResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "UpdateBank changes desired_count and the policies of a bank. A field\nthat is absent keeps its value. The login shape, the agent and the\nmodel are fixed at creation."
+            }
+          ]
+        }
+      ],
+      "messages": [
+        {
+          "name": "Bank",
+          "comment": "Bank is a pool of always-on coding agents with one owner.",
+          "fields": [
+            {
+              "name": "id",
+              "number": 1,
+              "type": "string",
+              "comment": "id is the bank id. The daemon assigns it."
+            },
+            {
+              "name": "tenant_id",
+              "number": 2,
+              "type": "string",
+              "comment": "tenant_id is the tenant the bank belongs to."
+            },
+            {
+              "name": "owner",
+              "number": 3,
+              "type": "gibson.common.v1.Principal",
+              "comment": "owner is the person or the tenant that owns the bank. A person owns a\nbank that signs in on their subscription. The tenant owns a bank that\nruns on the tenant provider configuration."
+            },
+            {
+              "name": "name",
+              "number": 4,
+              "type": "string",
+              "comment": "name is the display name. Unique inside the tenant."
+            },
+            {
+              "name": "desired_count",
+              "number": 5,
+              "type": "int32",
+              "comment": "desired_count is how many members the daemon keeps running."
+            },
+            {
+              "name": "login_shape",
+              "number": 6,
+              "type": "LoginShape",
+              "comment": "login_shape is how members authenticate to Anthropic."
+            },
+            {
+              "name": "provider_config_name",
+              "number": 7,
+              "type": "string",
+              "comment": "provider_config_name names the tenant provider configuration that\nholds the API key or the cloud credentials. Empty for\nLOGIN_SHAPE_SUBSCRIPTION."
+            },
+            {
+              "name": "agent_name",
+              "number": 8,
+              "type": "string",
+              "comment": "agent_name is the catalog id of the agent component each member runs.\nThe default is \"claude\"."
+            },
+            {
+              "name": "model",
+              "number": 9,
+              "type": "string",
+              "comment": "model is the model id members run. Empty means the agent default."
+            },
+            {
+              "name": "max_jobs_in_flight",
+              "number": 10,
+              "type": "int32",
+              "comment": "max_jobs_in_flight is the per-member cap on open jobs. Capacity of the\nbank is desired_count times max_jobs_in_flight."
+            },
+            {
+              "name": "stale_limit",
+              "number": 11,
+              "type": "google.protobuf.Duration",
+              "comment": "stale_limit is how long a job may go without input. A job idle past it\ncloses with verdict ABANDONED."
+            },
+            {
+              "name": "spill_policy",
+              "number": 12,
+              "type": "SpillPolicy",
+              "comment": "spill_policy is what the bank does with a job when no member has a\nfree slot."
+            },
+            {
+              "name": "created_at",
+              "number": 13,
+              "type": "google.protobuf.Timestamp",
+              "comment": "created_at is when the bank was created."
+            },
+            {
+              "name": "updated_at",
+              "number": 14,
+              "type": "google.protobuf.Timestamp",
+              "comment": "updated_at is when the bank was last changed."
+            }
+          ]
+        },
+        {
+          "name": "CreateBankRequest",
+          "comment": "CreateBankRequest declares a new bank.",
+          "fields": [
+            {
+              "name": "name",
+              "number": 1,
+              "type": "string",
+              "comment": "name is the display name. Unique inside the tenant."
+            },
+            {
+              "name": "tenant_owned",
+              "number": 2,
+              "type": "bool",
+              "comment": "tenant_owned makes the tenant the owner. The bank then runs on the\ntenant provider configuration and has no sign-in step. When false the\ncaller owns the bank."
+            },
+            {
+              "name": "desired_count",
+              "number": 3,
+              "type": "int32",
+              "comment": "desired_count is how many members the daemon keeps running."
+            },
+            {
+              "name": "login_shape",
+              "number": 4,
+              "type": "LoginShape",
+              "comment": "login_shape is how members authenticate to Anthropic. Required."
+            },
+            {
+              "name": "provider_config_name",
+              "number": 5,
+              "type": "string",
+              "comment": "provider_config_name names the tenant provider configuration for every\nlogin shape except LOGIN_SHAPE_SUBSCRIPTION."
+            },
+            {
+              "name": "agent_name",
+              "number": 6,
+              "type": "string",
+              "comment": "agent_name is the catalog id of the agent component each member runs.\nEmpty means \"claude\"."
+            },
+            {
+              "name": "model",
+              "number": 7,
+              "type": "string",
+              "comment": "model is the model id members run. Empty means the agent default."
+            },
+            {
+              "name": "max_jobs_in_flight",
+              "number": 8,
+              "type": "int32",
+              "comment": "max_jobs_in_flight is the per-member cap on open jobs. Zero means the\ndaemon default."
+            },
+            {
+              "name": "stale_limit",
+              "number": 9,
+              "type": "google.protobuf.Duration",
+              "comment": "stale_limit is how long a job may go without input before it closes\nwith verdict ABANDONED. Unset means the daemon default."
+            },
+            {
+              "name": "spill_policy",
+              "number": 10,
+              "type": "SpillPolicy",
+              "comment": "spill_policy is what the bank does with a job when no member has a\nfree slot. Unspecified means SPILL_POLICY_QUEUE."
+            }
+          ]
+        },
+        {
+          "name": "CreateBankResponse",
+          "comment": "CreateBankResponse carries the created bank.",
+          "fields": [
+            {
+              "name": "bank",
+              "number": 1,
+              "type": "Bank",
+              "comment": "bank is the bank as stored."
+            }
+          ]
+        },
+        {
+          "name": "DeleteBankRequest",
+          "comment": "DeleteBankRequest names the bank to remove.",
+          "fields": [
+            {
+              "name": "id",
+              "number": 1,
+              "type": "string",
+              "comment": "id is the bank id. Required."
+            }
+          ]
+        },
+        {
+          "name": "DeleteBankResponse",
+          "comment": "DeleteBankResponse is empty. The bank is gone when the call returns.",
+          "fields": []
+        },
+        {
+          "name": "GetBankRequest",
+          "comment": "GetBankRequest names one bank.",
+          "fields": [
+            {
+              "name": "id",
+              "number": 1,
+              "type": "string",
+              "comment": "id is the bank id. Required."
+            }
+          ]
+        },
+        {
+          "name": "GetBankResponse",
+          "comment": "GetBankResponse carries one bank.",
+          "fields": [
+            {
+              "name": "bank",
+              "number": 1,
+              "type": "Bank",
+              "comment": "bank is the bank."
+            }
+          ]
+        },
+        {
+          "name": "ListBanksRequest",
+          "comment": "ListBanksRequest pages through the banks of the caller's tenant.",
+          "fields": [
+            {
+              "name": "page_size",
+              "number": 1,
+              "type": "int32",
+              "comment": "page_size is the maximum number of banks to return. Zero means the\nserver default."
+            },
+            {
+              "name": "page_token",
+              "number": 2,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous page. Empty for the\nfirst page."
+            }
+          ]
+        },
+        {
+          "name": "ListBanksResponse",
+          "comment": "ListBanksResponse carries one page of banks.",
+          "fields": [
+            {
+              "name": "banks",
+              "number": 1,
+              "type": "repeated Bank",
+              "comment": "banks is the page."
+            },
+            {
+              "name": "next_page_token",
+              "number": 2,
+              "type": "string",
+              "comment": "next_page_token fetches the next page. Empty on the last page."
+            }
+          ]
+        },
+        {
+          "name": "ListMembersRequest",
+          "comment": "ListMembersRequest pages through the members of one bank.",
+          "fields": [
+            {
+              "name": "bank_id",
+              "number": 1,
+              "type": "string",
+              "comment": "bank_id is the bank. Required."
+            },
+            {
+              "name": "page_size",
+              "number": 2,
+              "type": "int32",
+              "comment": "page_size is the maximum number of members to return. Zero means the\nserver default."
+            },
+            {
+              "name": "page_token",
+              "number": 3,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous page. Empty for the\nfirst page."
+            }
+          ]
+        },
+        {
+          "name": "ListMembersResponse",
+          "comment": "ListMembersResponse carries one page of members.",
+          "fields": [
+            {
+              "name": "members",
+              "number": 1,
+              "type": "repeated Member",
+              "comment": "members is the page."
+            },
+            {
+              "name": "next_page_token",
+              "number": 2,
+              "type": "string",
+              "comment": "next_page_token fetches the next page. Empty on the last page."
+            }
+          ]
+        },
+        {
+          "name": "Member",
+          "comment": "Member is one always-on instance in a bank. It is a mission the owner\noriginated (ADR-0063) with one sandbox that lives until the bank scales\ndown.",
+          "fields": [
+            {
+              "name": "id",
+              "number": 1,
+              "type": "string",
+              "comment": "id is the member id. The daemon assigns it."
+            },
+            {
+              "name": "bank_id",
+              "number": 2,
+              "type": "string",
+              "comment": "bank_id is the bank this member belongs to."
+            },
+            {
+              "name": "mission_id",
+              "number": 3,
+              "type": "string",
+              "comment": "mission_id is the always-on mission that backs this member."
+            },
+            {
+              "name": "mission_run_id",
+              "number": 4,
+              "type": "string",
+              "comment": "mission_run_id is the run of that mission."
+            },
+            {
+              "name": "agent_run_id",
+              "number": 5,
+              "type": "string",
+              "comment": "agent_run_id is the agent run inside that mission run."
+            },
+            {
+              "name": "sandbox_id",
+              "number": 6,
+              "type": "string",
+              "comment": "sandbox_id is the setec sandbox the member runs in."
+            },
+            {
+              "name": "status",
+              "number": 7,
+              "type": "MemberStatus",
+              "comment": "status is what the member last reported, with LAUNCHING and DEAD\nfilled in by the daemon."
+            },
+            {
+              "name": "last_heartbeat",
+              "number": 8,
+              "type": "google.protobuf.Timestamp",
+              "comment": "last_heartbeat is when the member last reported."
+            }
+          ]
+        },
+        {
+          "name": "MemberStatus",
+          "comment": "MemberStatus is what a member reports on every heartbeat: busy or not busy,\nhow many jobs it holds, and which ones. The daemon uses it to route queued\njobs to a member with a free slot.",
+          "fields": [
+            {
+              "name": "state",
+              "number": 1,
+              "type": "MemberState",
+              "comment": "state is where the member is in its life."
+            },
+            {
+              "name": "jobs_in_flight",
+              "number": 2,
+              "type": "int32",
+              "comment": "jobs_in_flight is how many jobs the member holds open now."
+            },
+            {
+              "name": "cap",
+              "number": 3,
+              "type": "int32",
+              "comment": "cap is how many jobs the member may hold open at once."
+            },
+            {
+              "name": "active_job_ids",
+              "number": 4,
+              "type": "repeated string",
+              "comment": "active_job_ids lists the jobs the member holds open now."
+            },
+            {
+              "name": "claude_version",
+              "number": 5,
+              "type": "string",
+              "comment": "claude_version is the version of the claude binary the member runs."
+            }
+          ]
+        },
+        {
+          "name": "StartSignInRequest",
+          "comment": "StartSignInRequest names the member that must sign in.",
+          "fields": [
+            {
+              "name": "bank_id",
+              "number": 1,
+              "type": "string",
+              "comment": "bank_id is the bank the member belongs to. Required."
+            },
+            {
+              "name": "member_id",
+              "number": 2,
+              "type": "string",
+              "comment": "member_id is the member. Required."
+            }
+          ]
+        },
+        {
+          "name": "StartSignInResponse",
+          "comment": "StartSignInResponse carries the member after the sign in started.",
+          "fields": [
+            {
+              "name": "member",
+              "number": 1,
+              "type": "Member",
+              "comment": "member is the member. Its status.state is NEEDS_SIGN_IN until the flow\ncompletes."
+            }
+          ]
+        },
+        {
+          "name": "StreamSignInRequest",
+          "comment": "StreamSignInRequest names the member whose sign-in flow to follow.",
+          "fields": [
+            {
+              "name": "bank_id",
+              "number": 1,
+              "type": "string",
+              "comment": "bank_id is the bank the member belongs to. Required."
+            },
+            {
+              "name": "member_id",
+              "number": 2,
+              "type": "string",
+              "comment": "member_id is the member. Required."
+            }
+          ]
+        },
+        {
+          "name": "StreamSignInResponse",
+          "comment": "StreamSignInResponse is one step of the sign-in flow.",
+          "fields": [
+            {
+              "name": "url",
+              "number": 1,
+              "type": "string",
+              "comment": "url is the address the person opens to sign in. Set on the first step."
+            },
+            {
+              "name": "code_prompt",
+              "number": 2,
+              "type": "string",
+              "comment": "code_prompt is the text the flow shows when it asks for the code. Set\nwhen the flow waits for SubmitSignInCode."
+            },
+            {
+              "name": "done",
+              "number": 3,
+              "type": "bool",
+              "comment": "done is true on the last step when the sign in succeeded."
+            },
+            {
+              "name": "error",
+              "number": 4,
+              "type": "string",
+              "comment": "error is set on the last step when the sign in failed."
+            }
+          ]
+        },
+        {
+          "name": "SubmitSignInCodeRequest",
+          "comment": "SubmitSignInCodeRequest passes the sign-in code to a member.",
+          "fields": [
+            {
+              "name": "bank_id",
+              "number": 1,
+              "type": "string",
+              "comment": "bank_id is the bank the member belongs to. Required."
+            },
+            {
+              "name": "member_id",
+              "number": 2,
+              "type": "string",
+              "comment": "member_id is the member. Required."
+            },
+            {
+              "name": "code",
+              "number": 3,
+              "type": "string",
+              "comment": "code is the code Anthropic gave the person. Required."
+            }
+          ]
+        },
+        {
+          "name": "SubmitSignInCodeResponse",
+          "comment": "SubmitSignInCodeResponse carries the member after the code was passed on.",
+          "fields": [
+            {
+              "name": "member",
+              "number": 1,
+              "type": "Member",
+              "comment": "member is the member. Read StreamSignIn for the outcome."
+            }
+          ]
+        },
+        {
+          "name": "UpdateBankRequest",
+          "comment": "UpdateBankRequest changes desired_count and the policies of a bank. A\nfield that is absent keeps its value.",
+          "fields": [
+            {
+              "name": "id",
+              "number": 1,
+              "type": "string",
+              "comment": "id is the bank id. Required."
+            },
+            {
+              "name": "desired_count",
+              "number": 2,
+              "type": "optional int32",
+              "comment": "desired_count is the new member count. The daemon launches or drains\nmembers to reach it."
+            },
+            {
+              "name": "max_jobs_in_flight",
+              "number": 3,
+              "type": "optional int32",
+              "comment": "max_jobs_in_flight is the new per-member cap."
+            },
+            {
+              "name": "stale_limit",
+              "number": 4,
+              "type": "google.protobuf.Duration",
+              "comment": "stale_limit is the new idle limit for jobs."
+            },
+            {
+              "name": "spill_policy",
+              "number": 5,
+              "type": "optional SpillPolicy",
+              "comment": "spill_policy is the new spill policy."
+            }
+          ]
+        },
+        {
+          "name": "UpdateBankResponse",
+          "comment": "UpdateBankResponse carries the bank after the change.",
+          "fields": [
+            {
+              "name": "bank",
+              "number": 1,
+              "type": "Bank",
+              "comment": "bank is the bank as stored."
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "LoginShape",
+          "comment": "LoginShape is how a member authenticates to Anthropic. All shapes are\noffered. API key and cloud credentials come from the tenant provider\nconfiguration. A subscription is never stored by the platform.",
+          "values": [
+            {
+              "name": "LOGIN_SHAPE_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "LOGIN_SHAPE_SUBSCRIPTION",
+              "number": 1,
+              "comment": "LOGIN_SHAPE_SUBSCRIPTION: the owner signs in inside the sandbox through\nAnthropic's own flow, relayed by StartSignIn, StreamSignIn and\nSubmitSignInCode. A member holds at NEEDS_SIGN_IN until then."
+            },
+            {
+              "name": "LOGIN_SHAPE_ANTHROPIC_API_KEY",
+              "number": 2,
+              "comment": "LOGIN_SHAPE_ANTHROPIC_API_KEY: the provider configuration named by\nBank.provider_config_name holds an Anthropic API key."
+            },
+            {
+              "name": "LOGIN_SHAPE_BEDROCK",
+              "number": 3,
+              "comment": "LOGIN_SHAPE_BEDROCK: the provider configuration holds AWS credentials\nfor Amazon Bedrock."
+            },
+            {
+              "name": "LOGIN_SHAPE_VERTEX",
+              "number": 4,
+              "comment": "LOGIN_SHAPE_VERTEX: the provider configuration holds Google Cloud\ncredentials for Vertex AI."
+            },
+            {
+              "name": "LOGIN_SHAPE_FOUNDRY",
+              "number": 5,
+              "comment": "LOGIN_SHAPE_FOUNDRY: the provider configuration holds Azure credentials\nfor Microsoft Foundry."
+            }
+          ]
+        },
+        {
+          "name": "MemberState",
+          "comment": "MemberState is where a member is in its life. A member reports\nNEEDS_SIGN_IN, IDLE, BUSY or DRAINING on every heartbeat. The daemon sets\nLAUNCHING before the first heartbeat and DEAD when heartbeats stop.",
+          "values": [
+            {
+              "name": "MEMBER_STATE_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "MEMBER_STATE_LAUNCHING",
+              "number": 1,
+              "comment": "MEMBER_STATE_LAUNCHING: the sandbox starts. No heartbeat yet. Daemon set."
+            },
+            {
+              "name": "MEMBER_STATE_NEEDS_SIGN_IN",
+              "number": 2,
+              "comment": "MEMBER_STATE_NEEDS_SIGN_IN: the member waits for the owner to complete\nthe in-sandbox sign in. It takes no job."
+            },
+            {
+              "name": "MEMBER_STATE_IDLE",
+              "number": 3,
+              "comment": "MEMBER_STATE_IDLE: the member has a free slot. jobs_in_flight is below\ncap."
+            },
+            {
+              "name": "MEMBER_STATE_BUSY",
+              "number": 4,
+              "comment": "MEMBER_STATE_BUSY: every slot is taken. jobs_in_flight equals cap."
+            },
+            {
+              "name": "MEMBER_STATE_DRAINING",
+              "number": 5,
+              "comment": "MEMBER_STATE_DRAINING: the member takes no new job and exits when its\nopen jobs close. The daemon asks for this on scale-down."
+            },
+            {
+              "name": "MEMBER_STATE_DEAD",
+              "number": 6,
+              "comment": "MEMBER_STATE_DEAD: heartbeats stopped or the sandbox died. The daemon\nrelaunches the member. Daemon set."
+            }
+          ]
+        },
+        {
+          "name": "SpillPolicy",
+          "comment": "SpillPolicy is what a bank does with a job when no member has a free slot.",
+          "values": [
+            {
+              "name": "SPILL_POLICY_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "SPILL_POLICY_QUEUE",
+              "number": 1,
+              "comment": "SPILL_POLICY_QUEUE: the job waits in the bank queue. The next member\nwith a free slot pulls it."
+            },
+            {
+              "name": "SPILL_POLICY_EPHEMERAL",
+              "number": 2,
+              "comment": "SPILL_POLICY_EPHEMERAL: the daemon launches a one-shot instance for\nthe job instead of queueing it."
             }
           ]
         }
@@ -912,6 +1661,24 @@
           ]
         },
         {
+          "name": "Principal",
+          "comment": "Principal names who acts: a person, the tenant, a component run, or a\nplatform service. Banks record their owner as a Principal. Jobs record who\nopened them and who sent each input as a Principal (gibson#1706).",
+          "fields": [
+            {
+              "name": "kind",
+              "number": 1,
+              "type": "Principal.Kind",
+              "comment": "kind is the class of principal."
+            },
+            {
+              "name": "id",
+              "number": 2,
+              "type": "string",
+              "comment": "id identifies the principal inside its kind."
+            }
+          ]
+        },
+        {
           "name": "TypedArray",
           "comment": "TypedArray represents an array of TypedValues",
           "fields": [
@@ -1176,6 +1943,37 @@
               "name": "NULL_VALUE_UNSPECIFIED",
               "number": 0,
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "Principal.Kind",
+          "comment": "Kind is the class of principal. It decides how to read id.",
+          "values": [
+            {
+              "name": "KIND_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "KIND_USER",
+              "number": 1,
+              "comment": "KIND_USER is a person. id is the Zitadel user id."
+            },
+            {
+              "name": "KIND_TENANT",
+              "number": 2,
+              "comment": "KIND_TENANT is the tenant itself. id is the tenant id."
+            },
+            {
+              "name": "KIND_COMPONENT",
+              "number": 3,
+              "comment": "KIND_COMPONENT is an agent, tool or plugin run. id is the component\nprincipal id."
+            },
+            {
+              "name": "KIND_SERVICE",
+              "number": 4,
+              "comment": "KIND_SERVICE is a platform service. id is the service account id."
             }
           ]
         }
@@ -2604,6 +3402,12 @@
               "number": 3,
               "type": "string",
               "comment": "health_message provides optional human-readable detail about the health status."
+            },
+            {
+              "name": "member",
+              "number": 4,
+              "type": "gibson.bank.v1.MemberStatus",
+              "comment": "member is the bank member status when this instance is a member of a\nbank (gibson#1706): busy or not busy, how many jobs it holds, which\nones, and the coding-agent version it runs. The daemon routes a queued\njob to a member that reports a free slot. Absent for a component that\nis not a bank member. health_status and health_message stay: they\nreport whether the process is well, not whether it is busy."
             }
           ]
         },
@@ -9544,6 +10348,14 @@
           "comment": "HarnessCallbackService provides the harness interface for agents executing in standalone mode.\nThe SDK's CallbackHarness forwards all harness operations to the orchestrator via this service.",
           "methods": [
             {
+              "name": "ApplicationFindings",
+              "input": "ApplicationFindingsRequest",
+              "output": "ApplicationFindingsResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ApplicationFindings answers the one lifecycle question the reads above\ncannot: for this Application, what is still open, and does anything\nactually run the code it is in (gibson#1669).\n\nThe reads above are hybrid vector-and-graph SEARCH — text or embedding, a\nnode-type filter, top-k. Reachability is a TRAVERSAL: is this Package\ninside an Image that a Deployment of this Application runs, and does that\nDeployment expose a Host. No top-k over a node-type filter answers it.\n\nIt is one bounded question rather than a Cypher surface, deliberately: an\nagent able to send arbitrary Cypher would be a second unaudited path into\nthe tenant graph, and the traversal an agent needs is knowable in advance."
+            },
+            {
               "name": "Authorize",
               "input": "AuthorizeRequest",
               "output": "AuthorizeResponse",
@@ -9574,6 +10386,14 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": ""
+            },
+            {
+              "name": "CloseJob",
+              "input": "CloseJobRequest",
+              "output": "CloseJobResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "CloseJob closes a job with a verdict and a score from a dispatched\nagent, under its grant. A verification agent is the usual caller. It\nmirrors gibson.job.v1.JobService.CloseJob."
             },
             {
               "name": "CreateMission",
@@ -9792,6 +10612,22 @@
               "comment": "Observe emits a typed observation into the World (ADR-0007). The brain\nresolves identity and topology; scope is derived server-side from context."
             },
             {
+              "name": "OpenJob",
+              "input": "OpenJobRequest",
+              "output": "OpenJobResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "OpenJob opens a job on a bank from a dispatched agent, under its\ngrant. It mirrors gibson.job.v1.JobService.OpenJob."
+            },
+            {
+              "name": "PullJob",
+              "input": "PullJobRequest",
+              "output": "PullJobResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "PullJob returns the next queued job of the calling member's bank, or\nnothing when the queue is empty. A member with a free slot calls it\nafter each heartbeat. The daemon assigns the job to the member."
+            },
+            {
               "name": "PutSessionContext",
               "input": "PutSessionContextRequest",
               "output": "PutSessionContextResponse",
@@ -9840,6 +10676,22 @@
               "comment": ""
             },
             {
+              "name": "ReportDeliverable",
+              "input": "ReportDeliverableRequest",
+              "output": "ReportDeliverableResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ReportDeliverable records one outward result the driver performed at\nwrap-up: a pushed branch or an opened merge request."
+            },
+            {
+              "name": "ReportJobState",
+              "input": "ReportJobStateRequest",
+              "output": "ReportJobStateResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ReportJobState tells the daemon a job moved to WORKING or WAITING, and\nnames the Claude Code session that holds it so a restart can resume\nit. A member never reports CLOSED: a scorer closes the job."
+            },
+            {
               "name": "ReportStepHints",
               "input": "ReportStepHintsRequest",
               "output": "ReportStepHintsResponse",
@@ -9864,12 +10716,28 @@
               "comment": "SearchTools returns a small, ranked, authz-filtered set of tools matching\na query — the meta-tool surface agents use instead of receiving every tool\n(ADR-0047 facet 5). Per-tool authorization is enforced inside the handler;\nthis RPC-level gate only checks that the caller may use the harness."
             },
             {
+              "name": "SendInput",
+              "input": "SendInputRequest",
+              "output": "SendInputResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "SendInput sends the next message to an open job from a dispatched\nagent, under its grant. It mirrors gibson.job.v1.JobService.SendInput."
+            },
+            {
               "name": "SubmitFinding",
               "input": "SubmitFindingRequest",
               "output": "SubmitFindingResponse",
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "Finding Operations"
+            },
+            {
+              "name": "SubscribeInput",
+              "input": "SubscribeInputRequest",
+              "output": "SubscribeInputResponse",
+              "clientStreaming": false,
+              "serverStreaming": true,
+              "comment": "SubscribeInput streams the inputs for the calling member, in order,\nacross every job it holds. Each Input carries the per-turn grant the\nmember uses for every tool call of that turn. The stream stays open\nfor the life of the member."
             },
             {
               "name": "ToolResults",
@@ -10042,6 +10910,138 @@
                 "double_value",
                 "bytes_value"
               ]
+            }
+          ]
+        },
+        {
+          "name": "ApplicationFinding",
+          "comment": "ApplicationFinding is one Finding of an Application, with the lifecycle\ncontext that decides how much it matters.",
+          "fields": [
+            {
+              "name": "finding_id",
+              "number": 1,
+              "type": "string",
+              "comment": "finding_id is the Finding's brain_id — the same identity every other\nsurface uses, so an agent can write back to the node it read."
+            },
+            {
+              "name": "status",
+              "number": 2,
+              "type": "string",
+              "comment": "status is the Finding's lifecycle status: open, fixing, fixed, verified."
+            },
+            {
+              "name": "severity",
+              "number": 3,
+              "type": "string",
+              "comment": "severity is the severity recorded when the Finding was raised."
+            },
+            {
+              "name": "vulnerability_id",
+              "number": 4,
+              "type": "string",
+              "comment": "vulnerability_id identifies the weakness this Finding instantiates (a\nCVE, a GHSA, or a platform id). Empty when the Finding names no public\nidentifier — a source finding, say — which is a fact about the Finding,\nnot a failure of the read."
+            },
+            {
+              "name": "place_label",
+              "number": 5,
+              "type": "string",
+              "comment": "place_label and place_key are what the Finding affects: a Package in an\nimage, a Repository, or a Service on a host."
+            },
+            {
+              "name": "place_key",
+              "number": 6,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "reachable",
+              "number": 7,
+              "type": "bool",
+              "comment": "reachable reports that the affected place is inside an Image that a\nDeployment of this Application runs. False means nothing this\nApplication deploys contains it.\n\nIt is derived from the presence of that route, never from a stored\nproperty: a property would go stale the moment a deployment rolls, and a\nstale \"not reachable\" is a silent false negative — a triage rule reads it\nas \"nothing runs this\" and ranks a live finding last."
+            },
+            {
+              "name": "exposed",
+              "number": 8,
+              "type": "bool",
+              "comment": "exposed reports that the Deployment which reaches it also exposes a Host.\nOnly ever true when reachable is."
+            },
+            {
+              "name": "deployment_key",
+              "number": 9,
+              "type": "string",
+              "comment": "deployment_key and image_key name the route that made it reachable, so an\nagent can say WHY rather than assert it."
+            },
+            {
+              "name": "image_key",
+              "number": 10,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "priority",
+              "number": 11,
+              "type": "string",
+              "comment": "priority, priority_rule and priority_reason are what a previous triage\npass decided about this Finding, written back by the agent and returned\nhere so the next pass can read its own history (gibson#1684).\n\nTwo behaviours are dark while they are empty. A triage rule that keeps\nthe previous priority when a scoring feed is unavailable — so an outage\nnever re-ranks a Finding on severity alone — has nothing to keep. And a\npass that explains only what changed sees every decision as a change, so\nmodel cost scales with the size of the backlog rather than with what\nactually happened.\n\nEmpty means NO PASS HAS DECIDED YET. That is a fact about the Finding,\nnot a failure of the read, and a reader must never take it for\n\"unimportant\". The three are written by different steps — a rule table\ndecides the priority, a model writes the reason — so losing the reason\nmust not take the decision with it: an empty priority_reason beside a\npopulated priority is a model that went quiet, not a Finding nobody\nranked."
+            },
+            {
+              "name": "priority_rule",
+              "number": 12,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "priority_reason",
+              "number": 13,
+              "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ApplicationFindingsRequest",
+          "comment": "ApplicationFindingsRequest asks for one Application's Findings with the\nlifecycle context that decides how much each one matters.\n\nIt carries NO tenant field. The tenant is derived from the call context, so\nnaming another tenant's graph is unrepresentable rather than rejected — the\nsame rule every other read on this service follows.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "application",
+              "number": 2,
+              "type": "string",
+              "comment": "application is the Application's key. Required: this read is scoped to\none Application by construction, and an empty key would silently widen\nthe traversal to the whole tenant graph."
+            },
+            {
+              "name": "statuses",
+              "number": 3,
+              "type": "repeated string",
+              "comment": "statuses filters by lifecycle status (open, fixing, fixed, verified).\nEmpty means every status."
+            },
+            {
+              "name": "limit",
+              "number": 4,
+              "type": "int32",
+              "comment": "limit bounds one read. 0 means the server default; the server caps it,\nso a caller cannot walk an entire tenant graph in one call."
+            }
+          ]
+        },
+        {
+          "name": "ApplicationFindingsResponse",
+          "comment": "ApplicationFindingsResponse carries the Application's Findings.\n\nUnavailability is reported in error, NEVER as an empty list with no error:\nan empty list means the Application genuinely has no matching Finding, and\nconflating the two is what makes an unanswerable question look like good news.",
+          "fields": [
+            {
+              "name": "findings",
+              "number": 1,
+              "type": "repeated ApplicationFinding",
+              "comment": ""
+            },
+            {
+              "name": "error",
+              "number": 2,
+              "type": "HarnessError",
+              "comment": ""
             }
           ]
         },
@@ -10442,6 +11442,54 @@
           ]
         },
         {
+          "name": "CloseJobRequest",
+          "comment": "CloseJobRequest closes a job from a dispatched agent.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": "context identifies the calling agent's run."
+            },
+            {
+              "name": "job_id",
+              "number": 2,
+              "type": "string",
+              "comment": "job_id is the job. Required."
+            },
+            {
+              "name": "verdict",
+              "number": 3,
+              "type": "gibson.job.v1.JobVerdict",
+              "comment": "verdict is the outcome. Required."
+            },
+            {
+              "name": "score",
+              "number": 4,
+              "type": "double",
+              "comment": "score is the scorer's score, from 0.0 to 1.0."
+            }
+          ]
+        },
+        {
+          "name": "CloseJobResponse",
+          "comment": "CloseJobResponse carries the job after the close was recorded.",
+          "fields": [
+            {
+              "name": "job",
+              "number": 1,
+              "type": "gibson.job.v1.Job",
+              "comment": "job is the job as stored."
+            },
+            {
+              "name": "error",
+              "number": 2,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
           "name": "ContextInfo",
           "comment": "",
           "fields": [
@@ -10552,6 +11600,18 @@
               "number": 8,
               "type": "gibson.mission.v1.MissionConstraints",
               "comment": "canonical_constraints carries the platform-canonical\ngibson.mission.v1.MissionConstraints type (sdk#47 / ADR 0004).\nPrefer this field over the deprecated constraints (field 5).\nThe daemon merges canonical_constraints with any constraints baked\ninto the mission definition (dispatch wins on conflict).\nAbsent means no dispatch-time constraint overrides."
+            },
+            {
+              "name": "catalog_mission",
+              "number": 9,
+              "type": "string",
+              "comment": "catalog_mission names a mission definition checked into the platform's\nmission catalog, to be originated instead of a caller-supplied graph\n(ADR-0018: the checked-in definition is authoritative).\n\nThis is a second *input* to the one mission-creation route, deliberately\nnot a second RPC. A dedicated RPC would carry its own authorization\nsurface, so the per-tenant gate and the ADR-0063 origination rule (\"a\ncomponent originates only from inside a live parent\") would be enforced\nin two places — which is where two enforcement paths drift apart.\n\nExactly one of mission_definition_json (field 2) or catalog_mission must\nbe set. Both is InvalidArgument; neither is InvalidArgument."
+            },
+            {
+              "name": "catalog_params",
+              "number": 10,
+              "type": "map<string, string>",
+              "comment": "catalog_params carries the parameters the named catalog mission declares,\nkeyed by the definition's own parameter names.\n\nThe map is CLOSED: the daemon refuses an unrecognised key rather than\nignoring it. Silently dropping a key a caller sent would let that caller\nbelieve a parameter bound when it did not — which is what keeps the\nruntime target out of this map honest. The target continues to bind from\ntarget_id (field 3) alone, so a scan can only ever run against a target\nthe tenant registered.\n\nEvery missing parameter is reported at once rather than one render at a\ntime. Only meaningful when catalog_mission is set."
             }
           ]
         },
@@ -10665,7 +11725,7 @@
         },
         {
           "name": "DelegateToAgentRequest",
-          "comment": "",
+          "comment": "DelegateToAgentRequest dispatches a task to another agent. The target\nselector says WHERE the task runs. Absent means an ephemeral launch, which\nis the behavior every caller had before banks existed (gibson#1706).",
           "fields": [
             {
               "name": "context",
@@ -10684,12 +11744,40 @@
               "number": 3,
               "type": "gibson.types.v1.Task",
               "comment": ""
+            },
+            {
+              "name": "ephemeral",
+              "number": 10,
+              "type": "bool",
+              "comment": "ephemeral launches a new sandbox for this task and tears it down\nwhen the task ends. Setting it to true is the same as leaving the\noneof unset; it lets a caller say so out loud."
+            },
+            {
+              "name": "bank_id",
+              "number": 11,
+              "type": "string",
+              "comment": "bank_id opens a new job on that bank. A member with a free slot\ntakes it, or the bank queues it, per the bank spill policy."
+            },
+            {
+              "name": "job_id",
+              "number": 12,
+              "type": "string",
+              "comment": "job_id sends the task as the next input to a job that is already\nopen, so the agent keeps its conversation and its worktrees."
+            }
+          ],
+          "oneofs": [
+            {
+              "name": "target",
+              "fields": [
+                "ephemeral",
+                "bank_id",
+                "job_id"
+              ]
             }
           ]
         },
         {
           "name": "DelegateToAgentResponse",
-          "comment": "",
+          "comment": "DelegateToAgentResponse carries the delegated task's result, and the job\nthe task ran as when the target was a bank or a job.",
           "fields": [
             {
               "name": "result",
@@ -10702,6 +11790,18 @@
               "number": 2,
               "type": "HarnessError",
               "comment": ""
+            },
+            {
+              "name": "job_id",
+              "number": 3,
+              "type": "string",
+              "comment": "job_id names the job the task ran as. Empty for an ephemeral launch."
+            },
+            {
+              "name": "member_id",
+              "number": 4,
+              "type": "string",
+              "comment": "member_id names the bank member that ran the job. Empty for an\nephemeral launch."
             }
           ]
         },
@@ -12247,6 +13347,60 @@
           ]
         },
         {
+          "name": "LifecycleEntityEdge",
+          "comment": "LifecycleEntityEdge is one outgoing relationship to another typed entity,\nnamed by its label and identity rather than by a node id — the emitter does\nnot know node ids, and must not be able to guess them.",
+          "fields": [
+            {
+              "name": "type",
+              "number": 1,
+              "type": "string",
+              "comment": "type is a Taxonomy relationship type, e.g. \"CONTAINS\"."
+            },
+            {
+              "name": "target_label",
+              "number": 2,
+              "type": "string",
+              "comment": "target_label is the Taxonomy label of the other end."
+            },
+            {
+              "name": "target_id_properties",
+              "number": 3,
+              "type": "map<string, string>",
+              "comment": "target_id_properties identify the other end, folded the same way as\nid_properties above."
+            }
+          ]
+        },
+        {
+          "name": "LifecycleEntityObservation",
+          "comment": "LifecycleEntityObservation reports a sighting of a typed application-lifecycle\nentity: an Application, Repository, Image, Package, Deployment, Vulnerability,\nMergeRequest, Pipeline or Control, and the edges it was seen to have\n(gibson#1656).\n\nAdmission is the Taxonomy's decision, not this message's. The daemon puts\nlabel and every edge type to the global Taxonomy; an admitted shape becomes a\ntyped node, and one the Taxonomy does not admit is neither rejected nor lost —\nit lands as an Observation with its residue preserved (ADR-0012). So an agent\ncan always write, and can never invent schema.\n\nThis is a SIGHTING, not a graph write. The agent reports what it saw; the\nbrain resolves identity and the projector materialises it. An agent naming an\nexisting node's identity enriches that node rather than creating a second one.",
+          "fields": [
+            {
+              "name": "label",
+              "number": 1,
+              "type": "string",
+              "comment": "label is the Taxonomy label, e.g. \"Package\". A label outside the Taxonomy\nlands as an Observation rather than being refused."
+            },
+            {
+              "name": "id_properties",
+              "number": 2,
+              "type": "map<string, string>",
+              "comment": "id_properties identify the entity. One property is the identity; several\nare folded into a composite key in sorted order, so the same entity\nobserved twice resolves to the same node whatever order the map came in.\nAn entity with no identity property records nothing — there would be no\nstable node to project."
+            },
+            {
+              "name": "properties",
+              "number": 3,
+              "type": "map<string, string>",
+              "comment": "properties are the entity's non-identifying facts. A later sighting's\nproperties take precedence over an earlier one's; a sighting that omits a\nproperty never erases what an earlier one established."
+            },
+            {
+              "name": "edges",
+              "number": 4,
+              "type": "repeated LifecycleEntityEdge",
+              "comment": "edges are the outgoing relationships seen in this sighting. Both ends and\nthe relationship type must be admitted by the Taxonomy, or the edge is\nskipped while the entity itself still lands."
+            }
+          ]
+        },
+        {
           "name": "ListAgentsRequest",
           "comment": "",
           "fields": [
@@ -12405,6 +13559,36 @@
               "number": 5,
               "type": "string",
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "MemoryObservation",
+          "comment": "MemoryObservation reports a fact the agent wants to keep across runs, in the\nagent's own words. It is the memory write for coding agents (gibson#1593,\ndecision 10): a memory is a World observation, not a store of its own.\n\nIdentity is per sighting: the Timeline event id, like every observation. The\nTaxonomy gate lands it as an `Observation` node with shape \"Memory\" until\nSensing promotes the shape. Scope and tenant are server-side, same as the\nother variants. There is no field for either.",
+          "fields": [
+            {
+              "name": "text",
+              "number": 1,
+              "type": "string",
+              "comment": "text is the fact."
+            },
+            {
+              "name": "kind",
+              "number": 2,
+              "type": "string",
+              "comment": "kind is a short category, for example \"convention\", \"decision\", \"layout\"."
+            },
+            {
+              "name": "tags",
+              "number": 3,
+              "type": "repeated string",
+              "comment": "tags help recall. Free-form, lower-case."
+            },
+            {
+              "name": "source_ref",
+              "number": 4,
+              "type": "string",
+              "comment": "source_ref names where the fact came from: a path, a URL, or a work id."
             }
           ]
         },
@@ -12879,6 +14063,18 @@
               "number": 6,
               "type": "AccountObservation",
               "comment": ""
+            },
+            {
+              "name": "memory",
+              "number": 7,
+              "type": "MemoryObservation",
+              "comment": ""
+            },
+            {
+              "name": "lifecycle_entity",
+              "number": 8,
+              "type": "LifecycleEntityObservation",
+              "comment": ""
             }
           ],
           "oneofs": [
@@ -12889,7 +14085,9 @@
                 "domain",
                 "subdomain",
                 "credential",
-                "account"
+                "account",
+                "memory",
+                "lifecycle_entity"
               ]
             }
           ]
@@ -12901,6 +14099,54 @@
             {
               "name": "error",
               "number": 1,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "OpenJobRequest",
+          "comment": "OpenJobRequest opens a job on a bank from a dispatched agent.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": "context identifies the calling agent's run."
+            },
+            {
+              "name": "bank_id",
+              "number": 2,
+              "type": "string",
+              "comment": "bank_id is the bank to open the job on. Required."
+            },
+            {
+              "name": "member_id",
+              "number": 3,
+              "type": "string",
+              "comment": "member_id pins the job to one member of that bank. Empty lets the\ndaemon pick a member with a free slot."
+            },
+            {
+              "name": "spec",
+              "number": 4,
+              "type": "gibson.job.v1.JobSpec",
+              "comment": "spec is the structured input. Required."
+            }
+          ]
+        },
+        {
+          "name": "OpenJobResponse",
+          "comment": "OpenJobResponse carries the opened job.",
+          "fields": [
+            {
+              "name": "job",
+              "number": 1,
+              "type": "gibson.job.v1.Job",
+              "comment": "job is the job as stored."
+            },
+            {
+              "name": "error",
+              "number": 2,
               "type": "HarnessError",
               "comment": ""
             }
@@ -13022,6 +14268,36 @@
               "name": "transform",
               "number": 4,
               "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "PullJobRequest",
+          "comment": "PullJobRequest asks for the next queued job of the calling member's bank.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": "context identifies the calling member's run."
+            }
+          ]
+        },
+        {
+          "name": "PullJobResponse",
+          "comment": "PullJobResponse carries the next queued job, or nothing.",
+          "fields": [
+            {
+              "name": "job",
+              "number": 1,
+              "type": "gibson.job.v1.Job",
+              "comment": "job is the job the daemon assigned to the member. Unset when the queue\nis empty."
+            },
+            {
+              "name": "error",
+              "number": 2,
+              "type": "HarnessError",
               "comment": ""
             }
           ]
@@ -13345,6 +14621,84 @@
           ]
         },
         {
+          "name": "ReportDeliverableRequest",
+          "comment": "ReportDeliverableRequest records one deliverable the driver performed.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": "context identifies the calling member's run."
+            },
+            {
+              "name": "job_id",
+              "number": 2,
+              "type": "string",
+              "comment": "job_id is the job. Required."
+            },
+            {
+              "name": "deliverable",
+              "number": 3,
+              "type": "gibson.job.v1.Deliverable",
+              "comment": "deliverable is what was done. Required."
+            }
+          ]
+        },
+        {
+          "name": "ReportDeliverableResponse",
+          "comment": "ReportDeliverableResponse acknowledges the deliverable.",
+          "fields": [
+            {
+              "name": "error",
+              "number": 1,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ReportJobStateRequest",
+          "comment": "ReportJobStateRequest reports a job state change from the member.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": "context identifies the calling member's run."
+            },
+            {
+              "name": "job_id",
+              "number": 2,
+              "type": "string",
+              "comment": "job_id is the job. Required."
+            },
+            {
+              "name": "state",
+              "number": 3,
+              "type": "gibson.job.v1.JobState",
+              "comment": "state is the new state: WORKING or WAITING. Required."
+            },
+            {
+              "name": "claude_session_id",
+              "number": 4,
+              "type": "string",
+              "comment": "claude_session_id is the Claude Code session that holds the job."
+            }
+          ]
+        },
+        {
+          "name": "ReportJobStateResponse",
+          "comment": "ReportJobStateResponse acknowledges the state change.",
+          "fields": [
+            {
+              "name": "error",
+              "number": 1,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
           "name": "ReportStepHintsRequest",
           "comment": "",
           "fields": [
@@ -13503,6 +14857,54 @@
               "number": 1,
               "type": "repeated SearchToolsCandidate",
               "comment": ""
+            },
+            {
+              "name": "error",
+              "number": 2,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "SendInputRequest",
+          "comment": "SendInputRequest sends the next message to an open job from a dispatched\nagent.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": "context identifies the calling agent's run."
+            },
+            {
+              "name": "job_id",
+              "number": 2,
+              "type": "string",
+              "comment": "job_id is the job. Required."
+            },
+            {
+              "name": "message",
+              "number": 3,
+              "type": "string",
+              "comment": "message is the text of the input. Required."
+            },
+            {
+              "name": "kind",
+              "number": 4,
+              "type": "gibson.job.v1.InputKind",
+              "comment": "kind is what the input asks the member to do. Unspecified means\nINPUT_KIND_TURN. A client never sends INPUT_KIND_WRAP_UP."
+            }
+          ]
+        },
+        {
+          "name": "SendInputResponse",
+          "comment": "SendInputResponse carries the input as the daemon recorded it.",
+          "fields": [
+            {
+              "name": "input",
+              "number": 1,
+              "type": "gibson.job.v1.Input",
+              "comment": "input is the input without its grant."
             },
             {
               "name": "error",
@@ -13689,6 +15091,30 @@
               "number": 1,
               "type": "HarnessError",
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "SubscribeInputRequest",
+          "comment": "SubscribeInputRequest opens the input stream for the calling member.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": "context identifies the calling member's run."
+            }
+          ]
+        },
+        {
+          "name": "SubscribeInputResponse",
+          "comment": "SubscribeInputResponse carries one input for the calling member.",
+          "fields": [
+            {
+              "name": "input",
+              "number": 1,
+              "type": "gibson.job.v1.Input",
+              "comment": "input is the next input, with its per-turn grant."
             }
           ]
         },
@@ -15396,6 +16822,761 @@
       ]
     },
     {
+      "name": "gibson.job.v1",
+      "comment": "Package gibson.job.v1 declares jobs, the unit of work a bank member holds\n(gibson#1706, ADR-0017).\n\nEvery input to a member is a structured job. A chat turn is a job with\nonly a goal. A job is one persistent Claude Code session with its own\nworktrees. It stays open across inputs until a scorer closes it with a\nverdict and a score. The worker never closes its own job.",
+      "services": [
+        {
+          "name": "JobService",
+          "comment": "JobService opens jobs on a bank, sends them input, closes them, and reads\nthem back. People and platform services call it. A dispatched component\nuses the mirrored OpenJob, SendInput and CloseJob on\ngibson.harness.v1.HarnessCallbackService under its own grant.",
+          "methods": [
+            {
+              "name": "CloseJob",
+              "input": "CloseJobRequest",
+              "output": "CloseJobResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "CloseJob closes a job with a verdict and a score. The member runs one\nwrap-up turn, performs the deliverables, removes the worktrees, and\narchives the transcript. Only a scorer closes a job: a person, a\nverification agent, or the job node executor."
+            },
+            {
+              "name": "GetJob",
+              "input": "GetJobRequest",
+              "output": "GetJobResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "GetJob returns one job by id."
+            },
+            {
+              "name": "ListJobs",
+              "input": "ListJobsRequest",
+              "output": "ListJobsResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ListJobs returns jobs of the caller's tenant, newest first. Filter by\nbank, by member, or by state."
+            },
+            {
+              "name": "OpenJob",
+              "input": "OpenJobRequest",
+              "output": "OpenJobResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "OpenJob opens a job on a bank. The daemon routes it to a member with a\nfree slot, or queues it, or spills it per the bank policy. Set\nmember_id to pin the job to one member of that bank."
+            },
+            {
+              "name": "SendInput",
+              "input": "SendInputRequest",
+              "output": "SendInputResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "SendInput sends the next message to an open job. The daemon mints the\nper-turn grant and delivers the input to the member that holds the\njob."
+            },
+            {
+              "name": "StreamJobEvents",
+              "input": "StreamJobEventsRequest",
+              "output": "StreamJobEventsResponse",
+              "clientStreaming": false,
+              "serverStreaming": true,
+              "comment": "StreamJobEvents follows one job: inputs, state changes, deliverables\nand the close. The stream starts with the backlog after since_seq,\nthen follows live until the job closes."
+            }
+          ]
+        }
+      ],
+      "messages": [
+        {
+          "name": "Acceptance",
+          "comment": "Acceptance is how a job is judged. The job node executor runs the verify\nloop against it. A person or an agent that closes a job by hand reads it\nas guidance.",
+          "fields": [
+            {
+              "name": "verifier_component",
+              "number": 1,
+              "type": "string",
+              "comment": "verifier_component names the component that judges the work, in the\nslash form \"agent/<name>\". Empty means no verify loop: a person or an\nagent closes the job."
+            },
+            {
+              "name": "passing_score",
+              "number": 2,
+              "type": "double",
+              "comment": "passing_score is the score, from 0.0 to 1.0, at or above which the\nverifier accepts the work."
+            },
+            {
+              "name": "max_passes",
+              "number": 3,
+              "type": "int32",
+              "comment": "max_passes is how many verify passes the job node executor runs before\nit closes the job as FAILED. Zero means one pass. This bounds the\nverify loop INSIDE one job. A mission node's RetryPolicy is a\ndifferent thing: it retries the whole node."
+            }
+          ]
+        },
+        {
+          "name": "CloseJobRequest",
+          "comment": "CloseJobRequest closes a job with a verdict and a score.",
+          "fields": [
+            {
+              "name": "job_id",
+              "number": 1,
+              "type": "string",
+              "comment": "job_id is the job. Required."
+            },
+            {
+              "name": "verdict",
+              "number": 2,
+              "type": "JobVerdict",
+              "comment": "verdict is the outcome. Required."
+            },
+            {
+              "name": "score",
+              "number": 3,
+              "type": "double",
+              "comment": "score is the scorer's score, from 0.0 to 1.0."
+            }
+          ]
+        },
+        {
+          "name": "CloseJobResponse",
+          "comment": "CloseJobResponse carries the job after the close was recorded. The\nwrap-up turn runs after this returns.",
+          "fields": [
+            {
+              "name": "job",
+              "number": 1,
+              "type": "Job",
+              "comment": "job is the job as stored."
+            }
+          ]
+        },
+        {
+          "name": "Deliverable",
+          "comment": "Deliverable is one outward result of a job the driver performed at\nwrap-up.",
+          "fields": [
+            {
+              "name": "kind",
+              "number": 1,
+              "type": "DeliverableKind",
+              "comment": "kind is what was done."
+            },
+            {
+              "name": "ref",
+              "number": 2,
+              "type": "string",
+              "comment": "ref is the branch name or the merge request id on the forge."
+            },
+            {
+              "name": "url",
+              "number": 3,
+              "type": "string",
+              "comment": "url is where a person opens the deliverable."
+            }
+          ]
+        },
+        {
+          "name": "GetJobRequest",
+          "comment": "GetJobRequest names one job.",
+          "fields": [
+            {
+              "name": "job_id",
+              "number": 1,
+              "type": "string",
+              "comment": "job_id is the job. Required."
+            }
+          ]
+        },
+        {
+          "name": "GetJobResponse",
+          "comment": "GetJobResponse carries one job.",
+          "fields": [
+            {
+              "name": "job",
+              "number": 1,
+              "type": "Job",
+              "comment": "job is the job."
+            }
+          ]
+        },
+        {
+          "name": "Input",
+          "comment": "Input is one message to a job. The member pulls inputs outbound through\nSubscribeInput on the harness callback and runs one turn per input under\nthe grant the input carries.",
+          "fields": [
+            {
+              "name": "job_id",
+              "number": 1,
+              "type": "string",
+              "comment": "job_id is the job the input belongs to."
+            },
+            {
+              "name": "message",
+              "number": 2,
+              "type": "string",
+              "comment": "message is the text of the input."
+            },
+            {
+              "name": "sender",
+              "number": 3,
+              "type": "gibson.common.v1.Principal",
+              "comment": "sender is who sent the input."
+            },
+            {
+              "name": "grant",
+              "number": 4,
+              "type": "string",
+              "comment": "grant is the per-turn capability grant JWT for this input. The daemon\nsets it when it delivers the input to the member. A client never sets\nit. The daemon rejects an input that arrives with a grant."
+            },
+            {
+              "name": "sent_at",
+              "number": 5,
+              "type": "google.protobuf.Timestamp",
+              "comment": "sent_at is when the input was sent."
+            },
+            {
+              "name": "kind",
+              "number": 6,
+              "type": "InputKind",
+              "comment": "kind is what the input asks the member to do."
+            },
+            {
+              "name": "id",
+              "number": 7,
+              "type": "string",
+              "comment": "id is the input id. The daemon assigns it. A member that reconnects\nuses it to skip an input it already ran."
+            }
+          ]
+        },
+        {
+          "name": "Job",
+          "comment": "Job is one persistent Claude Code session on a bank member with its own\nworktrees.",
+          "fields": [
+            {
+              "name": "id",
+              "number": 1,
+              "type": "string",
+              "comment": "id is the job id. The daemon assigns it."
+            },
+            {
+              "name": "bank_id",
+              "number": 2,
+              "type": "string",
+              "comment": "bank_id is the bank the job was opened on."
+            },
+            {
+              "name": "member_id",
+              "number": 3,
+              "type": "string",
+              "comment": "member_id is the member that holds the job. Empty while the job waits\nin the bank queue."
+            },
+            {
+              "name": "state",
+              "number": 4,
+              "type": "JobState",
+              "comment": "state is where the job is in its life."
+            },
+            {
+              "name": "spec",
+              "number": 5,
+              "type": "JobSpec",
+              "comment": "spec is the structured input that opened the job."
+            },
+            {
+              "name": "claude_session_id",
+              "number": 6,
+              "type": "string",
+              "comment": "claude_session_id is the Claude Code session the member reopens with\n--resume. The member reports it through ReportJobState."
+            },
+            {
+              "name": "opened_by",
+              "number": 7,
+              "type": "gibson.common.v1.Principal",
+              "comment": "opened_by is who opened the job."
+            },
+            {
+              "name": "opened_at",
+              "number": 8,
+              "type": "google.protobuf.Timestamp",
+              "comment": "opened_at is when the job was opened."
+            },
+            {
+              "name": "last_input_at",
+              "number": 9,
+              "type": "google.protobuf.Timestamp",
+              "comment": "last_input_at is when the job last received input. The stale limit\ncounts from here."
+            },
+            {
+              "name": "closed_at",
+              "number": 10,
+              "type": "google.protobuf.Timestamp",
+              "comment": "closed_at is when the job closed. Unset while open."
+            },
+            {
+              "name": "verdict",
+              "number": 11,
+              "type": "JobVerdict",
+              "comment": "verdict is the outcome. Unspecified while open."
+            },
+            {
+              "name": "score",
+              "number": 12,
+              "type": "double",
+              "comment": "score is the scorer's score, from 0.0 to 1.0. Zero while open."
+            },
+            {
+              "name": "deliverables",
+              "number": 13,
+              "type": "repeated Deliverable",
+              "comment": "deliverables lists what left the sandbox at wrap-up."
+            },
+            {
+              "name": "attempts",
+              "number": 14,
+              "type": "int32",
+              "comment": "attempts counts verify passes the job node executor ran on this job."
+            }
+          ]
+        },
+        {
+          "name": "JobEvent",
+          "comment": "JobEvent is one change on a job, for StreamJobEvents.",
+          "fields": [
+            {
+              "name": "seq",
+              "number": 1,
+              "type": "uint64",
+              "comment": "seq is the per-job sequence number, from 1. Pass it back as since_seq\nto resume without a gap or a duplicate."
+            },
+            {
+              "name": "occurred_at",
+              "number": 2,
+              "type": "google.protobuf.Timestamp",
+              "comment": "occurred_at is when the change happened."
+            },
+            {
+              "name": "kind",
+              "number": 3,
+              "type": "JobEventKind",
+              "comment": "kind is what changed."
+            },
+            {
+              "name": "job_id",
+              "number": 4,
+              "type": "string",
+              "comment": "job_id is the job."
+            },
+            {
+              "name": "state",
+              "number": 5,
+              "type": "JobState",
+              "comment": "state is the state after the change. Set for OPENED, STATE and CLOSED."
+            },
+            {
+              "name": "input",
+              "number": 6,
+              "type": "Input",
+              "comment": "input is the input that was sent, without its grant. Set for INPUT."
+            },
+            {
+              "name": "deliverable",
+              "number": 7,
+              "type": "Deliverable",
+              "comment": "deliverable is the deliverable the member reported. Set for\nDELIVERABLE."
+            },
+            {
+              "name": "verdict",
+              "number": 8,
+              "type": "JobVerdict",
+              "comment": "verdict is the outcome. Set for CLOSED."
+            },
+            {
+              "name": "score",
+              "number": 9,
+              "type": "double",
+              "comment": "score is the scorer's score. Set for CLOSED."
+            },
+            {
+              "name": "message",
+              "number": 10,
+              "type": "string",
+              "comment": "message is a human-readable note on the change."
+            }
+          ]
+        },
+        {
+          "name": "JobSpec",
+          "comment": "JobSpec is the structured input that opens a job: the goal, the\nrepositories and credentials the work needs, the World nodes it starts\nfrom, and how it is judged. The daemon reads repositories and\ncredential_names before it mints the per-turn grant, so they are declared\nfields. context is free-form. Anything the daemon must enforce lives in a\ndeclared field.\n\nA JobSpec says WHAT to do. It carries no execution bounds. Bounds are\ngibson.types.v1.TaskConstraints and they ride on the dispatch envelope\n(gibson.types.v1.Task.constraints), which the daemon fills from the bank\npolicy and from the mission node. This package imports nothing above\ngibson.common.v1 on purpose, so gibson.types.v1.Task can carry a JobSpec\nwithout a cyclic import.",
+          "fields": [
+            {
+              "name": "goal",
+              "number": 1,
+              "type": "string",
+              "comment": "goal is what the job must achieve, in plain words."
+            },
+            {
+              "name": "repositories",
+              "number": 2,
+              "type": "repeated RepositorySpec",
+              "comment": "repositories lists the repositories the job works in."
+            },
+            {
+              "name": "credential_names",
+              "number": 3,
+              "type": "repeated string",
+              "comment": "credential_names lists the credentials the member may read during the\njob. The per-turn grant covers these and no others."
+            },
+            {
+              "name": "inputs",
+              "number": 4,
+              "type": "repeated string",
+              "comment": "inputs lists World node ids the job starts from: findings, plans,\nearlier deliverables."
+            },
+            {
+              "name": "acceptance",
+              "number": 5,
+              "type": "Acceptance",
+              "comment": "acceptance is how the job is judged."
+            },
+            {
+              "name": "context",
+              "number": 6,
+              "type": "map<string, gibson.common.v1.TypedValue>",
+              "comment": "context is free-form context for the member. The daemon does not read\nit."
+            }
+          ]
+        },
+        {
+          "name": "ListJobsRequest",
+          "comment": "ListJobsRequest pages through jobs of the caller's tenant. Every filter\nthat is set narrows the list.",
+          "fields": [
+            {
+              "name": "bank_id",
+              "number": 1,
+              "type": "string",
+              "comment": "bank_id keeps only jobs of this bank."
+            },
+            {
+              "name": "member_id",
+              "number": 2,
+              "type": "string",
+              "comment": "member_id keeps only jobs this member holds."
+            },
+            {
+              "name": "state",
+              "number": 3,
+              "type": "JobState",
+              "comment": "state keeps only jobs in this state. Unspecified means every state."
+            },
+            {
+              "name": "page_size",
+              "number": 4,
+              "type": "int32",
+              "comment": "page_size is the maximum number of jobs to return. Zero means the\nserver default."
+            },
+            {
+              "name": "page_token",
+              "number": 5,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous page. Empty for the\nfirst page."
+            }
+          ]
+        },
+        {
+          "name": "ListJobsResponse",
+          "comment": "ListJobsResponse carries one page of jobs.",
+          "fields": [
+            {
+              "name": "jobs",
+              "number": 1,
+              "type": "repeated Job",
+              "comment": "jobs is the page."
+            },
+            {
+              "name": "next_page_token",
+              "number": 2,
+              "type": "string",
+              "comment": "next_page_token fetches the next page. Empty on the last page."
+            }
+          ]
+        },
+        {
+          "name": "OpenJobRequest",
+          "comment": "OpenJobRequest opens a job on a bank.",
+          "fields": [
+            {
+              "name": "bank_id",
+              "number": 1,
+              "type": "string",
+              "comment": "bank_id is the bank to open the job on. Required."
+            },
+            {
+              "name": "member_id",
+              "number": 2,
+              "type": "string",
+              "comment": "member_id pins the job to one member of that bank. Empty lets the\ndaemon pick a member with a free slot."
+            },
+            {
+              "name": "spec",
+              "number": 3,
+              "type": "JobSpec",
+              "comment": "spec is the structured input. Required."
+            }
+          ]
+        },
+        {
+          "name": "OpenJobResponse",
+          "comment": "OpenJobResponse carries the opened job.",
+          "fields": [
+            {
+              "name": "job",
+              "number": 1,
+              "type": "Job",
+              "comment": "job is the job as stored. member_id is empty while it waits in the\nqueue."
+            }
+          ]
+        },
+        {
+          "name": "RepositorySpec",
+          "comment": "RepositorySpec names one repository a job works in and what leaves the\nsandbox at wrap-up.",
+          "fields": [
+            {
+              "name": "name",
+              "number": 1,
+              "type": "string",
+              "comment": "name is the directory name of the worktree the member sees. Unique\ninside the job. Required."
+            },
+            {
+              "name": "connector_ref",
+              "number": 2,
+              "type": "string",
+              "comment": "connector_ref names the connector that holds the forge credential, in\nthe slash form \"connector/<name>\". Required."
+            },
+            {
+              "name": "project",
+              "number": 3,
+              "type": "string",
+              "comment": "project is the project path on the forge, for example \"group/repo\".\nRequired."
+            },
+            {
+              "name": "base_branch",
+              "number": 4,
+              "type": "string",
+              "comment": "base_branch is the branch the job branch starts from and the merge\nrequest targets. Empty means the project default branch."
+            },
+            {
+              "name": "deliverable",
+              "number": 5,
+              "type": "DeliverableKind",
+              "comment": "deliverable is what the member does with the work at wrap-up.\nRequired."
+            }
+          ]
+        },
+        {
+          "name": "SendInputRequest",
+          "comment": "SendInputRequest sends the next message to an open job.",
+          "fields": [
+            {
+              "name": "job_id",
+              "number": 1,
+              "type": "string",
+              "comment": "job_id is the job. Required."
+            },
+            {
+              "name": "message",
+              "number": 2,
+              "type": "string",
+              "comment": "message is the text of the input. Required."
+            },
+            {
+              "name": "kind",
+              "number": 3,
+              "type": "InputKind",
+              "comment": "kind is what the input asks the member to do. Unspecified means\nINPUT_KIND_TURN. A client never sends INPUT_KIND_WRAP_UP."
+            }
+          ]
+        },
+        {
+          "name": "SendInputResponse",
+          "comment": "SendInputResponse carries the input as the daemon recorded it.",
+          "fields": [
+            {
+              "name": "input",
+              "number": 1,
+              "type": "Input",
+              "comment": "input is the input without its grant."
+            }
+          ]
+        },
+        {
+          "name": "StreamJobEventsRequest",
+          "comment": "StreamJobEventsRequest names the job to follow.",
+          "fields": [
+            {
+              "name": "job_id",
+              "number": 1,
+              "type": "string",
+              "comment": "job_id is the job. Required."
+            },
+            {
+              "name": "since_seq",
+              "number": 2,
+              "type": "uint64",
+              "comment": "since_seq is the last event seq the client saw. The stream starts with\nthe backlog after it. Zero means the whole backlog."
+            }
+          ]
+        },
+        {
+          "name": "StreamJobEventsResponse",
+          "comment": "StreamJobEventsResponse carries one job event.",
+          "fields": [
+            {
+              "name": "event",
+              "number": 1,
+              "type": "JobEvent",
+              "comment": "event is the change."
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "DeliverableKind",
+          "comment": "DeliverableKind is what the member does with the work on a repository at\nwrap-up. The driver performs it under the job's connector token. Claude\ncommits on the job branch and never holds the token.",
+          "values": [
+            {
+              "name": "DELIVERABLE_KIND_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "DELIVERABLE_KIND_PUSH_BRANCH",
+              "number": 1,
+              "comment": "DELIVERABLE_KIND_PUSH_BRANCH: push the job branch to the remote."
+            },
+            {
+              "name": "DELIVERABLE_KIND_MERGE_REQUEST",
+              "number": 2,
+              "comment": "DELIVERABLE_KIND_MERGE_REQUEST: push the job branch and open a merge\nrequest against base_branch."
+            },
+            {
+              "name": "DELIVERABLE_KIND_NONE",
+              "number": 3,
+              "comment": "DELIVERABLE_KIND_NONE: leave the work in the sandbox. Nothing leaves."
+            }
+          ]
+        },
+        {
+          "name": "InputKind",
+          "comment": "InputKind is what an input asks the member to do.",
+          "values": [
+            {
+              "name": "INPUT_KIND_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "INPUT_KIND_TURN",
+              "number": 1,
+              "comment": "INPUT_KIND_TURN: run one more turn with this message."
+            },
+            {
+              "name": "INPUT_KIND_ANSWER",
+              "number": 2,
+              "comment": "INPUT_KIND_ANSWER: this message answers the question the job asked\nwhen it entered WAITING."
+            },
+            {
+              "name": "INPUT_KIND_WRAP_UP",
+              "number": 3,
+              "comment": "INPUT_KIND_WRAP_UP: the final turn after CloseJob. Commit, push, open\nthe merge request, and summarize. The daemon sends it, never a client."
+            }
+          ]
+        },
+        {
+          "name": "JobEventKind",
+          "comment": "JobEventKind is what a JobEvent reports.",
+          "values": [
+            {
+              "name": "JOB_EVENT_KIND_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "JOB_EVENT_KIND_OPENED",
+              "number": 1,
+              "comment": "JOB_EVENT_KIND_OPENED: the job was opened. state is set."
+            },
+            {
+              "name": "JOB_EVENT_KIND_INPUT",
+              "number": 2,
+              "comment": "JOB_EVENT_KIND_INPUT: an input was sent. input is set without its\ngrant."
+            },
+            {
+              "name": "JOB_EVENT_KIND_STATE",
+              "number": 3,
+              "comment": "JOB_EVENT_KIND_STATE: the state changed. state is set."
+            },
+            {
+              "name": "JOB_EVENT_KIND_DELIVERABLE",
+              "number": 4,
+              "comment": "JOB_EVENT_KIND_DELIVERABLE: the member reported a deliverable.\ndeliverable is set."
+            },
+            {
+              "name": "JOB_EVENT_KIND_CLOSED",
+              "number": 5,
+              "comment": "JOB_EVENT_KIND_CLOSED: the job closed. verdict and score are set. The\nstream ends after this event."
+            }
+          ]
+        },
+        {
+          "name": "JobState",
+          "comment": "JobState is where a job is in its life.",
+          "values": [
+            {
+              "name": "JOB_STATE_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "JOB_STATE_OPEN",
+              "number": 1,
+              "comment": "JOB_STATE_OPEN: the job is opened and waits for a member to take it."
+            },
+            {
+              "name": "JOB_STATE_WORKING",
+              "number": 2,
+              "comment": "JOB_STATE_WORKING: the member runs a turn on the job."
+            },
+            {
+              "name": "JOB_STATE_WAITING",
+              "number": 3,
+              "comment": "JOB_STATE_WAITING: the member asked a question or finished a turn and\nwaits for the next input."
+            },
+            {
+              "name": "JOB_STATE_CLOSED",
+              "number": 4,
+              "comment": "JOB_STATE_CLOSED: a scorer closed the job. verdict and score are set."
+            }
+          ]
+        },
+        {
+          "name": "JobVerdict",
+          "comment": "JobVerdict is the outcome a scorer gives when it closes a job.",
+          "values": [
+            {
+              "name": "JOB_VERDICT_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "JOB_VERDICT_ACCOMPLISHED",
+              "number": 1,
+              "comment": "JOB_VERDICT_ACCOMPLISHED: the job met its acceptance."
+            },
+            {
+              "name": "JOB_VERDICT_FAILED",
+              "number": 2,
+              "comment": "JOB_VERDICT_FAILED: the job did not meet its acceptance."
+            },
+            {
+              "name": "JOB_VERDICT_ABANDONED",
+              "number": 3,
+              "comment": "JOB_VERDICT_ABANDONED: the job went idle past the bank stale limit, or\nthe bank was deleted."
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "gibson.manifest.v1",
       "services": [],
       "messages": [
@@ -16098,6 +18279,30 @@
           ]
         },
         {
+          "name": "JobNodeConfig",
+          "comment": "RetryPolicy defines the retry behavior for a mission node\nJobNodeConfig contains configuration for job nodes.\nJOB = a unit of work driven on a bank of always-on coding agents\n(gibson#1706). The executor opens a job on the bank, then runs the verify\nloop: it dispatches the acceptance step to the declared verifier\ncomponent, and on failure sends the verifier's report as the next input\nto the SAME job, so the agent keeps its conversation and its worktrees.\nWhen the verifier passes, or the passes run out, the executor calls\nCloseJob with a verdict and a score.\n\nThe loop lives inside this node. The mission graph stays a DAG: a job\nnode never adds a loop edge.",
+          "fields": [
+            {
+              "name": "bank_ref",
+              "number": 1,
+              "type": "string",
+              "comment": "bank_ref names the bank to open the job on, by id or by name.\nRequired."
+            },
+            {
+              "name": "spec",
+              "number": 2,
+              "type": "gibson.job.v1.JobSpec",
+              "comment": "spec is the structured input that opens the job: goal, repositories,\ncredential names, World inputs, and the acceptance the verify loop\nruns against. Required."
+            },
+            {
+              "name": "constraints",
+              "number": 3,
+              "type": "gibson.types.v1.TaskConstraints",
+              "comment": "constraints bound every turn of the job. The daemon clamps them to the\nbank policy. Unset means the bank default."
+            }
+          ]
+        },
+        {
           "name": "JoinNodeConfig",
           "comment": "JoinNodeConfig blocks until every node ID in `wait_for` has\ncompleted (success or final failure), then merges their results\nper `strategy`. JOIN is a first-class noun separable from\nPARALLEL — a JOIN can merge results from non-parallel branches.\n\nSpec: mission-verb-noun-registry Requirement 7.",
           "fields": [
@@ -16357,7 +18562,7 @@
         },
         {
           "name": "MissionEdge",
-          "comment": "MissionEdge represents a directed edge in the mission DAG",
+          "comment": "MissionEdge represents a directed edge in the mission DAG.\n\nThe graph is acyclic. A loop is never an edge. Work that repeats until it\npasses an acceptance step loops INSIDE one node: a job node runs its\nverify loop against the same job (gibson#1706), and a node's RetryPolicy\nretries the node itself.",
           "fields": [
             {
               "name": "from",
@@ -16484,6 +18689,12 @@
               "number": 16,
               "type": "ReusePolicy",
               "comment": "ReusePolicy declares how this node's I/O is scoped +\nreused across mission runs.\n\nDeprecated: superseded by the ECS brain (gibson#851, ADR-0008). Reuse is\nimplicit in the World; scoping is via scope-relative identity (ADR-0002)\n+ ambient projection. Retained wire-compatibly but ignored by the engine."
+            },
+            {
+              "name": "job_config",
+              "number": 17,
+              "type": "JobNodeConfig",
+              "comment": "JobConfig for job nodes (gibson#1706). Field number 17 because\n16 is the sibling reuse_policy field."
             }
           ],
           "oneofs": [
@@ -16495,7 +18706,8 @@
                 "plugin_config",
                 "condition_config",
                 "parallel_config",
-                "join_config"
+                "join_config",
+                "job_config"
               ]
             }
           ]
@@ -16592,7 +18804,7 @@
         },
         {
           "name": "RetryPolicy",
-          "comment": "RetryPolicy defines the retry behavior for a mission node",
+          "comment": "",
           "fields": [
             {
               "name": "max_retries",
@@ -16846,6 +19058,11 @@
               "name": "NODE_TYPE_JOIN",
               "number": 6,
               "comment": "Join node waits for multiple branches to complete"
+            },
+            {
+              "name": "NODE_TYPE_JOB",
+              "number": 7,
+              "comment": "Job node drives a job on a bank of always-on agents (gibson#1706).\nIts executor opens the job, runs the verify loop against the\nacceptance the spec declares, and closes the job with a verdict."
             }
           ]
         }
@@ -18413,7 +20630,7 @@
         },
         {
           "name": "Task",
-          "comment": "Task represents a goal-oriented task with context and constraints.",
+          "comment": "Task represents a goal-oriented task with context and constraints.\n\ncontext is free-form: the daemon does not read it. Anything the daemon\nmust enforce lives in a declared field. Resources a dispatched task needs\n(repositories, credential names, World inputs, acceptance) live in job,\nbecause the daemon reads them before it mints the task grant.",
           "fields": [
             {
               "name": "id",
@@ -18444,6 +20661,12 @@
               "number": 5,
               "type": "map<string, gibson.common.v1.TypedValue>",
               "comment": ""
+            },
+            {
+              "name": "job",
+              "number": 6,
+              "type": "gibson.job.v1.JobSpec",
+              "comment": "job names the typed resources this task needs and how it is judged\n(gibson#1706). It is set when the task opens or continues a job on a\nbank member. goal stays the goal; the spec's own goal is ignored on a\ndispatched task. Absent on a task that needs no repository, no\ncredential and no acceptance step."
             }
           ]
         },

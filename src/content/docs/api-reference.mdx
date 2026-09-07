@@ -73,6 +73,7 @@ This is the machine-generated reference for the Gibson SDK proto surface — the
 | `mission_run_id` | 9 | `string` | Mission run ID - unique identifier for this specific mission execution. Created by MissionGraphManager.CreateMissionRunNode at mission start. Used for mission-scoped GraphRAG storage. |
 | `agent_run_id` | 10 | `string` | Agent run ID - unique identifier for this specific agent execution. Used for DISCOVERED relationships and provenance tracking. |
 | `run_number` | 11 | `int32` | Run number - sequential number for this mission (1, 2, 3...). Used for mission memory queries and historical comparisons. |
+| `job_id` | 12 | `string` | job_id names the job this execution serves (gibson#1706). A one-shot dispatch and a bank job then share one result path. Empty for a dispatch that opens no job. |
 
 #### `ExecuteResponse`
 
@@ -80,6 +81,8 @@ This is the machine-generated reference for the Gibson SDK proto surface — the
 |---|---|---|---|
 | `result` | 1 | `gibson.types.v1.Result` | — |
 | `error` | 2 | `gibson.common.v1.Error` | — |
+| `deliverables` | 3 | `repeated gibson.job.v1.Deliverable` | deliverables lists what left the sandbox for this execution: a pushed branch, an opened merge request (gibson#1706). Empty when nothing left. |
+| `claude_session_id` | 4 | `string` | claude_session_id is the coding-agent session that ran this execution, so a later turn resumes the same conversation. Empty for an agent that holds no session. |
 
 #### `GetDescriptorRequest`
 
@@ -205,6 +208,7 @@ CreateAgentIdentityRequest is the input to AgentIdentityService.CreateAgentIdent
 | `kind` | 2 | `PrincipalKind` | kind must not be UNSPECIFIED. |
 | `description` | 3 | `string` | description is optional, max 256 chars. |
 | `component_grants` | 4 | `repeated ComponentGrant` | component_grants is an optional list of FGA capability grants to apply at creation. |
+| `capability_ceiling` | 5 | `repeated string` | capability_ceiling names the session capabilities the enrolling admin grants this identity, minted into its bootstrap credential's ceiling (ADR-0045). Only the reserved names are accepted: "mission:originate" (start a mission of its own, the interactive coding-agent case, gibson#1593 decision 9) and "mission:delegate". Empty means neither. |
 
 #### `CreateAgentIdentityResponse`
 
@@ -267,6 +271,360 @@ PrincipalKind identifies the type of machine principal being provisioned.
 | `PRINCIPAL_KIND_AGENT` | 1 | — |
 | `PRINCIPAL_KIND_TOOL` | 2 | — |
 | `PRINCIPAL_KIND_PLUGIN` | 3 | — |
+
+## Package `gibson.bank.v1`
+
+Package gibson.bank.v1 declares banks of always-on coding agents and their
+members (gibson#1706, ADR-0017).
+
+A bank is a declarative, daemon-reconciled pool of always-on Claude Code
+instances. The daemon keeps desired_count members running in sandboxes,
+relaunches a dead member, and holds a member at NEEDS_SIGN_IN until its
+owner completes the in-sandbox sign in. A member signs in once inside its
+sandbox through Anthropic's own flow, or runs on the tenant's API key or
+cloud credentials. Callers with can_send on a bank open jobs on its members
+through gibson.job.v1.JobService.
+
+### Services
+
+#### `BankService`
+
+BankService creates, reads, updates and deletes banks, lists their
+members, and relays the in-sandbox subscription sign in to the owner.
+People and platform services call it. A dispatched component reaches
+banks through gibson.job.v1.JobService and the harness callback under its
+own grant, not through this service.
+
+##### `CreateBank`
+
+`CreateBankRequest` → `CreateBankResponse`
+
+CreateBank declares a bank. The daemon starts to launch members until
+desired_count of them run. The caller owns the bank unless
+tenant_owned is true.
+
+##### `DeleteBank`
+
+`DeleteBankRequest` → `DeleteBankResponse`
+
+DeleteBank drains every member, closes their open jobs with verdict
+ABANDONED, and removes the bank.
+
+##### `GetBank`
+
+`GetBankRequest` → `GetBankResponse`
+
+GetBank returns one bank by id.
+
+##### `ListBanks`
+
+`ListBanksRequest` → `ListBanksResponse`
+
+ListBanks returns the banks of the caller's tenant, newest first.
+
+##### `ListMembers`
+
+`ListMembersRequest` → `ListMembersResponse`
+
+ListMembers returns the members of a bank with their last reported
+status.
+
+##### `StartSignIn`
+
+`StartSignInRequest` → `StartSignInResponse`
+
+StartSignIn asks a member at NEEDS_SIGN_IN to run the Anthropic sign in
+inside its sandbox. Follow it with StreamSignIn to read the URL and
+the code prompt, then SubmitSignInCode. Only the owner signs in: the
+subscription is theirs.
+
+##### `StreamSignIn`
+
+`StreamSignInRequest` → `stream StreamSignInResponse`
+
+StreamSignIn relays the sign-in flow of one member: the URL to open,
+the code prompt when the flow asks for one, and done or error at the
+end. The stream closes after done or error.
+
+##### `SubmitSignInCode`
+
+`SubmitSignInCodeRequest` → `SubmitSignInCodeResponse`
+
+SubmitSignInCode passes the code the person got from Anthropic to the
+sign-in flow that runs inside the member's sandbox.
+
+##### `UpdateBank`
+
+`UpdateBankRequest` → `UpdateBankResponse`
+
+UpdateBank changes desired_count and the policies of a bank. A field
+that is absent keeps its value. The login shape, the agent and the
+model are fixed at creation.
+
+### Messages
+
+#### `Bank`
+
+Bank is a pool of always-on coding agents with one owner.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `id` | 1 | `string` | id is the bank id. The daemon assigns it. |
+| `tenant_id` | 2 | `string` | tenant_id is the tenant the bank belongs to. |
+| `owner` | 3 | `gibson.common.v1.Principal` | owner is the person or the tenant that owns the bank. A person owns a bank that signs in on their subscription. The tenant owns a bank that runs on the tenant provider configuration. |
+| `name` | 4 | `string` | name is the display name. Unique inside the tenant. |
+| `desired_count` | 5 | `int32` | desired_count is how many members the daemon keeps running. |
+| `login_shape` | 6 | `LoginShape` | login_shape is how members authenticate to Anthropic. |
+| `provider_config_name` | 7 | `string` | provider_config_name names the tenant provider configuration that holds the API key or the cloud credentials. Empty for LOGIN_SHAPE_SUBSCRIPTION. |
+| `agent_name` | 8 | `string` | agent_name is the catalog id of the agent component each member runs. The default is "claude". |
+| `model` | 9 | `string` | model is the model id members run. Empty means the agent default. |
+| `max_jobs_in_flight` | 10 | `int32` | max_jobs_in_flight is the per-member cap on open jobs. Capacity of the bank is desired_count times max_jobs_in_flight. |
+| `stale_limit` | 11 | `google.protobuf.Duration` | stale_limit is how long a job may go without input. A job idle past it closes with verdict ABANDONED. |
+| `spill_policy` | 12 | `SpillPolicy` | spill_policy is what the bank does with a job when no member has a free slot. |
+| `created_at` | 13 | `google.protobuf.Timestamp` | created_at is when the bank was created. |
+| `updated_at` | 14 | `google.protobuf.Timestamp` | updated_at is when the bank was last changed. |
+
+#### `CreateBankRequest`
+
+CreateBankRequest declares a new bank.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `name` | 1 | `string` | name is the display name. Unique inside the tenant. |
+| `tenant_owned` | 2 | `bool` | tenant_owned makes the tenant the owner. The bank then runs on the tenant provider configuration and has no sign-in step. When false the caller owns the bank. |
+| `desired_count` | 3 | `int32` | desired_count is how many members the daemon keeps running. |
+| `login_shape` | 4 | `LoginShape` | login_shape is how members authenticate to Anthropic. Required. |
+| `provider_config_name` | 5 | `string` | provider_config_name names the tenant provider configuration for every login shape except LOGIN_SHAPE_SUBSCRIPTION. |
+| `agent_name` | 6 | `string` | agent_name is the catalog id of the agent component each member runs. Empty means "claude". |
+| `model` | 7 | `string` | model is the model id members run. Empty means the agent default. |
+| `max_jobs_in_flight` | 8 | `int32` | max_jobs_in_flight is the per-member cap on open jobs. Zero means the daemon default. |
+| `stale_limit` | 9 | `google.protobuf.Duration` | stale_limit is how long a job may go without input before it closes with verdict ABANDONED. Unset means the daemon default. |
+| `spill_policy` | 10 | `SpillPolicy` | spill_policy is what the bank does with a job when no member has a free slot. Unspecified means SPILL_POLICY_QUEUE. |
+
+#### `CreateBankResponse`
+
+CreateBankResponse carries the created bank.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank` | 1 | `Bank` | bank is the bank as stored. |
+
+#### `DeleteBankRequest`
+
+DeleteBankRequest names the bank to remove.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `id` | 1 | `string` | id is the bank id. Required. |
+
+#### `DeleteBankResponse`
+
+DeleteBankResponse is empty. The bank is gone when the call returns.
+
+_No fields._
+
+#### `GetBankRequest`
+
+GetBankRequest names one bank.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `id` | 1 | `string` | id is the bank id. Required. |
+
+#### `GetBankResponse`
+
+GetBankResponse carries one bank.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank` | 1 | `Bank` | bank is the bank. |
+
+#### `ListBanksRequest`
+
+ListBanksRequest pages through the banks of the caller's tenant.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `page_size` | 1 | `int32` | page_size is the maximum number of banks to return. Zero means the server default. |
+| `page_token` | 2 | `string` | page_token is the next_page_token of the previous page. Empty for the first page. |
+
+#### `ListBanksResponse`
+
+ListBanksResponse carries one page of banks.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `banks` | 1 | `repeated Bank` | banks is the page. |
+| `next_page_token` | 2 | `string` | next_page_token fetches the next page. Empty on the last page. |
+
+#### `ListMembersRequest`
+
+ListMembersRequest pages through the members of one bank.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank_id` | 1 | `string` | bank_id is the bank. Required. |
+| `page_size` | 2 | `int32` | page_size is the maximum number of members to return. Zero means the server default. |
+| `page_token` | 3 | `string` | page_token is the next_page_token of the previous page. Empty for the first page. |
+
+#### `ListMembersResponse`
+
+ListMembersResponse carries one page of members.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `members` | 1 | `repeated Member` | members is the page. |
+| `next_page_token` | 2 | `string` | next_page_token fetches the next page. Empty on the last page. |
+
+#### `Member`
+
+Member is one always-on instance in a bank. It is a mission the owner
+originated (ADR-0063) with one sandbox that lives until the bank scales
+down.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `id` | 1 | `string` | id is the member id. The daemon assigns it. |
+| `bank_id` | 2 | `string` | bank_id is the bank this member belongs to. |
+| `mission_id` | 3 | `string` | mission_id is the always-on mission that backs this member. |
+| `mission_run_id` | 4 | `string` | mission_run_id is the run of that mission. |
+| `agent_run_id` | 5 | `string` | agent_run_id is the agent run inside that mission run. |
+| `sandbox_id` | 6 | `string` | sandbox_id is the setec sandbox the member runs in. |
+| `status` | 7 | `MemberStatus` | status is what the member last reported, with LAUNCHING and DEAD filled in by the daemon. |
+| `last_heartbeat` | 8 | `google.protobuf.Timestamp` | last_heartbeat is when the member last reported. |
+
+#### `MemberStatus`
+
+MemberStatus is what a member reports on every heartbeat: busy or not busy,
+how many jobs it holds, and which ones. The daemon uses it to route queued
+jobs to a member with a free slot.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `state` | 1 | `MemberState` | state is where the member is in its life. |
+| `jobs_in_flight` | 2 | `int32` | jobs_in_flight is how many jobs the member holds open now. |
+| `cap` | 3 | `int32` | cap is how many jobs the member may hold open at once. |
+| `active_job_ids` | 4 | `repeated string` | active_job_ids lists the jobs the member holds open now. |
+| `claude_version` | 5 | `string` | claude_version is the version of the claude binary the member runs. |
+
+#### `StartSignInRequest`
+
+StartSignInRequest names the member that must sign in.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank_id` | 1 | `string` | bank_id is the bank the member belongs to. Required. |
+| `member_id` | 2 | `string` | member_id is the member. Required. |
+
+#### `StartSignInResponse`
+
+StartSignInResponse carries the member after the sign in started.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `member` | 1 | `Member` | member is the member. Its status.state is NEEDS_SIGN_IN until the flow completes. |
+
+#### `StreamSignInRequest`
+
+StreamSignInRequest names the member whose sign-in flow to follow.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank_id` | 1 | `string` | bank_id is the bank the member belongs to. Required. |
+| `member_id` | 2 | `string` | member_id is the member. Required. |
+
+#### `StreamSignInResponse`
+
+StreamSignInResponse is one step of the sign-in flow.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `url` | 1 | `string` | url is the address the person opens to sign in. Set on the first step. |
+| `code_prompt` | 2 | `string` | code_prompt is the text the flow shows when it asks for the code. Set when the flow waits for SubmitSignInCode. |
+| `done` | 3 | `bool` | done is true on the last step when the sign in succeeded. |
+| `error` | 4 | `string` | error is set on the last step when the sign in failed. |
+
+#### `SubmitSignInCodeRequest`
+
+SubmitSignInCodeRequest passes the sign-in code to a member.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank_id` | 1 | `string` | bank_id is the bank the member belongs to. Required. |
+| `member_id` | 2 | `string` | member_id is the member. Required. |
+| `code` | 3 | `string` | code is the code Anthropic gave the person. Required. |
+
+#### `SubmitSignInCodeResponse`
+
+SubmitSignInCodeResponse carries the member after the code was passed on.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `member` | 1 | `Member` | member is the member. Read StreamSignIn for the outcome. |
+
+#### `UpdateBankRequest`
+
+UpdateBankRequest changes desired_count and the policies of a bank. A
+field that is absent keeps its value.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `id` | 1 | `string` | id is the bank id. Required. |
+| `desired_count` | 2 | `optional int32` | desired_count is the new member count. The daemon launches or drains members to reach it. |
+| `max_jobs_in_flight` | 3 | `optional int32` | max_jobs_in_flight is the new per-member cap. |
+| `stale_limit` | 4 | `google.protobuf.Duration` | stale_limit is the new idle limit for jobs. |
+| `spill_policy` | 5 | `optional SpillPolicy` | spill_policy is the new spill policy. |
+
+#### `UpdateBankResponse`
+
+UpdateBankResponse carries the bank after the change.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank` | 1 | `Bank` | bank is the bank as stored. |
+
+### Enums
+
+#### `LoginShape`
+
+LoginShape is how a member authenticates to Anthropic. All shapes are
+offered. API key and cloud credentials come from the tenant provider
+configuration. A subscription is never stored by the platform.
+
+| Value | # | Description |
+|---|---|---|
+| `LOGIN_SHAPE_UNSPECIFIED` | 0 | — |
+| `LOGIN_SHAPE_SUBSCRIPTION` | 1 | LOGIN_SHAPE_SUBSCRIPTION: the owner signs in inside the sandbox through Anthropic's own flow, relayed by StartSignIn, StreamSignIn and SubmitSignInCode. A member holds at NEEDS_SIGN_IN until then. |
+| `LOGIN_SHAPE_ANTHROPIC_API_KEY` | 2 | LOGIN_SHAPE_ANTHROPIC_API_KEY: the provider configuration named by Bank.provider_config_name holds an Anthropic API key. |
+| `LOGIN_SHAPE_BEDROCK` | 3 | LOGIN_SHAPE_BEDROCK: the provider configuration holds AWS credentials for Amazon Bedrock. |
+| `LOGIN_SHAPE_VERTEX` | 4 | LOGIN_SHAPE_VERTEX: the provider configuration holds Google Cloud credentials for Vertex AI. |
+| `LOGIN_SHAPE_FOUNDRY` | 5 | LOGIN_SHAPE_FOUNDRY: the provider configuration holds Azure credentials for Microsoft Foundry. |
+
+#### `MemberState`
+
+MemberState is where a member is in its life. A member reports
+NEEDS_SIGN_IN, IDLE, BUSY or DRAINING on every heartbeat. The daemon sets
+LAUNCHING before the first heartbeat and DEAD when heartbeats stop.
+
+| Value | # | Description |
+|---|---|---|
+| `MEMBER_STATE_UNSPECIFIED` | 0 | — |
+| `MEMBER_STATE_LAUNCHING` | 1 | MEMBER_STATE_LAUNCHING: the sandbox starts. No heartbeat yet. Daemon set. |
+| `MEMBER_STATE_NEEDS_SIGN_IN` | 2 | MEMBER_STATE_NEEDS_SIGN_IN: the member waits for the owner to complete the in-sandbox sign in. It takes no job. |
+| `MEMBER_STATE_IDLE` | 3 | MEMBER_STATE_IDLE: the member has a free slot. jobs_in_flight is below cap. |
+| `MEMBER_STATE_BUSY` | 4 | MEMBER_STATE_BUSY: every slot is taken. jobs_in_flight equals cap. |
+| `MEMBER_STATE_DRAINING` | 5 | MEMBER_STATE_DRAINING: the member takes no new job and exits when its open jobs close. The daemon asks for this on scale-down. |
+| `MEMBER_STATE_DEAD` | 6 | MEMBER_STATE_DEAD: heartbeats stopped or the sandbox died. The daemon relaunches the member. Daemon set. |
+
+#### `SpillPolicy`
+
+SpillPolicy is what a bank does with a job when no member has a free slot.
+
+| Value | # | Description |
+|---|---|---|
+| `SPILL_POLICY_UNSPECIFIED` | 0 | — |
+| `SPILL_POLICY_QUEUE` | 1 | SPILL_POLICY_QUEUE: the job waits in the bank queue. The next member with a free slot pulls it. |
+| `SPILL_POLICY_EPHEMERAL` | 2 | SPILL_POLICY_EPHEMERAL: the daemon launches a one-shot instance for the job instead of queueing it. |
 
 ## Package `gibson.budget_status.v1`
 
@@ -457,6 +815,17 @@ Metadata contains labels and annotations for resources
 | `labels` | 1 | `map<string, string>` | — |
 | `annotations` | 2 | `map<string, string>` | — |
 
+#### `Principal`
+
+Principal names who acts: a person, the tenant, a component run, or a
+platform service. Banks record their owner as a Principal. Jobs record who
+opened them and who sent each input as a Principal (gibson#1706).
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `kind` | 1 | `Principal.Kind` | kind is the class of principal. |
+| `id` | 2 | `string` | id identifies the principal inside its kind. |
+
 #### `TypedArray`
 
 TypedArray represents an array of TypedValues
@@ -543,6 +912,18 @@ NullValue represents a null value in TypedValue
 | Value | # | Description |
 |---|---|---|
 | `NULL_VALUE_UNSPECIFIED` | 0 | — |
+
+#### `Principal.Kind`
+
+Kind is the class of principal. It decides how to read id.
+
+| Value | # | Description |
+|---|---|---|
+| `KIND_UNSPECIFIED` | 0 | — |
+| `KIND_USER` | 1 | KIND_USER is a person. id is the Zitadel user id. |
+| `KIND_TENANT` | 2 | KIND_TENANT is the tenant itself. id is the tenant id. |
+| `KIND_COMPONENT` | 3 | KIND_COMPONENT is an agent, tool or plugin run. id is the component principal id. |
+| `KIND_SERVICE` | 4 | KIND_SERVICE is a platform service. id is the service account id. |
 
 ## Package `gibson.component.v1`
 
@@ -1325,6 +1706,7 @@ HeartbeatRequest is the periodic health pulse sent by a registered component.
 | `instance_id` | 1 | `string` | — |
 | `health_status` | 2 | `string` | health_status is the component's self-reported health: "healthy", "degraded", or "unhealthy". |
 | `health_message` | 3 | `string` | health_message provides optional human-readable detail about the health status. |
+| `member` | 4 | `gibson.bank.v1.MemberStatus` | member is the bank member status when this instance is a member of a bank (gibson#1706): busy or not busy, how many jobs it holds, which ones, and the coding-agent version it runs. The daemon routes a queued job to a member that reports a free slot. Absent for a component that is not a bank member. health_status and health_message stay: they report whether the process is well, not whether it is busy. |
 
 #### `HeartbeatResponse`
 
@@ -4246,6 +4628,23 @@ QueryScope defines the scope of a graph query.
 HarnessCallbackService provides the harness interface for agents executing in standalone mode.
 The SDK's CallbackHarness forwards all harness operations to the orchestrator via this service.
 
+##### `ApplicationFindings`
+
+`ApplicationFindingsRequest` → `ApplicationFindingsResponse`
+
+ApplicationFindings answers the one lifecycle question the reads above
+cannot: for this Application, what is still open, and does anything
+actually run the code it is in (gibson#1669).
+
+The reads above are hybrid vector-and-graph SEARCH — text or embedding, a
+node-type filter, top-k. Reachability is a TRAVERSAL: is this Package
+inside an Image that a Deployment of this Application runs, and does that
+Deployment expose a Host. No top-k over a node-type filter answers it.
+
+It is one bounded question rather than a Cypher surface, deliberately: an
+agent able to send arbitrary Cypher would be a second unaudited path into
+the tenant graph, and the traversal an agent needs is knowable in advance.
+
 ##### `Authorize`
 
 `AuthorizeRequest` → `AuthorizeResponse`
@@ -4268,6 +4667,14 @@ Tool Operations
 ##### `CancelMission`
 
 `CancelMissionRequest` → `CancelMissionResponse`
+
+##### `CloseJob`
+
+`CloseJobRequest` → `CloseJobResponse`
+
+CloseJob closes a job with a verdict and a score from a dispatched
+agent, under its grant. A verification agent is the usual caller. It
+mirrors gibson.job.v1.JobService.CloseJob.
 
 ##### `CreateMission`
 
@@ -4401,6 +4808,21 @@ LLM Operations
 Observe emits a typed observation into the World (ADR-0007). The brain
 resolves identity and topology; scope is derived server-side from context.
 
+##### `OpenJob`
+
+`OpenJobRequest` → `OpenJobResponse`
+
+OpenJob opens a job on a bank from a dispatched agent, under its
+grant. It mirrors gibson.job.v1.JobService.OpenJob.
+
+##### `PullJob`
+
+`PullJobRequest` → `PullJobResponse`
+
+PullJob returns the next queued job of the calling member's bank, or
+nothing when the queue is empty. A member with a free slot calls it
+after each heartbeat. The daemon assigns the job to the member.
+
 ##### `PutSessionContext`
 
 `PutSessionContextRequest` → `PutSessionContextResponse`
@@ -4453,6 +4875,21 @@ Distributed Tracing Operations
 
 `RecordSpansRequest` → `RecordSpansResponse`
 
+##### `ReportDeliverable`
+
+`ReportDeliverableRequest` → `ReportDeliverableResponse`
+
+ReportDeliverable records one outward result the driver performed at
+wrap-up: a pushed branch or an opened merge request.
+
+##### `ReportJobState`
+
+`ReportJobStateRequest` → `ReportJobStateResponse`
+
+ReportJobState tells the daemon a job moved to WORKING or WAITING, and
+names the Claude Code session that holds it so a restart can resume
+it. A member never reports CLOSED: a scorer closes the job.
+
 ##### `ReportStepHints`
 
 `ReportStepHintsRequest` → `ReportStepHintsResponse`
@@ -4470,11 +4907,27 @@ a query — the meta-tool surface agents use instead of receiving every tool
 (ADR-0047 facet 5). Per-tool authorization is enforced inside the handler;
 this RPC-level gate only checks that the caller may use the harness.
 
+##### `SendInput`
+
+`SendInputRequest` → `SendInputResponse`
+
+SendInput sends the next message to an open job from a dispatched
+agent, under its grant. It mirrors gibson.job.v1.JobService.SendInput.
+
 ##### `SubmitFinding`
 
 `SubmitFindingRequest` → `SubmitFindingResponse`
 
 Finding Operations
+
+##### `SubscribeInput`
+
+`SubscribeInputRequest` → `stream SubscribeInputResponse`
+
+SubscribeInput streams the inputs for the calling member, in order,
+across every job it holds. Each Input carries the per-turn grant the
+member uses for every tool call of that turn. The stream stays open
+for the life of the member.
 
 ##### `ToolResults`
 
@@ -4591,6 +5044,56 @@ AnyValue represents a dynamically typed value used in attributes.
 | `bytes_value` | 5 | `bytes` | — |
 
 **oneof `value`** — one of: `string_value`, `bool_value`, `int_value`, `double_value`, `bytes_value`.
+
+#### `ApplicationFinding`
+
+ApplicationFinding is one Finding of an Application, with the lifecycle
+context that decides how much it matters.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `finding_id` | 1 | `string` | finding_id is the Finding's brain_id — the same identity every other surface uses, so an agent can write back to the node it read. |
+| `status` | 2 | `string` | status is the Finding's lifecycle status: open, fixing, fixed, verified. |
+| `severity` | 3 | `string` | severity is the severity recorded when the Finding was raised. |
+| `vulnerability_id` | 4 | `string` | vulnerability_id identifies the weakness this Finding instantiates (a CVE, a GHSA, or a platform id). Empty when the Finding names no public identifier — a source finding, say — which is a fact about the Finding, not a failure of the read. |
+| `place_label` | 5 | `string` | place_label and place_key are what the Finding affects: a Package in an image, a Repository, or a Service on a host. |
+| `place_key` | 6 | `string` | — |
+| `reachable` | 7 | `bool` | reachable reports that the affected place is inside an Image that a Deployment of this Application runs. False means nothing this Application deploys contains it. It is derived from the presence of that route, never from a stored property: a property would go stale the moment a deployment rolls, and a stale "not reachable" is a silent false negative — a triage rule reads it as "nothing runs this" and ranks a live finding last. |
+| `exposed` | 8 | `bool` | exposed reports that the Deployment which reaches it also exposes a Host. Only ever true when reachable is. |
+| `deployment_key` | 9 | `string` | deployment_key and image_key name the route that made it reachable, so an agent can say WHY rather than assert it. |
+| `image_key` | 10 | `string` | — |
+| `priority` | 11 | `string` | priority, priority_rule and priority_reason are what a previous triage pass decided about this Finding, written back by the agent and returned here so the next pass can read its own history (gibson#1684). Two behaviours are dark while they are empty. A triage rule that keeps the previous priority when a scoring feed is unavailable — so an outage never re-ranks a Finding on severity alone — has nothing to keep. And a pass that explains only what changed sees every decision as a change, so model cost scales with the size of the backlog rather than with what actually happened. Empty means NO PASS HAS DECIDED YET. That is a fact about the Finding, not a failure of the read, and a reader must never take it for "unimportant". The three are written by different steps — a rule table decides the priority, a model writes the reason — so losing the reason must not take the decision with it: an empty priority_reason beside a populated priority is a model that went quiet, not a Finding nobody ranked. |
+| `priority_rule` | 12 | `string` | — |
+| `priority_reason` | 13 | `string` | — |
+
+#### `ApplicationFindingsRequest`
+
+ApplicationFindingsRequest asks for one Application's Findings with the
+lifecycle context that decides how much each one matters.
+
+It carries NO tenant field. The tenant is derived from the call context, so
+naming another tenant's graph is unrepresentable rather than rejected — the
+same rule every other read on this service follows.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `application` | 2 | `string` | application is the Application's key. Required: this read is scoped to one Application by construction, and an empty key would silently widen the traversal to the whole tenant graph. |
+| `statuses` | 3 | `repeated string` | statuses filters by lifecycle status (open, fixing, fixed, verified). Empty means every status. |
+| `limit` | 4 | `int32` | limit bounds one read. 0 means the server default; the server caps it, so a caller cannot walk an entire tenant graph in one call. |
+
+#### `ApplicationFindingsResponse`
+
+ApplicationFindingsResponse carries the Application's Findings.
+
+Unavailability is reported in error, NEVER as an empty list with no error:
+an empty list means the Application genuinely has no matching Finding, and
+conflating the two is what makes an unanswerable question look like good news.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `findings` | 1 | `repeated ApplicationFinding` | — |
+| `error` | 2 | `HarnessError` | — |
 
 #### `AttackChain`
 
@@ -4732,6 +5235,26 @@ CertificateObservation is a TLS certificate served on a port (identity: fingerpr
 | `issuer` | 3 | `string` | — |
 | `not_after` | 4 | `string` | — |
 
+#### `CloseJobRequest`
+
+CloseJobRequest closes a job from a dispatched agent.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | context identifies the calling agent's run. |
+| `job_id` | 2 | `string` | job_id is the job. Required. |
+| `verdict` | 3 | `gibson.job.v1.JobVerdict` | verdict is the outcome. Required. |
+| `score` | 4 | `double` | score is the scorer's score, from 0.0 to 1.0. |
+
+#### `CloseJobResponse`
+
+CloseJobResponse carries the job after the close was recorded.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job` | 1 | `gibson.job.v1.Job` | job is the job as stored. |
+| `error` | 2 | `HarnessError` | — |
+
 #### `ContextInfo`
 
 | Field | # | Type | Description |
@@ -4760,6 +5283,8 @@ CreateMissionRequest creates a new mission from a mission definition.
 | `metadata` | 6 | `map<string, gibson.common.v1.TypedValue>` | — |
 | `tags` | 7 | `repeated string` | — |
 | `canonical_constraints` | 8 | `gibson.mission.v1.MissionConstraints` | canonical_constraints carries the platform-canonical gibson.mission.v1.MissionConstraints type (sdk#47 / ADR 0004). Prefer this field over the deprecated constraints (field 5). The daemon merges canonical_constraints with any constraints baked into the mission definition (dispatch wins on conflict). Absent means no dispatch-time constraint overrides. |
+| `catalog_mission` | 9 | `string` | catalog_mission names a mission definition checked into the platform's mission catalog, to be originated instead of a caller-supplied graph (ADR-0018: the checked-in definition is authoritative). This is a second *input* to the one mission-creation route, deliberately not a second RPC. A dedicated RPC would carry its own authorization surface, so the per-tenant gate and the ADR-0063 origination rule ("a component originates only from inside a live parent") would be enforced in two places — which is where two enforcement paths drift apart. Exactly one of mission_definition_json (field 2) or catalog_mission must be set. Both is InvalidArgument; neither is InvalidArgument. |
+| `catalog_params` | 10 | `map<string, string>` | catalog_params carries the parameters the named catalog mission declares, keyed by the definition's own parameter names. The map is CLOSED: the daemon refuses an unrecognised key rather than ignoring it. Silently dropping a key a caller sent would let that caller believe a parameter bound when it did not — which is what keeps the runtime target out of this map honest. The target continues to bind from target_id (field 3) alone, so a scan can only ever run against a target the tenant registered. Every missing parameter is reported at once rather than one render at a time. Only meaningful when catalog_mission is set. |
 
 #### `CreateMissionResponse`
 
@@ -4797,18 +5322,32 @@ CredentialObservation reports a discovered credential (identity: secret hash).
 
 #### `DelegateToAgentRequest`
 
+DelegateToAgentRequest dispatches a task to another agent. The target
+selector says WHERE the task runs. Absent means an ephemeral launch, which
+is the behavior every caller had before banks existed (gibson#1706).
+
 | Field | # | Type | Description |
 |---|---|---|---|
 | `context` | 1 | `ContextInfo` | — |
 | `name` | 2 | `string` | — |
 | `task` | 3 | `gibson.types.v1.Task` | — |
+| `ephemeral` | 10 | `bool` | ephemeral launches a new sandbox for this task and tears it down when the task ends. Setting it to true is the same as leaving the oneof unset; it lets a caller say so out loud. |
+| `bank_id` | 11 | `string` | bank_id opens a new job on that bank. A member with a free slot takes it, or the bank queues it, per the bank spill policy. |
+| `job_id` | 12 | `string` | job_id sends the task as the next input to a job that is already open, so the agent keeps its conversation and its worktrees. |
+
+**oneof `target`** — one of: `ephemeral`, `bank_id`, `job_id`.
 
 #### `DelegateToAgentResponse`
+
+DelegateToAgentResponse carries the delegated task's result, and the job
+the task ran as when the target was a bank or a job.
 
 | Field | # | Type | Description |
 |---|---|---|---|
 | `result` | 1 | `gibson.types.v1.Result` | — |
 | `error` | 2 | `HarnessError` | — |
+| `job_id` | 3 | `string` | job_id names the job the task ran as. Empty for an ephemeral launch. |
+| `member_id` | 4 | `string` | member_id names the bank member that ran the job. Empty for an ephemeral launch. |
 
 #### `DeleteSessionContextRequest`
 
@@ -5367,6 +5906,42 @@ KeyValue represents a key-value pair used in span attributes.
 | `usage` | 4 | `TokenUsage` | — |
 | `error` | 5 | `HarnessError` | — |
 
+#### `LifecycleEntityEdge`
+
+LifecycleEntityEdge is one outgoing relationship to another typed entity,
+named by its label and identity rather than by a node id — the emitter does
+not know node ids, and must not be able to guess them.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `type` | 1 | `string` | type is a Taxonomy relationship type, e.g. "CONTAINS". |
+| `target_label` | 2 | `string` | target_label is the Taxonomy label of the other end. |
+| `target_id_properties` | 3 | `map<string, string>` | target_id_properties identify the other end, folded the same way as id_properties above. |
+
+#### `LifecycleEntityObservation`
+
+LifecycleEntityObservation reports a sighting of a typed application-lifecycle
+entity: an Application, Repository, Image, Package, Deployment, Vulnerability,
+MergeRequest, Pipeline or Control, and the edges it was seen to have
+(gibson#1656).
+
+Admission is the Taxonomy's decision, not this message's. The daemon puts
+label and every edge type to the global Taxonomy; an admitted shape becomes a
+typed node, and one the Taxonomy does not admit is neither rejected nor lost —
+it lands as an Observation with its residue preserved (ADR-0012). So an agent
+can always write, and can never invent schema.
+
+This is a SIGHTING, not a graph write. The agent reports what it saw; the
+brain resolves identity and the projector materialises it. An agent naming an
+existing node's identity enriches that node rather than creating a second one.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `label` | 1 | `string` | label is the Taxonomy label, e.g. "Package". A label outside the Taxonomy lands as an Observation rather than being refused. |
+| `id_properties` | 2 | `map<string, string>` | id_properties identify the entity. One property is the identity; several are folded into a composite key in sorted order, so the same entity observed twice resolves to the same node whatever order the map came in. An entity with no identity property records nothing — there would be no stable node to project. |
+| `properties` | 3 | `map<string, string>` | properties are the entity's non-identifying facts. A later sighting's properties take precedence over an earlier one's; a sighting that omits a property never erases what an earlier one established. |
+| `edges` | 4 | `repeated LifecycleEntityEdge` | edges are the outgoing relationships seen in this sighting. Both ends and the relationship type must be admitted by the Taxonomy, or the edge is skipped while the entity itself still lands. |
+
 #### `ListAgentsRequest`
 
 | Field | # | Type | Description |
@@ -5433,6 +6008,24 @@ ListMissionsResponse returns matching missions.
 | `metadata` | 3 | `map<string, gibson.common.v1.TypedValue>` | — |
 | `score` | 4 | `double` | — |
 | `created_at` | 5 | `string` | — |
+
+#### `MemoryObservation`
+
+MemoryObservation reports a fact the agent wants to keep across runs, in the
+agent's own words. It is the memory write for coding agents (gibson#1593,
+decision 10): a memory is a World observation, not a store of its own.
+
+Identity is per sighting: the Timeline event id, like every observation. The
+Taxonomy gate lands it as an `Observation` node with shape "Memory" until
+Sensing promotes the shape. Scope and tenant are server-side, same as the
+other variants. There is no field for either.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `text` | 1 | `string` | text is the fact. |
+| `kind` | 2 | `string` | kind is a short category, for example "convention", "decision", "layout". |
+| `tags` | 3 | `repeated string` | tags help recall. Free-form, lower-case. |
+| `source_ref` | 4 | `string` | source_ref names where the fact came from: a path, a URL, or a work id. |
 
 #### `MissionConstraints`
 
@@ -5591,8 +6184,10 @@ the daemon derives it from the mission context.
 | `subdomain` | 4 | `SubdomainObservation` | — |
 | `credential` | 5 | `CredentialObservation` | — |
 | `account` | 6 | `AccountObservation` | — |
+| `memory` | 7 | `MemoryObservation` | — |
+| `lifecycle_entity` | 8 | `LifecycleEntityObservation` | — |
 
-**oneof `observation`** — one of: `host`, `domain`, `subdomain`, `credential`, `account`.
+**oneof `observation`** — one of: `host`, `domain`, `subdomain`, `credential`, `account`, `memory`, `lifecycle_entity`.
 
 #### `ObserveResponse`
 
@@ -5601,6 +6196,26 @@ ObserveResponse acknowledges an observation.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `error` | 1 | `HarnessError` | — |
+
+#### `OpenJobRequest`
+
+OpenJobRequest opens a job on a bank from a dispatched agent.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | context identifies the calling agent's run. |
+| `bank_id` | 2 | `string` | bank_id is the bank to open the job on. Required. |
+| `member_id` | 3 | `string` | member_id pins the job to one member of that bank. Empty lets the daemon pick a member with a free slot. |
+| `spec` | 4 | `gibson.job.v1.JobSpec` | spec is the structured input. Required. |
+
+#### `OpenJobResponse`
+
+OpenJobResponse carries the opened job.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job` | 1 | `gibson.job.v1.Job` | job is the job as stored. |
+| `error` | 2 | `HarnessError` | — |
 
 #### `PlanContext`
 
@@ -5637,6 +6252,23 @@ PropertyMapping maps a source field to a target property.
 | `target` | 2 | `string` | — |
 | `default_value` | 3 | `string` | — |
 | `transform` | 4 | `string` | — |
+
+#### `PullJobRequest`
+
+PullJobRequest asks for the next queued job of the calling member's bank.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | context identifies the calling member's run. |
+
+#### `PullJobResponse`
+
+PullJobResponse carries the next queued job, or nothing.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job` | 1 | `gibson.job.v1.Job` | job is the job the daemon assigned to the member. Unset when the queue is empty. |
+| `error` | 2 | `HarnessError` | — |
 
 #### `PutSessionContextRequest`
 
@@ -5759,6 +6391,43 @@ RelationshipMapping defines relationships between nodes using typed references.
 | `condition` | 4 | `string` | — |
 | `rel_properties` | 5 | `repeated PropertyMapping` | — |
 
+#### `ReportDeliverableRequest`
+
+ReportDeliverableRequest records one deliverable the driver performed.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | context identifies the calling member's run. |
+| `job_id` | 2 | `string` | job_id is the job. Required. |
+| `deliverable` | 3 | `gibson.job.v1.Deliverable` | deliverable is what was done. Required. |
+
+#### `ReportDeliverableResponse`
+
+ReportDeliverableResponse acknowledges the deliverable.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `error` | 1 | `HarnessError` | — |
+
+#### `ReportJobStateRequest`
+
+ReportJobStateRequest reports a job state change from the member.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | context identifies the calling member's run. |
+| `job_id` | 2 | `string` | job_id is the job. Required. |
+| `state` | 3 | `gibson.job.v1.JobState` | state is the new state: WORKING or WAITING. Required. |
+| `claude_session_id` | 4 | `string` | claude_session_id is the Claude Code session that holds the job. |
+
+#### `ReportJobStateResponse`
+
+ReportJobStateResponse acknowledges the state change.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `error` | 1 | `HarnessError` | — |
+
 #### `ReportStepHintsRequest`
 
 | Field | # | Type | Description |
@@ -5827,6 +6496,27 @@ SearchToolsResponse is the authz-filtered candidate set.
 | `candidates` | 1 | `repeated SearchToolsCandidate` | — |
 | `error` | 2 | `HarnessError` | — |
 
+#### `SendInputRequest`
+
+SendInputRequest sends the next message to an open job from a dispatched
+agent.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | context identifies the calling agent's run. |
+| `job_id` | 2 | `string` | job_id is the job. Required. |
+| `message` | 3 | `string` | message is the text of the input. Required. |
+| `kind` | 4 | `gibson.job.v1.InputKind` | kind is what the input asks the member to do. Unspecified means INPUT_KIND_TURN. A client never sends INPUT_KIND_WRAP_UP. |
+
+#### `SendInputResponse`
+
+SendInputResponse carries the input as the daemon recorded it.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `input` | 1 | `gibson.job.v1.Input` | input is the input without its grant. |
+| `error` | 2 | `HarnessError` | — |
+
 #### `Span`
 
 Span represents a single span in a distributed trace.
@@ -5886,6 +6576,22 @@ SubdomainObservation reports an FQDN, its parent domain, and resolved addresses.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `error` | 1 | `HarnessError` | — |
+
+#### `SubscribeInputRequest`
+
+SubscribeInputRequest opens the input stream for the calling member.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | context identifies the calling member's run. |
+
+#### `SubscribeInputResponse`
+
+SubscribeInputResponse carries one input for the calling member.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `input` | 1 | `gibson.job.v1.Input` | input is the next input, with its per-turn grant. |
 
 #### `TaxonomyCapability`
 
@@ -6572,6 +7278,361 @@ importing PrincipalKind from this package over time.
 | `PRINCIPAL_KIND_TOOL` | 2 | — |
 | `PRINCIPAL_KIND_PLUGIN` | 3 | — |
 
+## Package `gibson.job.v1`
+
+Package gibson.job.v1 declares jobs, the unit of work a bank member holds
+(gibson#1706, ADR-0017).
+
+Every input to a member is a structured job. A chat turn is a job with
+only a goal. A job is one persistent Claude Code session with its own
+worktrees. It stays open across inputs until a scorer closes it with a
+verdict and a score. The worker never closes its own job.
+
+### Services
+
+#### `JobService`
+
+JobService opens jobs on a bank, sends them input, closes them, and reads
+them back. People and platform services call it. A dispatched component
+uses the mirrored OpenJob, SendInput and CloseJob on
+gibson.harness.v1.HarnessCallbackService under its own grant.
+
+##### `CloseJob`
+
+`CloseJobRequest` → `CloseJobResponse`
+
+CloseJob closes a job with a verdict and a score. The member runs one
+wrap-up turn, performs the deliverables, removes the worktrees, and
+archives the transcript. Only a scorer closes a job: a person, a
+verification agent, or the job node executor.
+
+##### `GetJob`
+
+`GetJobRequest` → `GetJobResponse`
+
+GetJob returns one job by id.
+
+##### `ListJobs`
+
+`ListJobsRequest` → `ListJobsResponse`
+
+ListJobs returns jobs of the caller's tenant, newest first. Filter by
+bank, by member, or by state.
+
+##### `OpenJob`
+
+`OpenJobRequest` → `OpenJobResponse`
+
+OpenJob opens a job on a bank. The daemon routes it to a member with a
+free slot, or queues it, or spills it per the bank policy. Set
+member_id to pin the job to one member of that bank.
+
+##### `SendInput`
+
+`SendInputRequest` → `SendInputResponse`
+
+SendInput sends the next message to an open job. The daemon mints the
+per-turn grant and delivers the input to the member that holds the
+job.
+
+##### `StreamJobEvents`
+
+`StreamJobEventsRequest` → `stream StreamJobEventsResponse`
+
+StreamJobEvents follows one job: inputs, state changes, deliverables
+and the close. The stream starts with the backlog after since_seq,
+then follows live until the job closes.
+
+### Messages
+
+#### `Acceptance`
+
+Acceptance is how a job is judged. The job node executor runs the verify
+loop against it. A person or an agent that closes a job by hand reads it
+as guidance.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `verifier_component` | 1 | `string` | verifier_component names the component that judges the work, in the slash form "agent/&lt;name>". Empty means no verify loop: a person or an agent closes the job. |
+| `passing_score` | 2 | `double` | passing_score is the score, from 0.0 to 1.0, at or above which the verifier accepts the work. |
+| `max_passes` | 3 | `int32` | max_passes is how many verify passes the job node executor runs before it closes the job as FAILED. Zero means one pass. This bounds the verify loop INSIDE one job. A mission node's RetryPolicy is a different thing: it retries the whole node. |
+
+#### `CloseJobRequest`
+
+CloseJobRequest closes a job with a verdict and a score.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job_id` | 1 | `string` | job_id is the job. Required. |
+| `verdict` | 2 | `JobVerdict` | verdict is the outcome. Required. |
+| `score` | 3 | `double` | score is the scorer's score, from 0.0 to 1.0. |
+
+#### `CloseJobResponse`
+
+CloseJobResponse carries the job after the close was recorded. The
+wrap-up turn runs after this returns.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job` | 1 | `Job` | job is the job as stored. |
+
+#### `Deliverable`
+
+Deliverable is one outward result of a job the driver performed at
+wrap-up.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `kind` | 1 | `DeliverableKind` | kind is what was done. |
+| `ref` | 2 | `string` | ref is the branch name or the merge request id on the forge. |
+| `url` | 3 | `string` | url is where a person opens the deliverable. |
+
+#### `GetJobRequest`
+
+GetJobRequest names one job.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job_id` | 1 | `string` | job_id is the job. Required. |
+
+#### `GetJobResponse`
+
+GetJobResponse carries one job.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job` | 1 | `Job` | job is the job. |
+
+#### `Input`
+
+Input is one message to a job. The member pulls inputs outbound through
+SubscribeInput on the harness callback and runs one turn per input under
+the grant the input carries.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job_id` | 1 | `string` | job_id is the job the input belongs to. |
+| `message` | 2 | `string` | message is the text of the input. |
+| `sender` | 3 | `gibson.common.v1.Principal` | sender is who sent the input. |
+| `grant` | 4 | `string` | grant is the per-turn capability grant JWT for this input. The daemon sets it when it delivers the input to the member. A client never sets it. The daemon rejects an input that arrives with a grant. |
+| `sent_at` | 5 | `google.protobuf.Timestamp` | sent_at is when the input was sent. |
+| `kind` | 6 | `InputKind` | kind is what the input asks the member to do. |
+| `id` | 7 | `string` | id is the input id. The daemon assigns it. A member that reconnects uses it to skip an input it already ran. |
+
+#### `Job`
+
+Job is one persistent Claude Code session on a bank member with its own
+worktrees.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `id` | 1 | `string` | id is the job id. The daemon assigns it. |
+| `bank_id` | 2 | `string` | bank_id is the bank the job was opened on. |
+| `member_id` | 3 | `string` | member_id is the member that holds the job. Empty while the job waits in the bank queue. |
+| `state` | 4 | `JobState` | state is where the job is in its life. |
+| `spec` | 5 | `JobSpec` | spec is the structured input that opened the job. |
+| `claude_session_id` | 6 | `string` | claude_session_id is the Claude Code session the member reopens with --resume. The member reports it through ReportJobState. |
+| `opened_by` | 7 | `gibson.common.v1.Principal` | opened_by is who opened the job. |
+| `opened_at` | 8 | `google.protobuf.Timestamp` | opened_at is when the job was opened. |
+| `last_input_at` | 9 | `google.protobuf.Timestamp` | last_input_at is when the job last received input. The stale limit counts from here. |
+| `closed_at` | 10 | `google.protobuf.Timestamp` | closed_at is when the job closed. Unset while open. |
+| `verdict` | 11 | `JobVerdict` | verdict is the outcome. Unspecified while open. |
+| `score` | 12 | `double` | score is the scorer's score, from 0.0 to 1.0. Zero while open. |
+| `deliverables` | 13 | `repeated Deliverable` | deliverables lists what left the sandbox at wrap-up. |
+| `attempts` | 14 | `int32` | attempts counts verify passes the job node executor ran on this job. |
+
+#### `JobEvent`
+
+JobEvent is one change on a job, for StreamJobEvents.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `seq` | 1 | `uint64` | seq is the per-job sequence number, from 1. Pass it back as since_seq to resume without a gap or a duplicate. |
+| `occurred_at` | 2 | `google.protobuf.Timestamp` | occurred_at is when the change happened. |
+| `kind` | 3 | `JobEventKind` | kind is what changed. |
+| `job_id` | 4 | `string` | job_id is the job. |
+| `state` | 5 | `JobState` | state is the state after the change. Set for OPENED, STATE and CLOSED. |
+| `input` | 6 | `Input` | input is the input that was sent, without its grant. Set for INPUT. |
+| `deliverable` | 7 | `Deliverable` | deliverable is the deliverable the member reported. Set for DELIVERABLE. |
+| `verdict` | 8 | `JobVerdict` | verdict is the outcome. Set for CLOSED. |
+| `score` | 9 | `double` | score is the scorer's score. Set for CLOSED. |
+| `message` | 10 | `string` | message is a human-readable note on the change. |
+
+#### `JobSpec`
+
+JobSpec is the structured input that opens a job: the goal, the
+repositories and credentials the work needs, the World nodes it starts
+from, and how it is judged. The daemon reads repositories and
+credential_names before it mints the per-turn grant, so they are declared
+fields. context is free-form. Anything the daemon must enforce lives in a
+declared field.
+
+A JobSpec says WHAT to do. It carries no execution bounds. Bounds are
+gibson.types.v1.TaskConstraints and they ride on the dispatch envelope
+(gibson.types.v1.Task.constraints), which the daemon fills from the bank
+policy and from the mission node. This package imports nothing above
+gibson.common.v1 on purpose, so gibson.types.v1.Task can carry a JobSpec
+without a cyclic import.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `goal` | 1 | `string` | goal is what the job must achieve, in plain words. |
+| `repositories` | 2 | `repeated RepositorySpec` | repositories lists the repositories the job works in. |
+| `credential_names` | 3 | `repeated string` | credential_names lists the credentials the member may read during the job. The per-turn grant covers these and no others. |
+| `inputs` | 4 | `repeated string` | inputs lists World node ids the job starts from: findings, plans, earlier deliverables. |
+| `acceptance` | 5 | `Acceptance` | acceptance is how the job is judged. |
+| `context` | 6 | `map<string, gibson.common.v1.TypedValue>` | context is free-form context for the member. The daemon does not read it. |
+
+#### `ListJobsRequest`
+
+ListJobsRequest pages through jobs of the caller's tenant. Every filter
+that is set narrows the list.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank_id` | 1 | `string` | bank_id keeps only jobs of this bank. |
+| `member_id` | 2 | `string` | member_id keeps only jobs this member holds. |
+| `state` | 3 | `JobState` | state keeps only jobs in this state. Unspecified means every state. |
+| `page_size` | 4 | `int32` | page_size is the maximum number of jobs to return. Zero means the server default. |
+| `page_token` | 5 | `string` | page_token is the next_page_token of the previous page. Empty for the first page. |
+
+#### `ListJobsResponse`
+
+ListJobsResponse carries one page of jobs.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `jobs` | 1 | `repeated Job` | jobs is the page. |
+| `next_page_token` | 2 | `string` | next_page_token fetches the next page. Empty on the last page. |
+
+#### `OpenJobRequest`
+
+OpenJobRequest opens a job on a bank.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank_id` | 1 | `string` | bank_id is the bank to open the job on. Required. |
+| `member_id` | 2 | `string` | member_id pins the job to one member of that bank. Empty lets the daemon pick a member with a free slot. |
+| `spec` | 3 | `JobSpec` | spec is the structured input. Required. |
+
+#### `OpenJobResponse`
+
+OpenJobResponse carries the opened job.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job` | 1 | `Job` | job is the job as stored. member_id is empty while it waits in the queue. |
+
+#### `RepositorySpec`
+
+RepositorySpec names one repository a job works in and what leaves the
+sandbox at wrap-up.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `name` | 1 | `string` | name is the directory name of the worktree the member sees. Unique inside the job. Required. |
+| `connector_ref` | 2 | `string` | connector_ref names the connector that holds the forge credential, in the slash form "connector/&lt;name>". Required. |
+| `project` | 3 | `string` | project is the project path on the forge, for example "group/repo". Required. |
+| `base_branch` | 4 | `string` | base_branch is the branch the job branch starts from and the merge request targets. Empty means the project default branch. |
+| `deliverable` | 5 | `DeliverableKind` | deliverable is what the member does with the work at wrap-up. Required. |
+
+#### `SendInputRequest`
+
+SendInputRequest sends the next message to an open job.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job_id` | 1 | `string` | job_id is the job. Required. |
+| `message` | 2 | `string` | message is the text of the input. Required. |
+| `kind` | 3 | `InputKind` | kind is what the input asks the member to do. Unspecified means INPUT_KIND_TURN. A client never sends INPUT_KIND_WRAP_UP. |
+
+#### `SendInputResponse`
+
+SendInputResponse carries the input as the daemon recorded it.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `input` | 1 | `Input` | input is the input without its grant. |
+
+#### `StreamJobEventsRequest`
+
+StreamJobEventsRequest names the job to follow.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `job_id` | 1 | `string` | job_id is the job. Required. |
+| `since_seq` | 2 | `uint64` | since_seq is the last event seq the client saw. The stream starts with the backlog after it. Zero means the whole backlog. |
+
+#### `StreamJobEventsResponse`
+
+StreamJobEventsResponse carries one job event.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `event` | 1 | `JobEvent` | event is the change. |
+
+### Enums
+
+#### `DeliverableKind`
+
+DeliverableKind is what the member does with the work on a repository at
+wrap-up. The driver performs it under the job's connector token. Claude
+commits on the job branch and never holds the token.
+
+| Value | # | Description |
+|---|---|---|
+| `DELIVERABLE_KIND_UNSPECIFIED` | 0 | — |
+| `DELIVERABLE_KIND_PUSH_BRANCH` | 1 | DELIVERABLE_KIND_PUSH_BRANCH: push the job branch to the remote. |
+| `DELIVERABLE_KIND_MERGE_REQUEST` | 2 | DELIVERABLE_KIND_MERGE_REQUEST: push the job branch and open a merge request against base_branch. |
+| `DELIVERABLE_KIND_NONE` | 3 | DELIVERABLE_KIND_NONE: leave the work in the sandbox. Nothing leaves. |
+
+#### `InputKind`
+
+InputKind is what an input asks the member to do.
+
+| Value | # | Description |
+|---|---|---|
+| `INPUT_KIND_UNSPECIFIED` | 0 | — |
+| `INPUT_KIND_TURN` | 1 | INPUT_KIND_TURN: run one more turn with this message. |
+| `INPUT_KIND_ANSWER` | 2 | INPUT_KIND_ANSWER: this message answers the question the job asked when it entered WAITING. |
+| `INPUT_KIND_WRAP_UP` | 3 | INPUT_KIND_WRAP_UP: the final turn after CloseJob. Commit, push, open the merge request, and summarize. The daemon sends it, never a client. |
+
+#### `JobEventKind`
+
+JobEventKind is what a JobEvent reports.
+
+| Value | # | Description |
+|---|---|---|
+| `JOB_EVENT_KIND_UNSPECIFIED` | 0 | — |
+| `JOB_EVENT_KIND_OPENED` | 1 | JOB_EVENT_KIND_OPENED: the job was opened. state is set. |
+| `JOB_EVENT_KIND_INPUT` | 2 | JOB_EVENT_KIND_INPUT: an input was sent. input is set without its grant. |
+| `JOB_EVENT_KIND_STATE` | 3 | JOB_EVENT_KIND_STATE: the state changed. state is set. |
+| `JOB_EVENT_KIND_DELIVERABLE` | 4 | JOB_EVENT_KIND_DELIVERABLE: the member reported a deliverable. deliverable is set. |
+| `JOB_EVENT_KIND_CLOSED` | 5 | JOB_EVENT_KIND_CLOSED: the job closed. verdict and score are set. The stream ends after this event. |
+
+#### `JobState`
+
+JobState is where a job is in its life.
+
+| Value | # | Description |
+|---|---|---|
+| `JOB_STATE_UNSPECIFIED` | 0 | — |
+| `JOB_STATE_OPEN` | 1 | JOB_STATE_OPEN: the job is opened and waits for a member to take it. |
+| `JOB_STATE_WORKING` | 2 | JOB_STATE_WORKING: the member runs a turn on the job. |
+| `JOB_STATE_WAITING` | 3 | JOB_STATE_WAITING: the member asked a question or finished a turn and waits for the next input. |
+| `JOB_STATE_CLOSED` | 4 | JOB_STATE_CLOSED: a scorer closed the job. verdict and score are set. |
+
+#### `JobVerdict`
+
+JobVerdict is the outcome a scorer gives when it closes a job.
+
+| Value | # | Description |
+|---|---|---|
+| `JOB_VERDICT_UNSPECIFIED` | 0 | — |
+| `JOB_VERDICT_ACCOMPLISHED` | 1 | JOB_VERDICT_ACCOMPLISHED: the job met its acceptance. |
+| `JOB_VERDICT_FAILED` | 2 | JOB_VERDICT_FAILED: the job did not meet its acceptance. |
+| `JOB_VERDICT_ABANDONED` | 3 | JOB_VERDICT_ABANDONED: the job went idle past the bank stale limit, or the bank was deleted. |
+
 ## Package `gibson.manifest.v1`
 
 ### Messages
@@ -6892,6 +7953,27 @@ wire-compatibly; ignored by the engine.
 | `encryption` | 4 | `bool` | Encryption determines whether data should be encrypted at rest |
 | `access_control` | 5 | `repeated string` | AccessControl specifies who can access this data |
 
+#### `JobNodeConfig`
+
+RetryPolicy defines the retry behavior for a mission node
+JobNodeConfig contains configuration for job nodes.
+JOB = a unit of work driven on a bank of always-on coding agents
+(gibson#1706). The executor opens a job on the bank, then runs the verify
+loop: it dispatches the acceptance step to the declared verifier
+component, and on failure sends the verifier's report as the next input
+to the SAME job, so the agent keeps its conversation and its worktrees.
+When the verifier passes, or the passes run out, the executor calls
+CloseJob with a verdict and a score.
+
+The loop lives inside this node. The mission graph stays a DAG: a job
+node never adds a loop edge.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `bank_ref` | 1 | `string` | bank_ref names the bank to open the job on, by id or by name. Required. |
+| `spec` | 2 | `gibson.job.v1.JobSpec` | spec is the structured input that opens the job: goal, repositories, credential names, World inputs, and the acceptance the verify loop runs against. Required. |
+| `constraints` | 3 | `gibson.types.v1.TaskConstraints` | constraints bound every turn of the job. The daemon clamps them to the bank policy. Unset means the bank default. |
+
 #### `JoinNodeConfig`
 
 JoinNodeConfig blocks until every node ID in `wait_for` has
@@ -6989,7 +8071,12 @@ MissionDependencies specifies required components for a mission
 
 #### `MissionEdge`
 
-MissionEdge represents a directed edge in the mission DAG
+MissionEdge represents a directed edge in the mission DAG.
+
+The graph is acyclic. A loop is never an edge. Work that repeats until it
+passes an acceptance step loops INSIDE one node: a job node runs its
+verify loop against the same job (gibson#1706), and a node's RetryPolicy
+retries the node itself.
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -7020,8 +8107,9 @@ MissionNode represents a single node in a mission DAG
 | `metadata` | 14 | `map<string, string>` | Metadata contains additional custom metadata for this node |
 | `join_config` | 15 | `JoinNodeConfig` | JoinConfig for join nodes (mission-verb-noun-registry). Field number 15 because 10-14 are sibling MissionNode fields (dependencies, timeout, retry_policy, data_policy, metadata). |
 | `reuse_policy` | 16 | `ReusePolicy` | ReusePolicy declares how this node's I/O is scoped + reused across mission runs. Deprecated: superseded by the ECS brain (gibson#851, ADR-0008). Reuse is implicit in the World; scoping is via scope-relative identity (ADR-0002) + ambient projection. Retained wire-compatibly but ignored by the engine. |
+| `job_config` | 17 | `JobNodeConfig` | JobConfig for job nodes (gibson#1706). Field number 17 because 16 is the sibling reuse_policy field. |
 
-**oneof `config`** — one of: `agent_config`, `tool_config`, `plugin_config`, `condition_config`, `parallel_config`, `join_config`.
+**oneof `config`** — one of: `agent_config`, `tool_config`, `plugin_config`, `condition_config`, `parallel_config`, `join_config`, `job_config`.
 
 #### `ParallelNodeConfig`
 
@@ -7066,8 +8154,6 @@ directly to the SDK's workspace.RepositoryConfig type.
 | `depends_on` | 6 | `repeated string` | DependsOn lists repository names that must clone first. Enables topological ordering for multi-repo missions. |
 
 #### `RetryPolicy`
-
-RetryPolicy defines the retry behavior for a mission node
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -7191,6 +8277,7 @@ NodeType defines the type of mission node
 | `NODE_TYPE_CONDITION` | 4 | Condition node performs conditional branching |
 | `NODE_TYPE_PARALLEL` | 5 | Parallel node executes sub-nodes in parallel |
 | `NODE_TYPE_JOIN` | 6 | Join node waits for multiple branches to complete |
+| `NODE_TYPE_JOB` | 7 | Job node drives a job on a bank of always-on agents (gibson#1706). Its executor opens the job, runs the verify loop against the acceptance the spec declares, and closes the job with a verdict. |
 
 ## Package `gibson.plugin.v1`
 
@@ -7793,6 +8880,11 @@ ResultError represents a structured error with retry information.
 
 Task represents a goal-oriented task with context and constraints.
 
+context is free-form: the daemon does not read it. Anything the daemon
+must enforce lives in a declared field. Resources a dispatched task needs
+(repositories, credential names, World inputs, acceptance) live in job,
+because the daemon reads them before it mints the task grant.
+
 | Field | # | Type | Description |
 |---|---|---|---|
 | `id` | 1 | `string` | — |
@@ -7800,6 +8892,7 @@ Task represents a goal-oriented task with context and constraints.
 | `context` | 3 | `map<string, gibson.common.v1.TypedValue>` | — |
 | `constraints` | 4 | `TaskConstraints` | — |
 | `metadata` | 5 | `map<string, gibson.common.v1.TypedValue>` | — |
+| `job` | 6 | `gibson.job.v1.JobSpec` | job names the typed resources this task needs and how it is judged (gibson#1706). It is set when the task opens or continues a job on a bank member. goal stays the goal; the spec's own goal is ignored on a dispatched task. Absent on a task that needs no repository, no credential and no acceptance step. |
 
 #### `TaskConstraints`
 
