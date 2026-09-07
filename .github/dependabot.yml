@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Keeps the digest pins in Dockerfile current. The FROM lines are pinned
+  # by digest (Scorecard Pinned-Dependencies), so without this entry the
+  # bases would never move again.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docker
