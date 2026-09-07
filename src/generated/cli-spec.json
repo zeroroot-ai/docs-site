@@ -1,7 +1,7 @@
 {
   "binary": "gibson",
   "short": "Gibson Agent Development Kit CLI",
-  "long": "gibson — tooling for the Gibson agent / tool / plugin\ndevelopment lifecycle.\n\nSubcommands:\n  login      authenticate the CLI against the platform (device flow)\n  logout     end the CLI session and remove stored credentials\n  init       initialise a Gibson workspace (.gibson/workspace.yaml)\n  component  scaffold, validate, register, run components (agent | tool | plugin)\n  docs       emit machine-readable docs (JSON Schemas, etc.)\n  inspect    show what this principal can do (calls WhoAmI)\n  mission    author, validate, render, submit gibson missions\n  target     create, list, inspect, update, delete assessment targets\n  agent      manage agent/tool/plugin machine identities",
+  "long": "gibson — tooling for the Gibson agent / tool / plugin\ndevelopment lifecycle.\n\nSubcommands:\n  login      authenticate the CLI against the platform (device flow)\n  logout     end the CLI session and remove stored credentials\n  init       initialise a Gibson workspace (.gibson/workspace.yaml)\n  component  scaffold, validate, register, run components (agent | tool | plugin)\n  connector  enable and manage tenant connectors (catalog | enable | list | disable)\n  docs       emit machine-readable docs (JSON Schemas, etc.)\n  inspect    show what this principal can do (calls WhoAmI)\n  mission    author, validate, render, submit gibson missions\n  target     create, list, inspect, update, delete assessment targets\n  agent      manage agent/tool/plugin machine identities",
   "globalFlags": [
     {
       "name": "ca-cert",
@@ -22,6 +22,11 @@
           "short": "Provision a new machine identity and print the one-time bootstrap token",
           "long": "Call AgentIdentityService.CreateAgentIdentity to provision a new\nmachine identity, authenticated as you (run `gibson login` first).\nThe one-time bootstrap token is printed to stdout — store it immediately;\nit cannot be retrieved again. Run the printed enroll_command (or\n`gibson component register --token`) to complete the capability-grant\nhandshake (ADR-0045). The same flow serves every component kind.",
           "flags": [
+            {
+              "name": "capability",
+              "usage": "Session capability to grant in the credential ceiling; repeatable. Reserved names: mission:originate (start its own mission), mission:delegate",
+              "type": "stringArray"
+            },
             {
               "name": "description",
               "usage": "Human-readable description",
@@ -113,7 +118,7 @@
     {
       "path": "gibson component",
       "use": "component",
-      "short": "Scaffold, validate, register, and run Gibson components (agent | tool | plugin)",
+      "short": "Scaffold, validate, register, and run Gibson components (agent | tool | plugin | connector)",
       "long": "component — kind-aware tooling for the Gibson developer workflow.\n\nSubcommands:\n  init      scaffold a new component directory from templates\n  generate  regenerate gen/ from taxonomy.yaml and ontology.yaml\n  build     generate + validate + go build (one-step developer loop)\n  validate  local schema + proto checks against component.yaml / plugin.yaml\n  register  consume a dashboard-issued enroll_command (no admin RPC auto-mint)\n  run       run the compiled component binary, supervising signals and exit code 75\n\nIn a directory containing a component.yaml, --kind is auto-detected\nfrom the file. Outside such a directory, --kind is required.",
       "subcommands": [
         {
@@ -149,33 +154,13 @@
         {
           "path": "gibson component init",
           "use": "init <name>",
-          "short": "Scaffold a new component directory (agent | tool | plugin)",
-          "long": "init scaffolds a new Gibson component directory from embedded\ntemplates. The kind selects which template set to render and what file\nshape the new directory has:\n\n  agent:  component.yaml + main.go (sdk.NewAgent + sdk.ServeAgent) +\n          go.mod + Makefile + Dockerfile + README + AGENTS.md +\n          CLAUDE.md + prompts/ + .claude/settings.json\n\n  tool:   like agent, plus api/proto/gibson/tools/<pkg>/v1/<pkg>.proto with\n          field 100 = gibson.graphrag.v1.DiscoveryResult, buf.yaml,\n          buf.gen.yaml, and proto/vendor/ for the SDK protos\n\n  plugin: plugin.yaml manifest + main.go (plugin.Serve + Echo handler)\n          + .proto + Makefile + Dockerfile + README + AGENTS.md +\n          CLAUDE.md + prompts/ + .claude/settings.json\n\nThe name must match ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ (DNS-label style).\n\n--with-secret is plugin-only. agent and tool kinds do not declare\nbroker secrets.\n\nExamples:\n  gibson component init my-agent --kind agent\n  gibson component init my-scanner --kind tool\n  gibson component init my-plugin --kind plugin --with-secret cred:api_key=startup:live\n  gibson component init my-plugin --kind plugin --dir ~/projects --force\n\nA connector is a kind: plugin component whose runtime is mcp-bridge — it fronts\na vendor MCP server and is manifest-only (no Go code). Scaffold one with\n--runtime mcp-bridge (replaces the retired \"gibson connector init\"):\n  gibson component init github --kind plugin --runtime mcp-bridge \\\n    --command npx --arg=-y --arg=@modelcontextprotocol/server-github \\\n    --secret cred:github_token=GITHUB_PERSONAL_ACCESS_TOKEN\n  gibson component init internal-api --kind plugin --runtime mcp-bridge \\\n    --transport http --endpoint https://mcp.example.com/mcp",
+          "short": "Scaffold a new component directory (agent | tool | plugin | connector)",
+          "long": "init scaffolds a new Gibson component directory from embedded\ntemplates. The kind selects which template set to render and what file\nshape the new directory has:\n\n  agent:      component.yaml + main.go (sdk.NewAgent + sdk.ServeAgent) +\n              go.mod + Makefile + Dockerfile + README + AGENTS.md +\n              CLAUDE.md + prompts/ + .claude/settings.json\n\n  tool:       like agent, plus api/proto/gibson/tools/<pkg>/v1/<pkg>.proto\n              with field 100 = gibson.graphrag.v1.DiscoveryResult, buf.yaml,\n              buf.gen.yaml, and proto/vendor/ for the SDK protos\n\n  plugin:     Go-first (ADR-0065 R4). plugin.yaml manifest + handler.go\n              (plugin.Serve + plugin.WithHandler, typed Go request/response\n              structs — no .proto) + a hermetic handler_test.go with a\n              committed cassette under testdata/ + helm/values.yaml +\n              go.mod + Makefile + Dockerfile + README + AGENTS.md +\n              CLAUDE.md + prompts/ + .claude/settings.json\n\n  connector:  Declarative (ADR-0065 R6). connector.yaml manifest (the\n              integration IS the manifest — no Go code) + a hermetic\n              schema-validation smoke test (connector_test.go) + go.mod +\n              README + AGENTS.md + CLAUDE.md + .claude/settings.json\n\nThe name must match ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ (DNS-label style).\n\n--with-secret is plugin-only. agent, tool, and connector kinds do not\ndeclare broker secrets.\n\nExamples:\n  gibson component init my-agent --kind agent\n  gibson component init my-scanner --kind tool\n  gibson component init my-plugin --kind plugin --with-secret cred:api_key=startup:live\n  gibson component init my-plugin --kind plugin --dir ~/projects --force\n  gibson component init gitlab --kind connector",
           "flags": [
-            {
-              "name": "arg",
-              "usage": "mcp-bridge stdio: argument passed to --command (repeatable, in order)",
-              "type": "stringArray"
-            },
-            {
-              "name": "command",
-              "usage": "mcp-bridge stdio: executable that runs the vendor MCP server (e.g. npx, uvx)",
-              "type": "string"
-            },
-            {
-              "name": "description",
-              "usage": "mcp-bridge: human-readable connector description",
-              "type": "string"
-            },
             {
               "name": "dir",
               "shorthand": "d",
               "usage": "destination directory (default: current directory)",
-              "type": "string"
-            },
-            {
-              "name": "endpoint",
-              "usage": "mcp-bridge http: base URL of the running vendor MCP server",
               "type": "string"
             },
             {
@@ -185,23 +170,7 @@
             },
             {
               "name": "kind",
-              "usage": "component kind: agent | tool | plugin (required)",
-              "type": "string"
-            },
-            {
-              "name": "runtime",
-              "usage": "plugin runtime: process (default) | mcp-bridge (a connector fronting a vendor MCP server)",
-              "type": "string"
-            },
-            {
-              "name": "secret",
-              "usage": "mcp-bridge: secret mapping <broker-name>=<ENV_VAR> (repeatable)",
-              "type": "stringArray"
-            },
-            {
-              "name": "transport",
-              "usage": "mcp-bridge: stdio | http",
-              "default": "stdio",
+              "usage": "component kind: agent | tool | plugin | connector (required)",
               "type": "string"
             },
             {
@@ -289,6 +258,115 @@
               "name": "kind",
               "usage": "override kind: agent | tool | plugin",
               "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "gibson connector",
+      "use": "connector",
+      "short": "Manage tenant connectors (ConnectorService)",
+      "long": "gibson connector — enable and manage connectors via\nConnectorService on the Gibson daemon (ADR-0014 Slice 4). Pick a connector\nfrom the curated catalog and it becomes a running connector the operator\nreconciles onto ToolHive. You do not write YAML. Authenticated as you: run `gibson login` first.\n\nSubcommands:\n  catalog  list the curated connectors this tenant may enable\n  enable   enable a connector from the catalog by its catalog id\n  list     list the tenant's enabled connectors and their live status\n  disable  disable an enabled connector (removes the running connector)",
+      "subcommands": [
+        {
+          "path": "gibson connector catalog",
+          "use": "catalog",
+          "short": "List the curated connectors this tenant may enable",
+          "long": "Call ConnectorService.ListCatalog and print the curated\nconnectors this tenant may enable. The set is the shipped catalog, filtered\nby the per-tenant catalog gate. Enable one with `gibson connector enable <id>`.",
+          "flags": [
+            {
+              "name": "gibson-url",
+              "usage": "Override the daemon URL (defaults to the login session).",
+              "type": "string"
+            },
+            {
+              "name": "tenant",
+              "usage": "Override the active tenant id for this call.",
+              "type": "string"
+            },
+            {
+              "name": "timeout",
+              "usage": "RPC deadline",
+              "default": "30s",
+              "type": "duration"
+            }
+          ]
+        },
+        {
+          "path": "gibson connector disable",
+          "use": "disable <connector>",
+          "short": "Disable an enabled connector",
+          "long": "Call ConnectorService.DisableConnector to disable an enabled\nconnector by its id. The operator cascade-removes the running connector, its\nnetwork policy, and its credential secret. This action is destructive: it\nasks you to confirm unless you pass --yes.",
+          "flags": [
+            {
+              "name": "gibson-url",
+              "usage": "Override the daemon URL (defaults to the login session).",
+              "type": "string"
+            },
+            {
+              "name": "tenant",
+              "usage": "Override the active tenant id for this call.",
+              "type": "string"
+            },
+            {
+              "name": "timeout",
+              "usage": "RPC deadline",
+              "default": "30s",
+              "type": "duration"
+            },
+            {
+              "name": "yes",
+              "usage": "Do not ask to confirm the disable",
+              "type": "bool"
+            }
+          ]
+        },
+        {
+          "path": "gibson connector enable",
+          "use": "enable <catalog-id>",
+          "short": "Enable a connector from the catalog",
+          "long": "Call ConnectorService.EnableConnector for a catalog entry\n(for example `gibson connector enable gitlab`). The daemon creates\nthe connector in your tenant and the operator reconciles it onto ToolHive.\nAn OAuth connector comes up in the AuthorizationRequired phase until a person\nauthorizes it. The enabled connector id and its initial phase are printed.",
+          "flags": [
+            {
+              "name": "gibson-url",
+              "usage": "Override the daemon URL (defaults to the login session).",
+              "type": "string"
+            },
+            {
+              "name": "tenant",
+              "usage": "Override the active tenant id for this call.",
+              "type": "string"
+            },
+            {
+              "name": "timeout",
+              "usage": "RPC deadline",
+              "default": "30s",
+              "type": "duration"
+            }
+          ]
+        },
+        {
+          "path": "gibson connector list",
+          "use": "list",
+          "short": "List the tenant's enabled connectors and their live status",
+          "long": "Call ConnectorService.ListConnectors and print the tenant's\nenabled connectors with their live status: shape, runtime, lifecycle phase,\nthe count of discovered tools, and the last error (if any).",
+          "flags": [
+            {
+              "name": "gibson-url",
+              "usage": "Override the daemon URL (defaults to the login session).",
+              "type": "string"
+            },
+            {
+              "name": "tenant",
+              "usage": "Override the active tenant id for this call.",
+              "type": "string"
+            },
+            {
+              "name": "timeout",
+              "usage": "RPC deadline",
+              "default": "30s",
+              "type": "duration"
             }
           ]
         }
@@ -472,6 +550,11 @@
           "short": "Validate, define, and run a mission via the daemon",
           "long": "Full CUE/YAML/JSON → define → run submit:\n\n1. Load + parse the mission file (CUE / YAML / JSON detected from\n   extension or --format).\n2. Run protovalidate on the parsed *missionv1.MissionDefinition.\n3. With --dry-run, print the rendered JSON and exit; otherwise:\n4. Call DaemonService/CreateMissionDefinition to register the\n   definition and obtain a mission_definition_id.\n5. Call DaemonService/CreateMission with the definition ID.\n6. Print the returned mission ID.\n\nThe daemon URL is taken from your login session (run `gibson login`\nfirst); override it with --gibson-url. Production use should\nroute through the dashboard's Server Action path — this command\nis the CLI escape hatch for development and CI.\n\nAuth: the call is made over the authenticated login session\n(bearer token + x-gibson-tenant); there is no plaintext or\nunauthenticated path.",
           "flags": [
+            {
+              "name": "detach",
+              "usage": "Return once the daemon has started the run and print the mission id; do not wait for the mission to finish",
+              "type": "bool"
+            },
             {
               "name": "dry-run",
               "usage": "Print rendered JSON; do not contact the daemon",

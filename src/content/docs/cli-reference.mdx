@@ -17,6 +17,7 @@ Subcommands:
   logout     end the CLI session and remove stored credentials
   init       initialise a Gibson workspace (.gibson/workspace.yaml)
   component  scaffold, validate, register, run components (agent | tool | plugin)
+  connector  enable and manage tenant connectors (catalog | enable | list | disable)
   docs       emit machine-readable docs (JSON Schemas, etc.)
   inspect    show what this principal can do (calls WhoAmI)
   mission    author, validate, render, submit gibson missions
@@ -66,6 +67,7 @@ handshake (ADR-0045). The same flow serves every component kind.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--capability` | stringArray | — | Session capability to grant in the credential ceiling; repeatable. Reserved names: mission:originate (start its own mission), mission:delegate |
 | `--description` | string | — | Human-readable description |
 | `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
 | `--kind` | string | `agent` | Component kind: agent \| tool \| plugin |
@@ -106,7 +108,7 @@ accepted by the daemon. This action is irreversible.
 
 ### `gibson component`
 
-Scaffold, validate, register, and run Gibson components (agent | tool | plugin)
+Scaffold, validate, register, and run Gibson components (agent | tool | plugin | connector)
 
 ```text
 component — kind-aware tooling for the Gibson developer workflow.
@@ -189,60 +191,53 @@ Examples:
 
 #### `gibson component init`
 
-Scaffold a new component directory (agent | tool | plugin)
+Scaffold a new component directory (agent | tool | plugin | connector)
 
 ```text
 init scaffolds a new Gibson component directory from embedded
 templates. The kind selects which template set to render and what file
 shape the new directory has:
 
-  agent:  component.yaml + main.go (sdk.NewAgent + sdk.ServeAgent) +
-          go.mod + Makefile + Dockerfile + README + AGENTS.md +
-          CLAUDE.md + prompts/ + .claude/settings.json
+  agent:      component.yaml + main.go (sdk.NewAgent + sdk.ServeAgent) +
+              go.mod + Makefile + Dockerfile + README + AGENTS.md +
+              CLAUDE.md + prompts/ + .claude/settings.json
 
-  tool:   like agent, plus api/proto/gibson/tools/<pkg>/v1/<pkg>.proto with
-          field 100 = gibson.graphrag.v1.DiscoveryResult, buf.yaml,
-          buf.gen.yaml, and proto/vendor/ for the SDK protos
+  tool:       like agent, plus api/proto/gibson/tools/<pkg>/v1/<pkg>.proto
+              with field 100 = gibson.graphrag.v1.DiscoveryResult, buf.yaml,
+              buf.gen.yaml, and proto/vendor/ for the SDK protos
 
-  plugin: plugin.yaml manifest + main.go (plugin.Serve + Echo handler)
-          + .proto + Makefile + Dockerfile + README + AGENTS.md +
-          CLAUDE.md + prompts/ + .claude/settings.json
+  plugin:     Go-first (ADR-0065 R4). plugin.yaml manifest + handler.go
+              (plugin.Serve + plugin.WithHandler, typed Go request/response
+              structs — no .proto) + a hermetic handler_test.go with a
+              committed cassette under testdata/ + helm/values.yaml +
+              go.mod + Makefile + Dockerfile + README + AGENTS.md +
+              CLAUDE.md + prompts/ + .claude/settings.json
+
+  connector:  Declarative (ADR-0065 R6). connector.yaml manifest (the
+              integration IS the manifest — no Go code) + a hermetic
+              schema-validation smoke test (connector_test.go) + go.mod +
+              README + AGENTS.md + CLAUDE.md + .claude/settings.json
 
 The name must match ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ (DNS-label style).
 
---with-secret is plugin-only. agent and tool kinds do not declare
-broker secrets.
+--with-secret is plugin-only. agent, tool, and connector kinds do not
+declare broker secrets.
 
 Examples:
   gibson component init my-agent --kind agent
   gibson component init my-scanner --kind tool
   gibson component init my-plugin --kind plugin --with-secret cred:api_key=startup:live
   gibson component init my-plugin --kind plugin --dir ~/projects --force
-
-A connector is a kind: plugin component whose runtime is mcp-bridge — it fronts
-a vendor MCP server and is manifest-only (no Go code). Scaffold one with
---runtime mcp-bridge (replaces the retired "gibson connector init"):
-  gibson component init github --kind plugin --runtime mcp-bridge \
-    --command npx --arg=-y --arg=@modelcontextprotocol/server-github \
-    --secret cred:github_token=GITHUB_PERSONAL_ACCESS_TOKEN
-  gibson component init internal-api --kind plugin --runtime mcp-bridge \
-    --transport http --endpoint https://mcp.example.com/mcp
+  gibson component init gitlab --kind connector
 ```
 
 **Flags**
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--arg` | stringArray | — | mcp-bridge stdio: argument passed to --command (repeatable, in order) |
-| `--command` | string | — | mcp-bridge stdio: executable that runs the vendor MCP server (e.g. npx, uvx) |
-| `--description` | string | — | mcp-bridge: human-readable connector description |
 | `-d, --dir` | string | — | destination directory (default: current directory) |
-| `--endpoint` | string | — | mcp-bridge http: base URL of the running vendor MCP server |
 | `--force` | bool | — | overwrite existing files |
-| `--kind` | string | — | component kind: agent \| tool \| plugin (required) |
-| `--runtime` | string | — | plugin runtime: process (default) \| mcp-bridge (a connector fronting a vendor MCP server) |
-| `--secret` | stringArray | — | mcp-bridge: secret mapping &lt;broker-name>=&lt;ENV_VAR> (repeatable) |
-| `--transport` | string | `stdio` | mcp-bridge: stdio \| http |
+| `--kind` | string | — | component kind: agent \| tool \| plugin \| connector (required) |
 | `--with-secret` | stringArray | — | plugin-only: declare a secret name=scope:rotation (repeatable) |
 
 #### `gibson component register`
@@ -354,6 +349,99 @@ Examples:
 |---|---|---|---|
 | `-d, --dir` | string | `.` | component directory (containing component.yaml) |
 | `--kind` | string | — | override kind: agent \| tool \| plugin |
+
+### `gibson connector`
+
+Manage tenant connectors (ConnectorService)
+
+```text
+gibson connector — enable and manage connectors via
+ConnectorService on the Gibson daemon (ADR-0014 Slice 4). Pick a connector
+from the curated catalog and it becomes a running connector the operator
+reconciles onto ToolHive. You do not write YAML. Authenticated as you: run `gibson login` first.
+
+Subcommands:
+  catalog  list the curated connectors this tenant may enable
+  enable   enable a connector from the catalog by its catalog id
+  list     list the tenant's enabled connectors and their live status
+  disable  disable an enabled connector (removes the running connector)
+```
+
+#### `gibson connector catalog`
+
+List the curated connectors this tenant may enable
+
+```text
+Call ConnectorService.ListCatalog and print the curated
+connectors this tenant may enable. The set is the shipped catalog, filtered
+by the per-tenant catalog gate. Enable one with `gibson connector enable <id>`.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | RPC deadline |
+
+#### `gibson connector disable`
+
+Disable an enabled connector
+
+```text
+Call ConnectorService.DisableConnector to disable an enabled
+connector by its id. The operator cascade-removes the running connector, its
+network policy, and its credential secret. This action is destructive: it
+asks you to confirm unless you pass --yes.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | RPC deadline |
+| `--yes` | bool | — | Do not ask to confirm the disable |
+
+#### `gibson connector enable`
+
+Enable a connector from the catalog
+
+```text
+Call ConnectorService.EnableConnector for a catalog entry
+(for example `gibson connector enable gitlab`). The daemon creates
+the connector in your tenant and the operator reconciles it onto ToolHive.
+An OAuth connector comes up in the AuthorizationRequired phase until a person
+authorizes it. The enabled connector id and its initial phase are printed.
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | RPC deadline |
+
+#### `gibson connector list`
+
+List the tenant's enabled connectors and their live status
+
+```text
+Call ConnectorService.ListConnectors and print the tenant's
+enabled connectors with their live status: shape, runtime, lifecycle phase,
+the count of discovered tools, and the last error (if any).
+```
+
+**Flags**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
+| `--tenant` | string | — | Override the active tenant id for this call. |
+| `--timeout` | duration | `30s` | RPC deadline |
 
 ### `gibson docs`
 
@@ -599,6 +687,7 @@ unauthenticated path.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--detach` | bool | — | Return once the daemon has started the run and print the mission id; do not wait for the mission to finish |
 | `--dry-run` | bool | — | Print rendered JSON; do not contact the daemon |
 | `--format` | string | — | Override input format detection: cue\|yaml\|json |
 | `--gibson-url` | string | — | Override the daemon URL (defaults to the login session). |
