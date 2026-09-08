@@ -657,8 +657,9 @@ definition but not across definitions.
 ## Authoring loop
 
 1. **Scaffold.** `gibson mission new --template webapp-scan
-   missions/scan.yaml`. Templates ship with the ADK. See
-   `opensource/adk/templates/`.
+   missions/scan.yaml`. Templates ship with the ADK. See the
+   [`templates/` directory](https://github.com/zeroroot-ai/adk/tree/main/templates)
+   in the adk repository.
 2. **Edit.** Pick a node type per the [per-NodeType](#per-nodetype-config)
    examples. Wire dependencies via `edges` and `dependencies`.
 3. **Validate.** `gibson mission validate missions/scan.yaml`. Repeat
