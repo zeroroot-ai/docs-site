@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.6](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.5...docs-site-v0.6.6) (2026-09-08)
+
+
+### Documentation
+
+* link the adk templates directory, not a workstation path ([#18](https://github.com/zeroroot-ai/docs-site/issues/18)) ([34f6e20](https://github.com/zeroroot-ai/docs-site/commit/34f6e20d8c49c337f12354454ba0cab2ca08cadd))
+
 ## [0.6.5](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.4...docs-site-v0.6.5) (2026-09-07)
 
 
