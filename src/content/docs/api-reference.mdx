@@ -1396,7 +1396,7 @@ for sandboxed tools. Plugin/agent entries leave those fields zero.
 | `input_schema_json` | 15 | `bytes` | input_schema_json is the JSON Schema document describing the tool's typed arguments (fed to the orchestrator LLM for tool_use selection). |
 | `output_proto_type` | 16 | `string` | output_proto_type is the fully-qualified proto message name the tool's response conforms to, e.g. "gibson.tool.nmap.v1.ExecuteResponse". |
 | `default_parse_quality` | 17 | `ParseQuality` | default_parse_quality advertises how richly the runner's parser will populate the response's field-100 DiscoveryResult for this tool. |
-| `content_trust` | 18 | `ContentTrust` | content_trust classifies the trust level of input data this component processes at call-time. Consumed by the daemon's dispatch policy gate together with `dispatch_mode` (see `ContentTrust` doc above). The default zero (CONTENT_TRUST_UNSPECIFIED) is treated as TRUSTED at gate-evaluation time for backward compatibility with descriptors registered before this field existed. NOTE: field 100 is reserved platform-wide for `gibson.graphrag.DiscoveryResult` on tool response messages (see `enterprise/docs/ARCHITECTURE.md`); do not assign new fields >= 100 on any component message without coordination. |
+| `content_trust` | 18 | `ContentTrust` | content_trust classifies the trust level of input data this component processes at call-time. Consumed by the daemon's dispatch policy gate together with `dispatch_mode` (see `ContentTrust` doc above). The default zero (CONTENT_TRUST_UNSPECIFIED) is treated as TRUSTED at gate-evaluation time for backward compatibility with descriptors registered before this field existed. NOTE: field 100 is reserved platform-wide for `gibson.graphrag.DiscoveryResult` on tool response messages (see `api/proto/DISCOVERY_RESULT.md`); do not assign new fields >= 100 on any component message without coordination. |
 
 #### `ComponentError`
 
@@ -8740,7 +8740,7 @@ Tool -> Client messages for streaming
 #### `ComplianceMapping`
 
 ComplianceMapping links a Finding to a compliance framework control.
-See core/sdk/finding/compliance_mapping.go for the author-side Go type.
+See finding/compliance_mapping.go for the author-side Go type.
 
 | Field | # | Type | Description |
 |---|---|---|---|
