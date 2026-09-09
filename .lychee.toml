@@ -1,0 +1,29 @@
+# Caller additions to the org link policy in
+# zeroroot-ai/.github/actions/link-check/lychee.toml. lychee merges repeated
+# --config flags, so this file ADDS to that policy and never replaces it.
+
+# Root-relative site routes. `/docs/rbac` is a fumadocs route, not a path on
+# disk: the page behind it is src/content/docs/rbac.mdx. Without a root
+# directory lychee resolves the route against the repository root, finds
+# nothing and reports all 200 of them as unresolvable. These two keys teach it
+# the mapping, so every route and every `#anchor` is checked for real.
+# The path is relative to the tree being checked, which is what keeps it
+# working on a runner and on a workstation alike.
+root_dir = "src/content"
+fallback_extensions = ["mdx", "md"]
+# A section folder renders its index.mdx at the folder's own route, so
+# `/docs/missions` is src/content/docs/missions/index.mdx. Name the index file
+# and lychee reads the headings in it, which is what makes `/docs/missions#node-types`
+# checkable rather than merely a directory that exists.
+index_files = ["index.mdx"]
+
+exclude = [
+  # The platform's own service hosts. api.zeroroot.ai is the value a customer
+  # passes to `gibson init --gibson-url`, and app.zeroroot.ai is the console.
+  # The estate that owns both DNS records is torn down until launch, so both
+  # names return NXDOMAIN today. They appear here as example values in CLI
+  # help and in configuration snippets, never as a reference to a document,
+  # and cli-reference.mdx is generated from adk's CLI spec, so it cannot be
+  # hand edited. Delete this entry once the estate serves both hosts.
+  "^https?://(api|app)\\.zeroroot\\.ai",
+]

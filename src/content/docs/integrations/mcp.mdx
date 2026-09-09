@@ -17,9 +17,8 @@ regenerates it.
 The server lives in [sdk-ts](https://github.com/zeroroot-ai/sdk-ts) as the
 package `@zeroroot-ai/gibson-mcp`. It releases on the SDK train.
 
-**Not yet published.** `@zeroroot-ai/gibson-mcp` ships with epic
-[zeroroot-ai/gibson#1706](https://github.com/zeroroot-ai/gibson/issues/1706).
-Until the package is on npm, the `npx` command below does not resolve. The
+**Not yet published.** `@zeroroot-ai/gibson-mcp` is in build. Until the
+package is on npm, the `npx` command below does not resolve. The
 [Claude Code plugin](#claude-code) works today.
 
 ## Prerequisites
@@ -77,11 +76,9 @@ The plugin adds two hooks. `SessionStart` prints the ambient knowledge block.
 `SessionEnd` checkpoints the transcript to the session store. The model stays
 on your Claude login. The plugin never routes LLM traffic through Gibson.
 
-The plugin as a bundle around `@zeroroot-ai/gibson-mcp` ships with epic
-zeroroot-ai/gibson#1706, slice
-[zerocool-plugins#102](https://github.com/zeroroot-ai/zerocool-plugins/issues/102).
-Today the plugin runs a Claude-only server with the same tools, and the
-install commands above are the same.
+The plugin as a bundle around `@zeroroot-ai/gibson-mcp` is in build. Today
+the plugin runs a Claude-only server with the same tools, and the install
+commands above are the same.
 
 ## opencode
 
@@ -106,9 +103,8 @@ Without the plugin, put this in `opencode.json`:
 }
 ```
 
-The plugin loads the server from slice
-[zerocool-plugins#103](https://github.com/zeroroot-ai/zerocool-plugins/issues/103)
-on. Today the plugin registers the same tools in process.
+A later release makes the plugin load the server. Today the plugin registers
+the same tools in process.
 
 ## Cursor
 
@@ -175,9 +171,8 @@ Put this in `~/.codeium/windsurf/mcp_config.json`:
 The snippets for Cursor, Codex CLI, Gemini CLI, and Windsurf live in the
 `hosts/` directory of
 [zerocool-plugins](https://github.com/zeroroot-ai/zerocool-plugins). Each
-host with a headless mode has a CI smoke test there. That directory ships
-with epic zeroroot-ai/gibson#1706, slice
-[zerocool-plugins#104](https://github.com/zeroroot-ai/zerocool-plugins/issues/104).
+host with a headless mode has a CI smoke test there. That directory is in
+build.
 
 ## Check in
 

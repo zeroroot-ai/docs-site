@@ -41,7 +41,7 @@ any node's `dependencies` list.
 | `NODE_TYPE_CONDITION` | Branches based on a CEL expression evaluated over prior node outputs. |
 | `NODE_TYPE_PARALLEL` | Fans out to multiple sub-nodes concurrently, capped by `max_concurrency`. Sibling failures are isolated. |
 | `NODE_TYPE_JOIN` | Barrier, waits for every node in `wait_for` to complete, then merges results via `MergeStrategy`. |
-| `NODE_TYPE_JOB` | Opens a job on a bank of always-on Claude Code and runs the verify loop until the acceptance passes. Ships with epic zeroroot-ai/gibson#1706. See [Job node](/docs/missions/job-node). |
+| `NODE_TYPE_JOB` | Opens a job on a bank of always-on Claude Code and runs the verify loop until the acceptance passes. In build. See [Job node](/docs/missions/job-node). |
 
 ### Lifecycle states
 
@@ -97,7 +97,7 @@ each node type below. All node types share these node-level fields:
 | `dependencies` | string[] | Node IDs that must complete before this node executes. |
 | `timeout` | duration string | Per-node wall-clock cap (e.g. `"10m"`). |
 | `retry_policy` | RetryPolicy | Backoff + retry count, see [Retry policy](#retry-policy). |
-| `reuse_policy` | ReusePolicy | Scope and re-use across runs, see [Reuse policy](#reuse-policy). |
+| `reuse_policy` | ReusePolicy | Scope and re-use across runs, see [Reuse policy](#reuse-policy-skip--rerun--merge). |
 | `data_policy` | DataPolicy | Knowledge-graph storage + retention. |
 | `metadata` | map\<string, string\> | Per-node labels. |
 
