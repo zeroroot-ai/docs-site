@@ -2813,7 +2813,7 @@
               "name": "content_trust",
               "number": 18,
               "type": "ContentTrust",
-              "comment": "content_trust classifies the trust level of input data this component\nprocesses at call-time. Consumed by the daemon's dispatch policy gate\ntogether with `dispatch_mode` (see `ContentTrust` doc above).\n\nThe default zero (CONTENT_TRUST_UNSPECIFIED) is treated as TRUSTED at\ngate-evaluation time for backward compatibility with descriptors\nregistered before this field existed.\n\nNOTE: field 100 is reserved platform-wide for `gibson.graphrag.DiscoveryResult`\non tool response messages (see `enterprise/docs/ARCHITECTURE.md`); do not\nassign new fields >= 100 on any component message without coordination."
+              "comment": "content_trust classifies the trust level of input data this component\nprocesses at call-time. Consumed by the daemon's dispatch policy gate\ntogether with `dispatch_mode` (see `ContentTrust` doc above).\n\nThe default zero (CONTENT_TRUST_UNSPECIFIED) is treated as TRUSTED at\ngate-evaluation time for backward compatibility with descriptors\nregistered before this field existed.\n\nNOTE: field 100 is reserved platform-wide for `gibson.graphrag.DiscoveryResult`\non tool response messages (see `api/proto/DISCOVERY_RESULT.md`); do not\nassign new fields >= 100 on any component message without coordination."
             }
           ]
         },
@@ -20156,7 +20156,7 @@
       "messages": [
         {
           "name": "ComplianceMapping",
-          "comment": "ComplianceMapping links a Finding to a compliance framework control.\nSee core/sdk/finding/compliance_mapping.go for the author-side Go type.",
+          "comment": "ComplianceMapping links a Finding to a compliance framework control.\nSee finding/compliance_mapping.go for the author-side Go type.",
           "fields": [
             {
               "name": "framework",
