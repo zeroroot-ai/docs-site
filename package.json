@@ -1,7 +1,7 @@
 {
   "name": "@zeroroot/docs-site",
   "packageManager": "pnpm@12.3.4",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "private": true,
   "license": "Elastic-2.0",
   "description": "ZeroRoot platform documentation site",
