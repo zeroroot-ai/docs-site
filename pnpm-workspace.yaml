@@ -1,3 +1,5 @@
+allowBuilds:
+  esbuild: set this to true or false
 # pnpm 11+ quarantines any package published in the last 24h
 # (minimumReleaseAge). That protects against a compromised third-party
 # publish being pulled in before anyone notices, which is not the risk
@@ -10,3 +12,25 @@
 # on every brand release.
 minimumReleaseAgeExclude:
   - '@zeroroot-ai/*'
+
+# Two transitive packages carry advisories their parents have not bumped past
+# (docs-site#24 alert 12, Scorecard VulnerabilitiesID):
+#   js-yaml 4.3.0            GHSA-2883-xcg3-v3hh  high   fixed 4.3.2
+#     maxTotalMergeKeys does not limit CPU use for empty merge sources.
+#     Held at 4.x by fumadocs-mdx, so a plain update cannot lift it.
+#   baseline-browser-mapping GHSA-w5vr-8v7q-w6rv  medium fixed 2.11.0
+#     process termination on invalid input.
+#
+# js-yaml is keyed to the 4 major on purpose: the tree also carries a 5.x
+# copy, and 5.x was never in the advisory's range.
+#
+# baseline-browser-mapping was ALREADY past the fix in this lockfile (2.11.21)
+# and was not in package-lock.json (2.10.41). It is here as a floor, so the
+# two resolvers cannot drift back apart across it.
+#
+# Drop each entry once the parent ships a version at or past the fix — an
+# override that is no longer doing anything is an override that hides the
+# next one.
+overrides:
+  js-yaml@4: 4.3.2
+  baseline-browser-mapping: ^2.11.0

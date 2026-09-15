@@ -43,5 +43,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/zeroroot-ai/docs-site.git"
+  },
+  "overrides": {
+    "js-yaml@4": "4.3.2",
+    "baseline-browser-mapping": "^2.11.0"
   }
 }
