@@ -1,0 +1,66 @@
+{
+  "note": "The spdx field of every repo is read from that repository's LICENSE file on GitHub by scripts/regen-licensing.mjs. Never hand-edit it. Run `pnpm regen:licensing` instead. The what field is hand-written.",
+  "org": "zeroroot-ai",
+  "repos": [
+    {
+      "name": "sdk",
+      "spdx": "Apache-2.0",
+      "what": "Go SDK — agent, tool, and plugin contracts, the harness API"
+    },
+    {
+      "name": "adk",
+      "spdx": "Apache-2.0",
+      "what": "The `gibson` CLI — scaffold, build, validate, enrol, submit missions"
+    },
+    {
+      "name": "setec",
+      "spdx": "Apache-2.0",
+      "what": "Kubernetes operator for Firecracker microVMs via Kata. Useful standalone"
+    },
+    {
+      "name": "ast-checks",
+      "spdx": "Apache-2.0",
+      "what": "Static checks the SDK depends on"
+    },
+    {
+      "name": "charts",
+      "spdx": "Apache-2.0",
+      "what": "The Helm charts you install the platform with"
+    },
+    {
+      "name": "gibson",
+      "spdx": "Elastic-2.0",
+      "what": "The control plane"
+    },
+    {
+      "name": "dashboard",
+      "spdx": "Elastic-2.0",
+      "what": "The web interface"
+    },
+    {
+      "name": "gibson-executor",
+      "spdx": "Elastic-2.0",
+      "what": "One microVM image, one binary, parsers for common security and ops tools"
+    },
+    {
+      "name": "sdk-ts",
+      "spdx": "Elastic-2.0",
+      "what": "TypeScript SDK"
+    },
+    {
+      "name": "zerocool-plugins",
+      "spdx": "Elastic-2.0",
+      "what": "opencode plugins for running a coding agent under Gibson's controls"
+    },
+    {
+      "name": "docs-site",
+      "spdx": "Elastic-2.0",
+      "what": "This documentation"
+    },
+    {
+      "name": "zitadel-login",
+      "spdx": "MIT",
+      "what": "A fork of the ZITADEL login application. A fork keeps its upstream license"
+    }
+  ]
+}
