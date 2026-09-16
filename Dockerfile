@@ -38,6 +38,10 @@ COPY --chmod=755 docker/40-substitute-origins.sh /docker-entrypoint.d/40-substit
 # /etc/nginx/templates/*.template, which is what substitutes ${NGINX_PORT}
 # in nginx.conf. Copying to conf.d/ would ship the literal directive.
 COPY nginx.conf /etc/nginx/templates/default.conf.template
+# The Elastic License 2.0 requires the notice to travel with a
+# distribution, and a published image is one. /licenses is the OCI
+# convention, and this is the last COPY so it does not bust the cache.
+COPY LICENSE /licenses/LICENSE
 ENV NGINX_PORT=8080
 EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]
