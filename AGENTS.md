@@ -4,7 +4,7 @@ See [zeroroot-ai/.github AGENTS.md](https://github.com/zeroroot-ai/.github/blob/
 
 ## This repo
 
-`zeroroot-ai/docs-site` — ZeroRoot platform documentation site (Apache-2.0).
+`zeroroot-ai/docs-site` — ZeroRoot platform documentation site (Elastic-2.0).
 
 Framework: Next.js 15 + Fumadocs. Produces a static export served by nginx.
 Image: `ghcr.io/zeroroot-ai/docs-site` (multi-stage, non-root nginx).
