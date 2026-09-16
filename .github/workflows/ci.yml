@@ -41,45 +41,17 @@ jobs:
 
       - run: pnpm build
 
-  docker:
+  smoke:
     runs-on: ubuntu-latest
     needs: build
     permissions:
       contents: read
-      packages: write
-    # Runs on pull requests too, building without pushing: a build-only,
-    # main-only job is how the #23 EACCES crashloop shipped — the artifact
-    # was never run before it hit the cluster (same lesson as www's job).
+    # Runs on pull requests too. A build-only, main-only job is how the #23
+    # EACCES crashloop shipped: the artifact was never run before it hit the
+    # cluster (same lesson as www's job). This job builds the image locally
+    # and boots it. The publish is the `image` job below.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # The GitHub API answers NOASSERTION for any license it does not
-      # recognize as OSI, and Elastic License 2.0 is not one. The org action
-      # classifies the LICENSE text instead. This repo has no
-      # docker/metadata-action step, so the label goes straight to
-      # build-push-action (.github#80).
-      - id: license
-        uses: zeroroot-ai/.github/actions/spdx-from-license@625c0b92ef329bfe40f11f639ee6136c8706538b # main, 2026-09-16: pin the org action (.github#66)
-
-      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
-        with:
-          context: .
-          labels: |
-            org.opencontainers.image.licenses=${{ steps.license.outputs.spdx }}
-            org.opencontainers.image.title=docs-site
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          # Push only from main; a pull request proves the image builds and
-          # runs (smoke below), and a fork PR cannot publish to the registry.
-          push: ${{ github.ref == 'refs/heads/main' }}
-          tags: |
-            ghcr.io/zeroroot-ai/docs-site:${{ github.sha }}
-            ghcr.io/zeroroot-ai/docs-site:main
 
       # Boot the image exactly as the chart does (uid 101 by base USER) with
       # substitution env and assert a page whose functional links were
@@ -104,3 +76,33 @@ jobs:
             || { echo "FAIL: the image carries no license text"; exit 1; }
           echo "smoke OK: substituted origins served, license text present"
 
+
+  image:
+    needs: [build, smoke]
+    # THE SHARED BUILD (.github#81). This job used to call
+    # docker/build-push-action itself, with a hand-rolled licence label and
+    # two hand-written tags, and produced no SBOM, no cosign attestation, no
+    # SLSA provenance and no Trivy scan before the push. A fix in the shared
+    # workflow reached every other repo and not this one.
+    #
+    # The shared workflow builds on every event and pushes on everything
+    # except pull_request, so a PR still proves the Dockerfile builds and
+    # passes Trivy, and a fork PR cannot publish.
+    #
+    # Tag shape, before -> after: `:<40-char sha>` becomes `:sha-<7>`;
+    # `:main` stays; `:latest` is added on main. The chart pins this image
+    # by digest, so no consumer reads either tag.
+    uses: zeroroot-ai/.github/.github/workflows/reusable-image-build.yml@3d1a2b1266f47a68e410988bed7a63efa9dce12b # main, 2026-09-16: pin this repo's own actions to v0.2.0 (.github#88)
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+      actions: read
+    with:
+      component_name: docs-site
+      component_path: .
+      dockerfile_path: Dockerfile
+      image_name: ghcr.io/zeroroot-ai/docs-site
+      tag_pattern: docs-site/v(.*)
