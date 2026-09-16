@@ -49,9 +49,14 @@ export const DISPLAY = {
   "BUSL-1.1": "Business Source License 1.1",
 };
 
-/** Prepare a value for a Markdown table cell. The pipe would start a column. */
+/**
+ * Prepare a value for a Markdown table cell. The pipe would otherwise start a
+ * new column. The backslash is escaped FIRST, because it is the escape
+ * character itself: escaping the pipe first would turn a literal `\` in the
+ * input into an escape for the pipe that follows it (js/incomplete-sanitization).
+ */
 function cell(s) {
-  return s.replace(/\|/g, "\\|");
+  return s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 export function renderLicenseTable(spec) {
