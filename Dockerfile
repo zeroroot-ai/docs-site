@@ -17,7 +17,7 @@ RUN npm run build
 #   [emerg] bind() to 0.0.0.0:80 failed (13: Permission denied)
 # and the docs vhost answered 503. The unprivileged image is built for exactly
 # this: it owns its own cache/run paths and defaults to :8080.
-FROM nginxinc/nginx-unprivileged:alpine@sha256:2ddec616f1cb58bcac057aa388f28cb81e35137641ef4226d321714499329bd1 AS runner
+FROM nginxinc/nginx-unprivileged:alpine@sha256:19c132c9ab02d3b783f478743dafc7a7f42e27aa7d2bdcbec1bb1128ca8f2a07 AS runner
 # Recreate the html tree owned by the runtime uid: the base image ships
 # /usr/share/nginx/html owned by root (with a stock 50x.html), and
 # 40-substitute-origins.sh sed-edits in place as uid 101 — sed's temp file
