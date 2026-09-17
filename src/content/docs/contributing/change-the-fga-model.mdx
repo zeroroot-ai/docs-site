@@ -49,9 +49,9 @@ Read [Add a component kind](/docs/contributing/add-a-component-kind) first.
 
 The `gibson-fga-init` Job applies the model on every helm install/upgrade.
 `cmd/gen-fga-model-json` generates the JSON the Job loads from `model.fga`.
-Work is under way to move the delivery path to `gibson dump-fga-model`
-(gibson#1544). There, the init Job seeds straight from the daemon image, and
-no vendored copy exists. Until that lands fully, confirm the chart's model
+Work is under way to move the delivery path to `gibson dump-fga-model`.
+There, the init Job seeds straight from the daemon image, and no vendored
+copy exists. Until that lands fully, confirm the chart's model
 artifact regenerates with your change. A model edit that never reaches the
 cluster fails at login with `relation not found`. This has happened.
 
