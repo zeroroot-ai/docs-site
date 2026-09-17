@@ -73,7 +73,7 @@ This is the machine-generated reference for the Gibson SDK proto surface — the
 | `mission_run_id` | 9 | `string` | Mission run ID - unique identifier for this specific mission execution. Created by MissionGraphManager.CreateMissionRunNode at mission start. Used for mission-scoped GraphRAG storage. |
 | `agent_run_id` | 10 | `string` | Agent run ID - unique identifier for this specific agent execution. Used for DISCOVERED relationships and provenance tracking. |
 | `run_number` | 11 | `int32` | Run number - sequential number for this mission (1, 2, 3...). Used for mission memory queries and historical comparisons. |
-| `job_id` | 12 | `string` | job_id names the job this execution serves (gibson#1706). A one-shot dispatch and a bank job then share one result path. Empty for a dispatch that opens no job. |
+| `job_id` | 12 | `string` | job_id names the job this execution serves. A one-shot dispatch and a bank job then share one result path. Empty for a dispatch that opens no job. |
 
 #### `ExecuteResponse`
 
@@ -81,7 +81,7 @@ This is the machine-generated reference for the Gibson SDK proto surface — the
 |---|---|---|---|
 | `result` | 1 | `gibson.types.v1.Result` | — |
 | `error` | 2 | `gibson.common.v1.Error` | — |
-| `deliverables` | 3 | `repeated gibson.job.v1.Deliverable` | deliverables lists what left the sandbox for this execution: a pushed branch, an opened merge request (gibson#1706). Empty when nothing left. |
+| `deliverables` | 3 | `repeated gibson.job.v1.Deliverable` | deliverables lists what left the sandbox for this execution: a pushed branch, an opened merge request. Empty when nothing left. |
 | `claude_session_id` | 4 | `string` | claude_session_id is the coding-agent session that ran this execution, so a later turn resumes the same conversation. Empty for an agent that holds no session. |
 
 #### `GetDescriptorRequest`
@@ -208,7 +208,7 @@ CreateAgentIdentityRequest is the input to AgentIdentityService.CreateAgentIdent
 | `kind` | 2 | `PrincipalKind` | kind must not be UNSPECIFIED. |
 | `description` | 3 | `string` | description is optional, max 256 chars. |
 | `component_grants` | 4 | `repeated ComponentGrant` | component_grants is an optional list of FGA capability grants to apply at creation. |
-| `capability_ceiling` | 5 | `repeated string` | capability_ceiling names the session capabilities the enrolling admin grants this identity, minted into its bootstrap credential's ceiling (ADR-0045). Only the reserved names are accepted: "mission:originate" (start a mission of its own, the interactive coding-agent case, gibson#1593 decision 9) and "mission:delegate". Empty means neither. |
+| `capability_ceiling` | 5 | `repeated string` | capability_ceiling names the session capabilities the enrolling admin grants this identity, minted into its bootstrap credential's ceiling (ADR-0045). Only the reserved names are accepted: "mission:originate" (start a mission of its own, the interactive coding-agent case) and "mission:delegate". Empty means neither. |
 
 #### `CreateAgentIdentityResponse`
 
@@ -275,7 +275,7 @@ PrincipalKind identifies the type of machine principal being provisioned.
 ## Package `gibson.bank.v1`
 
 Package gibson.bank.v1 declares banks of always-on coding agents and their
-members (gibson#1706, ADR-0017).
+members (ADR-0017).
 
 A bank is a declarative, daemon-reconciled pool of always-on Claude Code
 instances. The daemon keeps desired_count members running in sandboxes,
@@ -646,13 +646,13 @@ in the internal platform-sdk. Customer agent code branching on
 budget denial parses BudgetExceeded directly out of the gRPC status
 detail without needing the admin service descriptor.
 
-This mirrors the sdk#103 pattern that did the same separation for
+This mirrors the pattern that did the same separation for
 gibson.capability.v1.CapabilityGrantInfo (READ side in OSS) vs
 gibson.admin.v1.GrantsAdminService (WRITE side in platform-sdk).
 
 Spec: llm-user-attribution-governance (Requirement 3, READ-side
  wire contract); two-surface platform contract
- (ADR-0025 / ADR-0030, sdk#106).
+ (ADR-0025 / ADR-0030).
 
 ### Messages
 
@@ -663,9 +663,8 @@ codes.ResourceExhausted gRPC status when an LLM call is denied for
 budget reasons. Consumers unmarshal via SDK helper IsBudgetExceeded.
 
 Field numbers + tag names are wire-identical to the original
-definition in gibson.budget.v1.BudgetExceeded; see sdk#106 for the
-relocation rationale. Customer code branching on budget denial
-continues to receive the same on-wire bytes.
+definition in gibson.budget.v1.BudgetExceeded. Customer code branching
+on budget denial continues to receive the same on-wire bytes.
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -684,7 +683,7 @@ BudgetScope identifies the subject class a budget applies to. Tenant is
 the rollup ceiling; user and team are subdivisions within a tenant.
 
 Field numbers + enum-value names are wire-identical to the original
-definition in gibson.budget.v1; see sdk#106 for the relocation rationale.
+definition in gibson.budget.v1.
 
 | Value | # | Description |
 |---|---|---|
@@ -715,7 +714,7 @@ right now" UI without needing the admin service descriptor.
 Spec: two-surface platform contract (ADR-0001, forthcoming);
  component-bootstrap-e2e Requirement 10 (read side);
  secrets-tenant-lifecycle Requirement 8.1 (write side, moved
- to platform-sdk under slice #108).
+ to platform-sdk).
 
 ### Messages
 
@@ -819,7 +818,7 @@ Metadata contains labels and annotations for resources
 
 Principal names who acts: a person, the tenant, a component run, or a
 platform service. Banks record their owner as a Principal. Jobs record who
-opened them and who sent each input as a Principal (gibson#1706).
+opened them and who sent each input as a Principal.
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -1706,7 +1705,7 @@ HeartbeatRequest is the periodic health pulse sent by a registered component.
 | `instance_id` | 1 | `string` | — |
 | `health_status` | 2 | `string` | health_status is the component's self-reported health: "healthy", "degraded", or "unhealthy". |
 | `health_message` | 3 | `string` | health_message provides optional human-readable detail about the health status. |
-| `member` | 4 | `gibson.bank.v1.MemberStatus` | member is the bank member status when this instance is a member of a bank (gibson#1706): busy or not busy, how many jobs it holds, which ones, and the coding-agent version it runs. The daemon routes a queued job to a member that reports a free slot. Absent for a component that is not a bank member. health_status and health_message stay: they report whether the process is well, not whether it is busy. |
+| `member` | 4 | `gibson.bank.v1.MemberStatus` | member is the bank member status when this instance is a member of a bank: busy or not busy, how many jobs it holds, which ones, and the coding-agent version it runs. The daemon routes a queued job to a member that reports a free slot. Absent for a component that is not a bank member. health_status and health_message stay: they report whether the process is well, not whether it is busy. |
 
 #### `HeartbeatResponse`
 
@@ -2318,7 +2317,7 @@ ListMissionDefinitions when the caller knows the definition name and
 needs every author-facing field (workspace, constraints, per-node
 retry/data/reuse policies). Returns codes.NotFound when the name is
 not registered.
-Spec: mission-author-experience M5 (gibson#134).
+Spec: mission-author-experience M5.
 
 ##### `GetMissionGraph`
 
@@ -2331,7 +2330,7 @@ auto-layout from the mission DAG, then overlays any saved layout from the
 mission layout store (SaveMissionLayout) so hand-arranged positions win.
 This keeps the dashboard a pure renderer — it never re-derives topology.
 Presentation only: nothing here affects mission execution.
-Spec: MissionGraph epic (sdk#278).
+Spec: MissionGraph epic.
 
 ##### `GetMissionHistory`
 
@@ -2348,7 +2347,7 @@ GetMissionLayout returns the saved diagram layout (per-node positions +
 viewport) for a mission definition, or an empty layout when none has been
 saved. The layout store is separate from the mission definition record —
 the mission work-schema carries no presentation state. Keyed by
-mission_definition_id. Spec: MissionGraph epic (sdk#278).
+mission_definition_id. Spec: MissionGraph epic.
 
 ##### `GetMyPermissions`
 
@@ -2501,7 +2500,7 @@ definition into the layout store. Layout-only: it never mutates the mission
 definition, its nodes/edges/configs, or its cue_source. The optional
 expected_version enables optimistic concurrency — a stale write (the layout
 changed underneath) is rejected rather than clobbering. Keyed by
-mission_definition_id. Spec: MissionGraph epic (sdk#278).
+mission_definition_id. Spec: MissionGraph epic.
 
 ##### `ShowComponent`
 
@@ -2553,7 +2552,6 @@ definition. The name field of the embedded definition is the lookup key.
 All other fields replace the stored definition; the server-assigned ID and
 original timestamps are preserved. Returns codes.NotFound if no definition
 with that name exists.
-Spec: gibson#437.
 
 ##### `UpdateTarget`
 
@@ -2680,7 +2678,7 @@ Spec: mission-checkpointing R9.
 | `checkpoint_id` | 1 | `string` | checkpoint_id is the unique identifier of the source checkpoint. |
 | `saved_at_unix_seconds` | 2 | `int64` | saved_at_unix_seconds is when the checkpoint was captured (Unix epoch seconds). |
 | `super_step_number` | 3 | `int32` | super_step_number identifies which super-step boundary this checkpoint captured (1-based; 0 if not super-step-aligned). |
-| `cadence_reason` | 4 | `string` | cadence_reason is a free-form classifier for why the checkpoint was taken. Recognised values per R9.1: "super_step", "parallel_group_complete", "approval_required", "graceful_shutdown". Promoted to enum at v1.0.0. |
+| `cadence_reason` | 4 | `string` | cadence_reason is a free-form classifier for why the checkpoint was taken. Recognized values per R9.1: "super_step", "parallel_group_complete", "approval_required", "graceful_shutdown". Promoted to enum at v1.0.0. |
 | `size_bytes` | 5 | `int64` | size_bytes is the wire size of the checkpoint payload (advisory). |
 
 #### `CompleteMissionCUERequest`
@@ -2754,7 +2752,7 @@ Inline target / inline mission / YAML paths are no longer accepted.
 | `description` | 2 | `string` | description is the mission description |
 | `target_id` | 3 | `string` | target_id is the ID of a pre-registered target. |
 | `mission_definition_id` | 4 | `string` | mission_definition_id is the ID of a pre-registered mission definition. |
-| `constraints` | 5 | `gibson.mission.v1.MissionConstraints` | constraints defines dispatch-time execution constraints. Canonical type per ADR 0004: gibson.mission.v1.MissionConstraints is the single platform-wide shape. Precedence: dispatch-time constraints (this field) take full precedence over any constraints baked into the referenced MissionDefinition. There is NO per-field merge — if this field is set, the entire dispatch constraint set wins; any field absent from this message reverts to 0 (unlimited), not to the definition's value. To inherit the definition's constraints, leave this field unset (the zero-value message is NOT the same as "absent"). Callers that want partial overrides must read the definition's constraints first and re-supply all fields they wish to preserve. Token budget precedence for per-call caps: dispatch constraints.max_tokens_per_call > definition constraints.max_tokens_per_call > per-node *NodeConfig.max_tokens_per_call (lowest; wins if set) Spec: ADR 0004, mission-schema-canonicalization; gibson#133 (M4). |
+| `constraints` | 5 | `gibson.mission.v1.MissionConstraints` | constraints defines dispatch-time execution constraints. Canonical type per ADR 0004: gibson.mission.v1.MissionConstraints is the single platform-wide shape. Precedence: dispatch-time constraints (this field) take full precedence over any constraints baked into the referenced MissionDefinition. There is NO per-field merge — if this field is set, the entire dispatch constraint set wins; any field absent from this message reverts to 0 (unlimited), not to the definition's value. To inherit the definition's constraints, leave this field unset (the zero-value message is NOT the same as "absent"). Callers that want partial overrides must read the definition's constraints first and re-supply all fields they wish to preserve. Token budget precedence for per-call caps: dispatch constraints.max_tokens_per_call > definition constraints.max_tokens_per_call > per-node *NodeConfig.max_tokens_per_call (lowest; wins if set) Spec: ADR 0004, mission-schema-canonicalization (M4). |
 | `metadata` | 6 | `map<string, string>` | metadata provides additional mission metadata |
 | `variables` | 7 | `map<string, string>` | variables contains mission variables to override at creation time |
 | `memory_continuity` | 8 | `string` | memory_continuity defines how agent memory is shared across mission runs Valid values: "isolated" (default), "inherit", "shared" |
@@ -3527,7 +3525,7 @@ ResumeMissionRequest requests resuming a paused mission.
 |---|---|---|---|
 | `mission_id` | 1 | `string` | mission_id is the unique identifier of the mission to resume |
 | `checkpoint_id` | 2 | `string` | checkpoint_id optionally specifies a specific checkpoint to resume from If empty, resumes from the latest checkpoint |
-| `target_checkpoint_id` | 3 | `string` | Empty string = legacy resume-from-latest behaviour (backward compatible). When non-empty, the daemon rewinds the mission to the named checkpoint and resumes execution from that point. The handler additionally enforces the mission#admin FGA relation when this field is non-empty per mission-checkpointing R16.3. |
+| `target_checkpoint_id` | 3 | `string` | Empty string = legacy resume-from-latest behavior (backward compatible). When non-empty, the daemon rewinds the mission to the named checkpoint and resumes execution from that point. The handler additionally enforces the mission#admin FGA relation when this field is non-empty per mission-checkpointing R16.3. |
 
 #### `ResumeMissionResponse`
 
@@ -4539,7 +4537,7 @@ Relationship represents a connection between two nodes.
 #### `SameAsPair`
 
 SameAsPair is one [iriA, iriB] equivalence assertion in an OntologyExtension.
-Proto does not have a fixed-length array type, so the pair is modelled as a
+Proto does not have a fixed-length array type, so the pair is modeled as a
 dedicated message with two named fields to keep the wire shape stable across
 languages.
 
@@ -4634,7 +4632,7 @@ The SDK's CallbackHarness forwards all harness operations to the orchestrator vi
 
 ApplicationFindings answers the one lifecycle question the reads above
 cannot: for this Application, what is still open, and does anything
-actually run the code it is in (gibson#1669).
+actually run the code it is in.
 
 The reads above are hybrid vector-and-graph SEARCH — text or embedding, a
 node-type filter, top-k. Reachability is a TRAVERSAL: is this Package
@@ -4850,8 +4848,8 @@ recall — which defeats the point of scoping the dispatch at all.
 See zerocool-plugins ADR-0006 and docs/adr/0001-callback-knowledge-reads.md.
 
 Read-only by construction. The write half is NOT mirrored: the projector
-is the sole graph writer (ADR-0012), and sdk#451 already removed the
-generic graph-write RPC from ComponentService.
+is the sole graph writer (ADR-0012), and ComponentService no longer
+has a generic graph-write RPC.
 
 ##### `QueryPlugin`
 
@@ -5011,7 +5009,7 @@ returns RESOURCE_EXHAUSTED; a streaming variant is deferred.
 `WorldViewRequest` → `WorldViewResponse`
 
 WorldView returns the caller's server-projected slice of the tenant World
-(ADR-0012, sdk#341's read half). It is the counterpart to Observe: Observe
+(ADR-0012). It is the counterpart to Observe: Observe
 is the agent's only write, WorldView its only read.
 
 The slice is projected by the daemon from the mission record it created —
@@ -5062,7 +5060,7 @@ context that decides how much it matters.
 | `exposed` | 8 | `bool` | exposed reports that the Deployment which reaches it also exposes a Host. Only ever true when reachable is. |
 | `deployment_key` | 9 | `string` | deployment_key and image_key name the route that made it reachable, so an agent can say WHY rather than assert it. |
 | `image_key` | 10 | `string` | — |
-| `priority` | 11 | `string` | priority, priority_rule and priority_reason are what a previous triage pass decided about this Finding, written back by the agent and returned here so the next pass can read its own history (gibson#1684). Two behaviours are dark while they are empty. A triage rule that keeps the previous priority when a scoring feed is unavailable — so an outage never re-ranks a Finding on severity alone — has nothing to keep. And a pass that explains only what changed sees every decision as a change, so model cost scales with the size of the backlog rather than with what actually happened. Empty means NO PASS HAS DECIDED YET. That is a fact about the Finding, not a failure of the read, and a reader must never take it for "unimportant". The three are written by different steps — a rule table decides the priority, a model writes the reason — so losing the reason must not take the decision with it: an empty priority_reason beside a populated priority is a model that went quiet, not a Finding nobody ranked. |
+| `priority` | 11 | `string` | priority, priority_rule and priority_reason are what a previous triage pass decided about this Finding, written back by the agent and returned here so the next pass can read its own history. Two behaviors are dark while they are empty. A triage rule that keeps the previous priority when a scoring feed is unavailable — so an outage never re-ranks a Finding on severity alone — has nothing to keep. And a pass that explains only what changed sees every decision as a change, so model cost scales with the size of the backlog rather than with what actually happened. Empty means NO PASS HAS DECIDED YET. That is a fact about the Finding, not a failure of the read, and a reader must never take it for "unimportant". The three are written by different steps — a rule table decides the priority, a model writes the reason — so losing the reason must not take the decision with it: an empty priority_reason beside a populated priority is a model that went quiet, not a Finding nobody ranked. |
 | `priority_rule` | 12 | `string` | — |
 | `priority_reason` | 13 | `string` | — |
 
@@ -5279,10 +5277,10 @@ CreateMissionRequest creates a new mission from a mission definition.
 | `mission_definition_json` | 2 | `bytes` | — |
 | `target_id` | 3 | `string` | — |
 | `name` | 4 | `string` | — |
-| `constraints` | 5 | `MissionConstraints` | Deprecated: use canonical_constraints (field 8) instead. constraints uses the harness-local MissionConstraints shape which only carries max_duration_ms (int64 ms), max_tokens, max_cost, and max_findings. It will be removed in a follow-up release once all microVM consumers have migrated to canonical_constraints. See sdk#64 migration plan. |
+| `constraints` | 5 | `MissionConstraints` | Deprecated: use canonical_constraints (field 8) instead. constraints uses the harness-local MissionConstraints shape which only carries max_duration_ms (int64 ms), max_tokens, max_cost, and max_findings. It will be removed in a follow-up release once all microVM consumers have migrated to canonical_constraints. |
 | `metadata` | 6 | `map<string, gibson.common.v1.TypedValue>` | — |
 | `tags` | 7 | `repeated string` | — |
-| `canonical_constraints` | 8 | `gibson.mission.v1.MissionConstraints` | canonical_constraints carries the platform-canonical gibson.mission.v1.MissionConstraints type (sdk#47 / ADR 0004). Prefer this field over the deprecated constraints (field 5). The daemon merges canonical_constraints with any constraints baked into the mission definition (dispatch wins on conflict). Absent means no dispatch-time constraint overrides. |
+| `canonical_constraints` | 8 | `gibson.mission.v1.MissionConstraints` | canonical_constraints carries the platform-canonical gibson.mission.v1.MissionConstraints type (ADR 0004). Prefer this field over the deprecated constraints (field 5). The daemon merges canonical_constraints with any constraints baked into the mission definition (dispatch wins on conflict). Absent means no dispatch-time constraint overrides. |
 | `catalog_mission` | 9 | `string` | catalog_mission names a mission definition checked into the platform's mission catalog, to be originated instead of a caller-supplied graph (ADR-0018: the checked-in definition is authoritative). This is a second *input* to the one mission-creation route, deliberately not a second RPC. A dedicated RPC would carry its own authorization surface, so the per-tenant gate and the ADR-0063 origination rule ("a component originates only from inside a live parent") would be enforced in two places — which is where two enforcement paths drift apart. Exactly one of mission_definition_json (field 2) or catalog_mission must be set. Both is InvalidArgument; neither is InvalidArgument. |
 | `catalog_params` | 10 | `map<string, string>` | catalog_params carries the parameters the named catalog mission declares, keyed by the definition's own parameter names. The map is CLOSED: the daemon refuses an unrecognised key rather than ignoring it. Silently dropping a key a caller sent would let that caller believe a parameter bound when it did not — which is what keeps the runtime target out of this map honest. The target continues to bind from target_id (field 3) alone, so a scan can only ever run against a target the tenant registered. Every missing parameter is reported at once rather than one render at a time. Only meaningful when catalog_mission is set. |
 
@@ -5324,7 +5322,7 @@ CredentialObservation reports a discovered credential (identity: secret hash).
 
 DelegateToAgentRequest dispatches a task to another agent. The target
 selector says WHERE the task runs. Absent means an ephemeral launch, which
-is the behavior every caller had before banks existed (gibson#1706).
+is the behavior every caller had before banks existed.
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -5922,8 +5920,7 @@ not know node ids, and must not be able to guess them.
 
 LifecycleEntityObservation reports a sighting of a typed application-lifecycle
 entity: an Application, Repository, Image, Package, Deployment, Vulnerability,
-MergeRequest, Pipeline or Control, and the edges it was seen to have
-(gibson#1656).
+MergeRequest, Pipeline or Control, and the edges it was seen to have.
 
 Admission is the Taxonomy's decision, not this message's. The daemon puts
 label and every edge type to the global Taxonomy; an admitted shape becomes a
@@ -6012,8 +6009,8 @@ ListMissionsResponse returns matching missions.
 #### `MemoryObservation`
 
 MemoryObservation reports a fact the agent wants to keep across runs, in the
-agent's own words. It is the memory write for coding agents (gibson#1593,
-decision 10): a memory is a World observation, not a store of its own.
+agent's own words. It is the memory write for coding agents: a memory is
+a World observation, not a store of its own.
 
 Identity is per sighting: the Timeline event id, like every observation. The
 Taxonomy gate lands it as an `Observation` node with shape "Memory" until
@@ -6034,7 +6031,7 @@ MissionConstraints limits mission execution to prevent resource exhaustion.
 Deprecated: use gibson.mission.v1.MissionConstraints via the
 canonical_constraints field on CreateMissionRequest instead.
 This type will be removed in a follow-up release after all microVM
-consumers have migrated (see sdk#64 migration plan).
+consumers have migrated.
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -7245,9 +7242,9 @@ WhoAmIResponse carries the principal's effective grants.
 | `tenant_id` | 4 | `string` | tenant_id is the tenant the principal belongs to. |
 | `component_grants` | 5 | `repeated ComponentGrantEffective` | component_grants is one entry per component the principal can touch in any way (read, configure, or execute). Components the principal cannot touch are NOT included. |
 | `plugin_grants` | 6 | `repeated PluginGrantEffective` | plugin_grants is one entry per plugin the principal can invoke. For agent_principals this is empty by FGA model design (agents do not directly invoke plugins; tools do). |
-| `active_capability_grants` | 7 | `repeated gibson.capability.v1.CapabilityGrantInfo` | active_capability_grants is the principal's currently-issued CG-JWTs (mission-scoped) at the time of the call. Reuses the public CapabilityGrantInfo message from gibson.capability.v1 (extracted from gibson.admin.v1 in slice #108) rather than minting a parallel type. |
+| `active_capability_grants` | 7 | `repeated gibson.capability.v1.CapabilityGrantInfo` | active_capability_grants is the principal's currently-issued CG-JWTs (mission-scoped) at the time of the call. Reuses the public CapabilityGrantInfo message from gibson.capability.v1 (extracted from gibson.admin.v1) rather than minting a parallel type. |
 | `truncated` | 8 | `bool` | truncated is true when the response had to drop entries to fit within the 1000-grant safety bound documented in component-bootstrap-e2e Requirement 10.4. Callers seeing this flag should treat the listing as incomplete and surface a UI warning. |
-| `can_revoke_sessions` | 9 | `bool` | can_revoke_sessions is a COARSE capability flag: true when the principal holds a tenant/team admin role that lets it revoke the sessions of at least some members (composed from self + tenant#admin-over-member + team#admin-over-member; see RevokeUserSessions / gibson#622). It exists so admin UIs (dashboard#717) can gate "revoke sessions" button visibility without a trial-and-error RPC. It is deliberately NOT per-target: the authoritative, per-(caller,target) decision is still made inside RevokeUserSessions, which fails closed for targets the caller may not revoke. A false value means "show no revoke UI"; a true value means "this principal can revoke someone — let the RPC enforce who." |
+| `can_revoke_sessions` | 9 | `bool` | can_revoke_sessions is a COARSE capability flag: true when the principal holds a tenant/team admin role that lets it revoke the sessions of at least some members (composed from self + tenant#admin-over-member + team#admin-over-member; see RevokeUserSessions). It exists so admin UIs can gate "revoke sessions" button visibility without a trial-and-error RPC. It is deliberately NOT per-target: the authoritative, per-(caller,target) decision is still made inside RevokeUserSessions, which fails closed for targets the caller may not revoke. A false value means "show no revoke UI"; a true value means "this principal can revoke someone — let the RPC enforce who." |
 
 ### Enums
 
@@ -7281,7 +7278,7 @@ importing PrincipalKind from this package over time.
 ## Package `gibson.job.v1`
 
 Package gibson.job.v1 declares jobs, the unit of work a bank member holds
-(gibson#1706, ADR-0017).
+(ADR-0017).
 
 Every input to a member is a structured job. A chat turn is a job with
 only a goal. A job is one persistent Claude Code session with its own
@@ -7922,8 +7919,8 @@ and dispatches the configured Task.
 |---|---|---|---|
 | `agent_name` | 1 | `string` | AgentName is the name of the agent to execute |
 | `task` | 2 | `gibson.types.v1.Task` | Task is the agent task configuration |
-| `max_tokens_per_call` | 3 | `optional int32` | max_tokens_per_call is the per-node override of MissionConstraints.max_tokens_per_call for this agent node only. When present (non-nil), this value is used as the effective cap for all LLM calls made by this node, regardless of the mission-level MissionConstraints.max_tokens_per_call value. Setting this to 0 explicitly disables the cap for this node (the mission-level cap is NOT applied as a fallback when this field is explicitly set to 0). When absent (nil / proto3 optional not set), the mission-level MissionConstraints.max_tokens_per_call applies instead. 0 = inherit from mission-level (when this field is absent). Spec: mission-schema-canonicalization Requirement 5; gibson#133. |
-| `llm_slots` | 5 | `repeated LLMSlotConfig` | llm_slots pins LLM provider/model bindings per named slot for this agent node. Each entry maps a slot name to a specific provider+model. Multiple entries allow different slots to use different providers/models on the same node. Empty list → the node inherits the tenant's default provider for all slots. Absent slot entries fall through to tenant default + constraint search over the tenant's permitted providers. Empty provider or model within an entry is a valid fall-through marker: the daemon resolves it against the tenant's configured defaults. Precedence at resolution per slot: explicit binding in llm_slots > tenant default > constraint search over the tenant's permitted providers. Spec: sdk#260 (multi-slot LLM binding contract); consumer: gibson#524. |
+| `max_tokens_per_call` | 3 | `optional int32` | max_tokens_per_call is the per-node override of MissionConstraints.max_tokens_per_call for this agent node only. When present (non-nil), this value is used as the effective cap for all LLM calls made by this node, regardless of the mission-level MissionConstraints.max_tokens_per_call value. Setting this to 0 explicitly disables the cap for this node (the mission-level cap is NOT applied as a fallback when this field is explicitly set to 0). When absent (nil / proto3 optional not set), the mission-level MissionConstraints.max_tokens_per_call applies instead. 0 = inherit from mission-level (when this field is absent). Spec: mission-schema-canonicalization Requirement 5. |
+| `llm_slots` | 5 | `repeated LLMSlotConfig` | llm_slots pins LLM provider/model bindings per named slot for this agent node. Each entry maps a slot name to a specific provider+model. Multiple entries allow different slots to use different providers/models on the same node. Empty list → the node inherits the tenant's default provider for all slots. Absent slot entries fall through to tenant default + constraint search over the tenant's permitted providers. Empty provider or model within an entry is a valid fall-through marker: the daemon resolves it against the tenant's configured defaults. Precedence at resolution per slot: explicit binding in llm_slots > tenant default > constraint search over the tenant's permitted providers. Spec: multi-slot LLM binding contract. |
 
 #### `ConditionNodeConfig`
 
@@ -7940,7 +7937,7 @@ ConditionNodeConfig contains configuration for condition nodes
 
 DataPolicy defines how data is handled for a node.
 
-Deprecated: superseded by the ECS brain (gibson#851, ADR-0008). Data
+Deprecated: superseded by the ECS brain (ADR-0008). Data
 handling (reuse + scoping) is now implicit in the event-sourced World and
 scope-relative identity (ADR-0002) + ambient projection. Retained
 wire-compatibly; ignored by the engine.
@@ -7957,8 +7954,8 @@ wire-compatibly; ignored by the engine.
 
 RetryPolicy defines the retry behavior for a mission node
 JobNodeConfig contains configuration for job nodes.
-JOB = a unit of work driven on a bank of always-on coding agents
-(gibson#1706). The executor opens a job on the bank, then runs the verify
+JOB = a unit of work driven on a bank of always-on coding agents.
+The executor opens a job on the bank, then runs the verify
 loop: it dispatches the acceptance step to the declared verifier
 component, and on failure sends the verifier's report as the next input
 to the SAME job, so the agent keeps its conversation and its worktrees.
@@ -8016,7 +8013,7 @@ Semantics (zero means unlimited):
  - max_cost: 0.0 → no cost ceiling
  - max_findings: 0 → no finding count limit
 
-Spec: sdk#47 (MissionConstraints proto promotion).
+Spec: MissionConstraints proto promotion.
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -8031,7 +8028,7 @@ Spec: sdk#47 (MissionConstraints proto promotion).
 | `max_turns_per_agent` | 9 | `int32` | max_turns_per_agent caps the number of agent turns (Observe→Think→Act iterations) for any single agent node in the mission. 0 means unlimited. |
 | `allowed_techniques` | 10 | `repeated string` | allowed_techniques is the allowlist of attack technique IDs (taxonomy) that agents may use during the mission. Empty list means no allowlist (any technique may be used unless blocked). |
 | `blocked_techniques` | 11 | `repeated string` | blocked_techniques is the blocklist of attack technique IDs that agents must not use, regardless of allowed_techniques. Empty list means no blocklist. |
-| `max_tokens_per_call` | 12 | `int32` | max_tokens_per_call is the per-invocation cap on LLM tokens for any single LLM call within this mission. Applied by the daemon before every provider call; the provider never sees more than this many output tokens. Precedence cascade (highest → lowest): 1. Per-node *NodeConfig.max_tokens_per_call (when set on a specific node) 2. This field (mission-level default) 3. 0 — no cap from this mechanism When a per-node override is set it completely supersedes this field for that node (including 0, which explicitly disables the cap for that node while this field may still apply to all other nodes). This field is different from max_tokens: max_tokens is a cumulative budget for the entire mission; max_tokens_per_call is a ceiling on each individual LLM call. 0 means unlimited at this level. Spec: mission-schema-canonicalization Requirement 5. Enforced by EffectivePerCallCap (wired in M4, gibson#133). |
+| `max_tokens_per_call` | 12 | `int32` | max_tokens_per_call is the per-invocation cap on LLM tokens for any single LLM call within this mission. Applied by the daemon before every provider call; the provider never sees more than this many output tokens. Precedence cascade (highest → lowest): 1. Per-node *NodeConfig.max_tokens_per_call (when set on a specific node) 2. This field (mission-level default) 3. 0 — no cap from this mechanism When a per-node override is set it completely supersedes this field for that node (including 0, which explicitly disables the cap for that node while this field may still apply to all other nodes). This field is different from max_tokens: max_tokens is a cumulative budget for the entire mission; max_tokens_per_call is a ceiling on each individual LLM call. 0 means unlimited at this level. Spec: mission-schema-canonicalization Requirement 5. Enforced by EffectivePerCallCap (wired in M4). |
 
 #### `MissionDefinition`
 
@@ -8056,8 +8053,8 @@ CreateMissionDefinition API and referenced by mission runs.
 | `installed_at` | 13 | `google.protobuf.Timestamp` | InstalledAt is the timestamp when this mission was installed |
 | `created_at` | 14 | `google.protobuf.Timestamp` | CreatedAt is the timestamp when the mission definition was created |
 | `workspace` | 15 | `WorkspaceConfig` | Workspace configures repository cloning + workspace management for agents that need code access. Optional; missions without code interaction omit this field. Spec: mission-schema-canonicalization (mirror migration). |
-| `constraints` | 16 | `optional MissionConstraints` | Constraints declares mission-level operational limits. When present, these are the authoritative constraints for the mission DAG — they make the mission self-describing so authors do not have to supply limits out-of-band at dispatch time. The daemon merges these with any dispatch-time overrides (dispatch wins on conflict). Optional: absent means no constraints are baked into the definition. Spec: sdk#47 (MissionConstraints proto promotion). |
-| `decider_slot` | 17 | `optional LLMSlotConfig` | DeciderSlot names the mission-level LLM the brain's Decider runs on — the orchestration decision-maker, distinct from per-node agent slots (gibson#850). Only the provider+model are used (the slot name is implicitly "decider"). Absent means the brain uses the tenant's dashboard-default provider/model, so missions need not set it. |
+| `constraints` | 16 | `optional MissionConstraints` | Constraints declares mission-level operational limits. When present, these are the authoritative constraints for the mission DAG — they make the mission self-describing so authors do not have to supply limits out-of-band at dispatch time. The daemon merges these with any dispatch-time overrides (dispatch wins on conflict). Optional: absent means no constraints are baked into the definition. Spec: MissionConstraints proto promotion. |
+| `decider_slot` | 17 | `optional LLMSlotConfig` | DeciderSlot names the mission-level LLM the brain's Decider runs on — the orchestration decision-maker, distinct from per-node agent slots. Only the provider+model are used (the slot name is implicitly "decider"). Absent means the brain uses the tenant's dashboard-default provider/model, so missions need not set it. |
 
 #### `MissionDependencies`
 
@@ -8075,7 +8072,7 @@ MissionEdge represents a directed edge in the mission DAG.
 
 The graph is acyclic. A loop is never an edge. Work that repeats until it
 passes an acceptance step loops INSIDE one node: a job node runs its
-verify loop against the same job (gibson#1706), and a node's RetryPolicy
+verify loop against the same job, and a node's RetryPolicy
 retries the node itself.
 
 | Field | # | Type | Description |
@@ -8103,11 +8100,11 @@ MissionNode represents a single node in a mission DAG
 | `dependencies` | 10 | `repeated string` | Dependencies lists node IDs that must complete before this node executes |
 | `timeout` | 11 | `google.protobuf.Duration` | Timeout is the maximum execution time for this node |
 | `retry_policy` | 12 | `RetryPolicy` | RetryPolicy defines retry behavior for this node |
-| `data_policy` | 13 | `DataPolicy` | DataPolicy defines data handling policy for this node. Deprecated: data reuse + scoping are no longer node-declared. Under the ECS brain (gibson#851, ADR-0008) reuse is implicit in the event-sourced World and scoping flows from scope-relative identity (ADR-0002) + ambient projection. The field is retained wire-compatibly for old definitions but is ignored by the engine. |
+| `data_policy` | 13 | `DataPolicy` | DataPolicy defines data handling policy for this node. Deprecated: data reuse + scoping are no longer node-declared. Under the ECS brain (ADR-0008) reuse is implicit in the event-sourced World and scoping flows from scope-relative identity (ADR-0002) + ambient projection. The field is retained wire-compatibly for old definitions but is ignored by the engine. |
 | `metadata` | 14 | `map<string, string>` | Metadata contains additional custom metadata for this node |
 | `join_config` | 15 | `JoinNodeConfig` | JoinConfig for join nodes (mission-verb-noun-registry). Field number 15 because 10-14 are sibling MissionNode fields (dependencies, timeout, retry_policy, data_policy, metadata). |
-| `reuse_policy` | 16 | `ReusePolicy` | ReusePolicy declares how this node's I/O is scoped + reused across mission runs. Deprecated: superseded by the ECS brain (gibson#851, ADR-0008). Reuse is implicit in the World; scoping is via scope-relative identity (ADR-0002) + ambient projection. Retained wire-compatibly but ignored by the engine. |
-| `job_config` | 17 | `JobNodeConfig` | JobConfig for job nodes (gibson#1706). Field number 17 because 16 is the sibling reuse_policy field. |
+| `reuse_policy` | 16 | `ReusePolicy` | ReusePolicy declares how this node's I/O is scoped + reused across mission runs. Deprecated: superseded by the ECS brain (ADR-0008). Reuse is implicit in the World; scoping is via scope-relative identity (ADR-0002) + ambient projection. Retained wire-compatibly but ignored by the engine. |
+| `job_config` | 17 | `JobNodeConfig` | JobConfig for job nodes. Field number 17 because 16 is the sibling reuse_policy field. |
 
 **oneof `config`** — one of: `agent_config`, `tool_config`, `plugin_config`, `condition_config`, `parallel_config`, `join_config`, `job_config`.
 
@@ -8137,7 +8134,7 @@ method and dispatches `params` as the call payload.
 | `plugin_name` | 1 | `string` | PluginName is the name of the plugin to query |
 | `method` | 2 | `string` | Method is the plugin method to call |
 | `params` | 3 | `map<string, string>` | Params contains the method parameters |
-| `max_tokens_per_call` | 4 | `optional int32` | max_tokens_per_call is the per-node override of MissionConstraints.max_tokens_per_call for this plugin node only. Follows the same semantics as AgentNodeConfig.max_tokens_per_call: present and non-zero caps the call; present and 0 disables the cap for this node; absent means fall through to the mission-level constraint. Spec: mission-schema-canonicalization Requirement 5; gibson#133. |
+| `max_tokens_per_call` | 4 | `optional int32` | max_tokens_per_call is the per-node override of MissionConstraints.max_tokens_per_call for this plugin node only. Follows the same semantics as AgentNodeConfig.max_tokens_per_call: present and non-zero caps the call; present and 0 disables the cap for this node; absent means fall through to the mission-level constraint. Spec: mission-schema-canonicalization Requirement 5. |
 
 #### `RepositoryConfig`
 
@@ -8168,7 +8165,7 @@ directly to the SDK's workspace.RepositoryConfig type.
 ReusePolicy declares how a node's I/O is scoped + reused
 across mission runs.
 
-Deprecated: superseded by the ECS brain (gibson#851, ADR-0008). Reuse is
+Deprecated: superseded by the ECS brain (ADR-0008). Reuse is
 implicit in the event-sourced World and scoping flows from scope-relative
 identity (ADR-0002) + ambient projection, so node-declared reuse/scoping no
 longer has meaning. Retained wire-compatibly; ignored by the engine.
@@ -8190,7 +8187,7 @@ returns the tool's output as the node result.
 |---|---|---|---|
 | `tool_name` | 1 | `string` | ToolName is the name of the tool to execute |
 | `input` | 2 | `map<string, string>` | Input contains the tool input parameters |
-| `max_tokens_per_call` | 3 | `optional int32` | max_tokens_per_call is the per-node override of MissionConstraints.max_tokens_per_call for this tool node only. Follows the same semantics as AgentNodeConfig.max_tokens_per_call: present and non-zero caps the call; present and 0 disables the cap for this node; absent means fall through to the mission-level constraint. Spec: mission-schema-canonicalization Requirement 5; gibson#133. |
+| `max_tokens_per_call` | 3 | `optional int32` | max_tokens_per_call is the per-node override of MissionConstraints.max_tokens_per_call for this tool node only. Follows the same semantics as AgentNodeConfig.max_tokens_per_call: present and non-zero caps the call; present and 0 disables the cap for this node; absent means fall through to the mission-level constraint. Spec: mission-schema-canonicalization Requirement 5. |
 
 #### `WorkspaceConfig`
 
@@ -8277,7 +8274,7 @@ NodeType defines the type of mission node
 | `NODE_TYPE_CONDITION` | 4 | Condition node performs conditional branching |
 | `NODE_TYPE_PARALLEL` | 5 | Parallel node executes sub-nodes in parallel |
 | `NODE_TYPE_JOIN` | 6 | Join node waits for multiple branches to complete |
-| `NODE_TYPE_JOB` | 7 | Job node drives a job on a bank of always-on agents (gibson#1706). Its executor opens the job, runs the verify loop against the acceptance the spec declares, and closes the job with a verdict. |
+| `NODE_TYPE_JOB` | 7 | Job node drives a job on a bank of always-on agents. Its executor opens the job, runs the verify loop against the acceptance the spec declares, and closes the job with a verdict. |
 
 ## Package `gibson.plugin.v1`
 
@@ -8587,7 +8584,7 @@ Package gibson.tool.v1 also exposes the MessageOptions extension
 `is_tool_response` so proto authors can mark a message as a tool
 response container. Today this annotation is consumed by the SDK's
 field-100 contract test (see graphrag/field_100_contract_test.go) to
-scope its assertion to messages that actually need to honour the
+scope its assertion to messages that actually need to honor the
 gibson.graphrag.v1.DiscoveryResult slot at field 100.
 
 Spec: tdd-coverage-gibson-sdk (Epic #6) — replaces the previous
@@ -8892,7 +8889,7 @@ because the daemon reads them before it mints the task grant.
 | `context` | 3 | `map<string, gibson.common.v1.TypedValue>` | — |
 | `constraints` | 4 | `TaskConstraints` | — |
 | `metadata` | 5 | `map<string, gibson.common.v1.TypedValue>` | — |
-| `job` | 6 | `gibson.job.v1.JobSpec` | job names the typed resources this task needs and how it is judged (gibson#1706). It is set when the task opens or continues a job on a bank member. goal stays the goal; the spec's own goal is ignored on a dispatched task. Absent on a task that needs no repository, no credential and no acceptance step. |
+| `job` | 6 | `gibson.job.v1.JobSpec` | job names the typed resources this task needs and how it is judged. It is set when the task opens or continues a job on a bank member. goal stays the goal; the spec's own goal is ignored on a dispatched task. Absent on a task that needs no repository, no credential and no acceptance step. |
 
 #### `TaskConstraints`
 
