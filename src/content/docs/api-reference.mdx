@@ -3079,7 +3079,7 @@ ListMissionsRequest queries mission list.
 | `active_only` | 1 | `bool` | active_only filters to only running missions |
 | `limit` | 2 | `int32` | limit restricts the number of results |
 | `offset` | 3 | `int32` | offset is the pagination offset |
-| `status_filter` | 4 | `string` | status_filter filters missions by status (running, completed, failed, cancelled) |
+| `status_filter` | 4 | `string` | status_filter filters missions by status (`running`, `completed`, `failed`, `cancelled`) |
 | `name_pattern` | 5 | `string` | name_pattern filters missions by name using glob pattern matching |
 
 #### `ListMissionsResponse`
@@ -3343,7 +3343,7 @@ MissionRun represents a single execution instance of a mission.
 |---|---|---|---|
 | `mission_id` | 1 | `string` | mission_id is the unique identifier for this run |
 | `run_number` | 2 | `int32` | run_number is the sequential run number for this mission name |
-| `status` | 3 | `string` | status is the final status of this run (running, completed, failed, cancelled, paused) |
+| `status` | 3 | `string` | status is the final status of this run (`running`, `completed`, `failed`, `cancelled`, `paused`) |
 | `created_at` | 4 | `int64` | created_at is when this run was created (Unix timestamp) |
 | `completed_at` | 5 | `int64` | completed_at is when this run completed (Unix timestamp, 0 if not completed) |
 | `findings_count` | 6 | `int32` | findings_count is the number of findings discovered in this run |
@@ -3367,7 +3367,7 @@ This provides typed metrics instead of JSON-encoded strings.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `status` | 1 | `string` | status of the operation ("success", "failed", "timeout", "cancelled") |
+| `status` | 1 | `string` | status of the operation (`success`, `failed`, `timeout`, `cancelled`) |
 | `duration_ms` | 2 | `int64` | duration_ms is the total duration in milliseconds |
 | `started_at` | 3 | `int64` | started_at is the Unix timestamp (milliseconds) when the operation started |
 | `completed_at` | 4 | `int64` | completed_at is the Unix timestamp (milliseconds) when the operation completed |
@@ -6128,7 +6128,7 @@ Spec: headline-feature-completion R6.1.
 |---|---|---|---|
 | `mission_id` | 1 | `string` | mission_id uniquely identifies this run. |
 | `run_number` | 2 | `int32` | run_number is the sequential run number for this mission name (1-based). |
-| `status` | 3 | `string` | status is the final status string (running, completed, failed, cancelled, paused). |
+| `status` | 3 | `string` | status is the final status string (`running`, `completed`, `failed`, `cancelled`, `paused`). |
 | `findings_count` | 4 | `int32` | findings_count is the number of findings discovered in this run. |
 | `created_at_unix` | 5 | `int64` | created_at is when the run was created (Unix epoch seconds). |
 | `completed_at_unix` | 6 | `int64` | completed_at_unix is when the run completed (Unix epoch seconds, 0 if still running). |

@@ -6015,7 +6015,7 @@
               "name": "status_filter",
               "number": 4,
               "type": "string",
-              "comment": "status_filter filters missions by status (running, completed, failed, cancelled)"
+              "comment": "status_filter filters missions by status (`running`, `completed`, `failed`, `cancelled`)"
             },
             {
               "name": "name_pattern",
@@ -6738,7 +6738,7 @@
               "name": "status",
               "number": 3,
               "type": "string",
-              "comment": "status is the final status of this run (running, completed, failed, cancelled, paused)"
+              "comment": "status is the final status of this run (`running`, `completed`, `failed`, `cancelled`, `paused`)"
             },
             {
               "name": "created_at",
@@ -6804,7 +6804,7 @@
               "name": "status",
               "number": 1,
               "type": "string",
-              "comment": "status of the operation (\"success\", \"failed\", \"timeout\", \"cancelled\")"
+              "comment": "status of the operation (`success`, `failed`, `timeout`, `cancelled`)"
             },
             {
               "name": "duration_ms",
@@ -13906,7 +13906,7 @@
               "name": "status",
               "number": 3,
               "type": "string",
-              "comment": "status is the final status string (running, completed, failed, cancelled, paused)."
+              "comment": "status is the final status string (`running`, `completed`, `failed`, `cancelled`, `paused`)."
             },
             {
               "name": "findings_count",
