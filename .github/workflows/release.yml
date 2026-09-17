@@ -32,7 +32,7 @@ jobs:
     # release-please cuts the release on the commit this push delivered, so
     # the checkout the shared workflow makes of github.sha is the tagged
     # commit; the `ref:` override the old job needed is gone with it.
-    uses: zeroroot-ai/.github/.github/workflows/reusable-image-build.yml@017f26148bffdc5d382a265edd863e8a647e7830 # v0.4.0
+    uses: zeroroot-ai/.github/.github/workflows/reusable-image-build.yml@1366fb5a29590e522bf5a74308f55bb39a4edb56 # v0.5.1
     permissions:
       contents: read
       packages: write
