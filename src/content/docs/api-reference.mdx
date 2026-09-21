@@ -1209,6 +1209,15 @@ UpdatePluginConfig replaces the configuration for an already-enabled plugin.
 
 WaitMission blocks until a mission completes or the timeout expires.
 
+##### `WatchComponentEvents`
+
+`WatchComponentEventsRequest` → `stream ComponentEvent`
+
+WatchComponentEvents streams lifecycle events for the calling component:
+secret_access_revoked and secret_rotated. The daemon takes the component
+from the caller's identity; the request names nothing, so a caller cannot
+watch another component. The stream stays open until the client cancels.
+
 ### Messages
 
 #### `AgentDescriptorProto`
@@ -1406,6 +1415,18 @@ ComponentError represents a structured error returned by a component or harness 
 | `code` | 1 | `string` | code is a short machine-readable error identifier (e.g. "TOOL_NOT_FOUND"). |
 | `message` | 2 | `string` | — |
 | `retryable` | 3 | `bool` | retryable indicates whether the caller should attempt to retry the operation. |
+
+#### `ComponentEvent`
+
+ComponentEvent is one lifecycle event for the calling component.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `type` | 1 | `string` | — |
+| `secret_name` | 2 | `string` | — |
+| `reason` | 3 | `string` | — |
+| `version` | 4 | `int64` | — |
+| `occurred_at` | 5 | `google.protobuf.Timestamp` | — |
 
 #### `ComponentMethod`
 
@@ -2154,6 +2175,13 @@ WaitMissionResponse carries the final mission result.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `result_json` | 1 | `bytes` | result_json is the JSON-encoded mission.MissionResult. |
+
+#### `WatchComponentEventsRequest`
+
+WatchComponentEventsRequest is empty. The daemon takes the component from
+the caller's identity.
+
+_No fields._
 
 ### Enums
 
