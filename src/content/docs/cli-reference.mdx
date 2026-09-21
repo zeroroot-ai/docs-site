@@ -15,7 +15,7 @@ development lifecycle.
 Subcommands:
   login      authenticate the CLI against the platform (device flow)
   logout     end the CLI session and remove stored credentials
-  init       initialize a Gibson workspace (.gibson/workspace.yaml)
+  init       initialise a Gibson workspace (.gibson/workspace.yaml)
   component  scaffold, validate, register, run components (agent | tool | plugin)
   connector  enable and manage tenant connectors (catalog | enable | list | disable)
   docs       emit machine-readable docs (JSON Schemas, etc.)
@@ -501,7 +501,7 @@ Examples:
 
 ### `gibson init`
 
-Initialize a Gibson workspace (writes .gibson/workspace.yaml)
+Initialise a Gibson workspace (writes .gibson/workspace.yaml)
 
 ```text
 init writes a workspace.yaml that pins GIBSON_URL for this workspace,
@@ -645,7 +645,7 @@ Useful for:
 - Piping into other tooling (`gibson mission render m.cue | jq …`).
 
 Output is deterministic: protojson controls proto field ordering (camelCase,
-stable); encoding/json.Indent normalizes whitespace, eliminating the
+stable); encoding/json.Indent normalises whitespace, eliminating the
 binary-hash-seeded extra space that protojson's internal detrand inserts
 after colons to make builds non-reproducible.
 ```
