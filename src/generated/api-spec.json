@@ -2321,6 +2321,14 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "WaitMission blocks until a mission completes or the timeout expires."
+            },
+            {
+              "name": "WatchComponentEvents",
+              "input": "WatchComponentEventsRequest",
+              "output": "ComponentEvent",
+              "clientStreaming": false,
+              "serverStreaming": true,
+              "comment": "WatchComponentEvents streams lifecycle events for the calling component:\nsecret_access_revoked and secret_rotated. The daemon takes the component\nfrom the caller's identity; the request names nothing, so a caller cannot\nwatch another component. The stream stays open until the client cancels."
             }
           ]
         }
@@ -2838,6 +2846,42 @@
               "number": 3,
               "type": "bool",
               "comment": "retryable indicates whether the caller should attempt to retry the operation."
+            }
+          ]
+        },
+        {
+          "name": "ComponentEvent",
+          "comment": "ComponentEvent is one lifecycle event for the calling component.",
+          "fields": [
+            {
+              "name": "type",
+              "number": 1,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "secret_name",
+              "number": 2,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "reason",
+              "number": 3,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "version",
+              "number": 4,
+              "type": "int64",
+              "comment": ""
+            },
+            {
+              "name": "occurred_at",
+              "number": 5,
+              "type": "google.protobuf.Timestamp",
+              "comment": ""
             }
           ]
         },
@@ -4371,6 +4415,11 @@
               "comment": "result_json is the JSON-encoded mission.MissionResult."
             }
           ]
+        },
+        {
+          "name": "WatchComponentEventsRequest",
+          "comment": "WatchComponentEventsRequest is empty. The daemon takes the component from\nthe caller's identity.",
+          "fields": []
         }
       ],
       "enums": [
