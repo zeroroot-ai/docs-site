@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.6.9](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.8...docs-site-v0.6.9) (2026-09-30)
+
+
+### Bug Fixes
+
+* **ci:** link-check checks only the Markdown a PR touched (.github v0.7.2) ([#44](https://github.com/zeroroot-ai/docs-site/issues/44)) ([bc19841](https://github.com/zeroroot-ai/docs-site/commit/bc19841bf367615258325c59d4b51db75ed8ec47))
+* **ci:** pin every zeroroot-ai/.github reference to v0.5.1 ([#36](https://github.com/zeroroot-ai/docs-site/issues/36)) ([f71e034](https://github.com/zeroroot-ai/docs-site/commit/f71e0349b07bed33e35c79ed994f2bff098bd672))
+* **ci:** pin the org tree guards to a commit SHA ([#27](https://github.com/zeroroot-ai/docs-site/issues/27)) ([550462c](https://github.com/zeroroot-ai/docs-site/commit/550462cb46722fe2486f883a457520d26e0a134c))
+* **deps:** clear both transitive advisories, in both lockfiles ([#29](https://github.com/zeroroot-ai/docs-site/issues/29)) ([a97ef6c](https://github.com/zeroroot-ai/docs-site/commit/a97ef6c85a5a6b4b207ed7d0f6cac1b3096b391b))
+* **docs:** generate the licensing table from the LICENSE files ([#30](https://github.com/zeroroot-ai/docs-site/issues/30)) ([2a8ec84](https://github.com/zeroroot-ai/docs-site/commit/2a8ec846944735c0e80195c4913b01d689f6d409))
+* **image:** ship the license text and label in the docs-site image ([#31](https://github.com/zeroroot-ai/docs-site/issues/31)) ([a6e0ff3](https://github.com/zeroroot-ai/docs-site/commit/a6e0ff382a8fca5b64cde6bc775b0d41627bc664))
+* **rework:** pin every zeroroot-ai/.github reference to v0.4.0 ([#33](https://github.com/zeroroot-ai/docs-site/issues/33)) ([a4b092a](https://github.com/zeroroot-ai/docs-site/commit/a4b092a9592fd1c25e978825daa6421dc0d945e3))
+
+
+### Documentation
+
+* remove a pre-reset issue reference and use American spelling ([#34](https://github.com/zeroroot-ai/docs-site/issues/34)) ([9fa9bff](https://github.com/zeroroot-ai/docs-site/commit/9fa9bff24d5b56dc909615d9c4eaf7cf0c8bb4ff))
+
+
+### Miscellaneous
+
+* **deps:** bump nginxinc/nginx-unprivileged ([#25](https://github.com/zeroroot-ai/docs-site/issues/25)) ([339504a](https://github.com/zeroroot-ai/docs-site/commit/339504a8df9ae3c9ce8806a0f45f4a5fb58df57b))
+* **deps:** bump node from `2d984a1` to `ef24c50` ([#26](https://github.com/zeroroot-ai/docs-site/issues/26)) ([406afc7](https://github.com/zeroroot-ai/docs-site/commit/406afc73a8cc889297dd067b7ef27e40a9cefc05))
+* **docs:** refresh api-spec from zeroroot-ai/sdk@main ([#35](https://github.com/zeroroot-ai/docs-site/issues/35)) ([3048994](https://github.com/zeroroot-ai/docs-site/commit/30489946c2d9a78086d613b0710446065a3e4cab))
+* **docs:** refresh api-spec from zeroroot-ai/sdk@main ([#37](https://github.com/zeroroot-ai/docs-site/issues/37)) ([f99f042](https://github.com/zeroroot-ai/docs-site/commit/f99f042a4d78508f93e47134261bac268436adab))
+* **docs:** refresh api-spec from zeroroot-ai/sdk@v0.179.0 ([#40](https://github.com/zeroroot-ai/docs-site/issues/40)) ([07b6803](https://github.com/zeroroot-ai/docs-site/commit/07b68032e1e0808913ed823f9ba64aef59b8778e))
+* **docs:** refresh cli-spec from zeroroot-ai/adk@main ([#38](https://github.com/zeroroot-ai/docs-site/issues/38)) ([c34ed55](https://github.com/zeroroot-ai/docs-site/commit/c34ed557ff8dd7536b7bb8f318ae47f86f264616))
+* **docs:** refresh cli-spec from zeroroot-ai/adk@v0.109.4 ([#41](https://github.com/zeroroot-ai/docs-site/issues/41)) ([3cbd6d4](https://github.com/zeroroot-ai/docs-site/commit/3cbd6d49ce4dc7d36307475b1eb402b05aae8db2))
+
 ## [0.6.8](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.7...docs-site-v0.6.8) (2026-09-09)
 
 
