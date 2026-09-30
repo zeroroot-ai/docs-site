@@ -1,0 +1,91 @@
+---
+title: Domain packs
+description: A domain pack teaches Gibson new attack techniques, taxonomy, and settlement rules. Enable a curated pack, or let your agents grow your own.
+---
+
+Gibson ships with a base model of attack techniques and how they relate.
+A **domain pack** extends that model. It adds new taxonomy, new ontology
+relationships, and the rules Gibson uses to settle whether a technique
+worked. You do not write code. A pack is data that the engine reads.
+
+Enable a pack in the dashboard. From then on, every mission in your
+tenant can use what the pack added. Disable it and the extension goes
+away. The base model always stays.
+
+## What a pack contains
+
+A domain pack bundles three things:
+
+- **Taxonomy**: new technique categories and techniques. See
+  [Taxonomy](/docs/taxonomy) for how the hierarchy works.
+- **Ontology**: new node labels and relationship types for the
+  knowledge graph. See [Ontology](/docs/ontology).
+- **Settlement predicates**: one rule per technique that decides, from
+  the evidence an agent submits, whether the technique actually worked.
+  Each rule is a [CEL](https://cel.dev) expression. Gibson compiles and
+  evaluates it. There is no language-model judge.
+
+The engine reads the pack. It never runs pack code. This is why a pack
+is safe to enable and safe to share.
+
+## Two kinds of pack
+
+**Catalog packs** are curated. The platform reviews them and ships them
+in the SDK. Every tenant sees the same catalog. You choose which catalog
+packs to enable.
+
+**Tenant extensions** are your own. Your agents grow them at run time,
+and only your tenant sees them. The next section explains how.
+
+Gibson ships one catalog pack today, the **main** pack. It is off by
+default. Turn it on in the dashboard when you want it.
+
+## Enable and disable
+
+Open the domain-packs page in the dashboard. It lists every catalog
+pack and whether your tenant has it on. Toggle a pack to enable or
+disable it for the whole tenant.
+
+Enabling a pack is free today. The pack schema carries an entitlement
+field for future paid packs, but Gibson does not charge for a pack yet.
+A pack with no entitlement key enables for everyone.
+
+## How agents grow your own pack
+
+Gibson can learn a technique you never told it about. This is the
+self-construction path, and a person stays in control of it.
+
+1. An agent meets structure the model does not name. It **proposes** a
+   new taxonomy technique or ontology relationship. The proposal is
+   captured. It does not change anything yet.
+2. Gibson counts how often independent runs propose the same thing.
+3. The **tenant owner** reviews every proposal in the dashboard. The
+   owner approves or rejects each one. Nothing is promoted on its own.
+4. Once a proposal has recurred enough and the owner approves it, Gibson
+   promotes it. It becomes a live tenant extension. Every mission in
+   your tenant sees it from then on.
+
+So an agent can only *suggest*. The owner decides what enters your
+model. An agent can never expand what your tenant knows without a
+person saying yes.
+
+## Contribute a pack upstream
+
+You may want a technique you grew to reach the shared catalog. From an
+approved tenant extension, choose **submit upstream**. Gibson renders
+the extension into the SDK pack format and gives you the file and a
+ready-to-paste pull-request description.
+
+Gibson does not open the pull request for you. You, or anyone, opens it
+against the SDK. The platform owner reviews it and decides whether it
+joins the catalog. That review is where a private technique becomes a
+shared one.
+
+## Why this shape
+
+The belief field ([Attack-path belief field](/docs/belief-field)) reads
+the taxonomy and ontology to pick its next move. A domain pack is how
+you widen what the field can reason about. A curated catalog keeps the
+shared model trustworthy. Tenant extensions let one tenant move fast
+without waiting on that review. Owner approval keeps a human between an
+agent's guess and your live model.
