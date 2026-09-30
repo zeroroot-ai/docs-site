@@ -17,6 +17,7 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      image_tag: ${{ steps.image_tag.outputs.tag }}
     steps:
       - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
         id: release
@@ -24,6 +25,15 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      # First-party images use the `v<semver>` tag form (gibson:v0.146.4,
+      # sdk v0.184.0). release-please's tag carries a component prefix
+      # (docs-site-v0.6.11), so strip it for the image tag + the version-links
+      # source, leaving `v0.6.11`.
+      - id: image_tag
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        run: echo "tag=${TAG_NAME#docs-site-}" >> "$GITHUB_OUTPUT"
 
   publish-image:
     needs: release-please
@@ -46,4 +56,23 @@ jobs:
       dockerfile_path: Dockerfile
       image_name: ghcr.io/zeroroot-ai/docs-site
       tag_pattern: docs-site/v(.*)
-      version_tag: ${{ needs.release-please.outputs.tag_name }}
+      # v<semver> (component prefix stripped), matching every other first-party
+      # image and the version-links source (image-tag.env).
+      version_tag: ${{ needs.release-please.outputs.image_tag }}
+
+  # Fan the new image tag into charts' docs.image pin via the org version-links
+  # mechanism (.github version-links.yaml link `docs-site`). Before this, the pin
+  # was hand-bumped and went months stale (staging docs 404'd on new pages).
+  # Mirrors zitadel-login's caller.
+  fan-out:
+    needs: [release-please, publish-image]
+    if: ${{ needs.release-please.outputs.release_created }}
+    uses: zeroroot-ai/.github/.github/workflows/reusable-version-fanout.yml@c06ea08fddecc754ac6faf06f9fc0511d13cb955 # v0.5.2
+    permissions:
+      contents: read
+      packages: read
+    with:
+      link: docs-site
+    secrets:
+      app-id: ${{ secrets.SDK_FANOUT_APP_ID }}
+      app-private-key: ${{ secrets.SDK_FANOUT_APP_PRIVATE_KEY }}

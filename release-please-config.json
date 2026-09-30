@@ -3,6 +3,7 @@
     ".": {
       "release-type": "node",
       "bump-minor-pre-major": true,
+      "extra-files": ["image-tag.env"],
       "changelog-sections": [
         {"type": "feat", "section": "Features"},
         {"type": "fix", "section": "Bug Fixes"},
