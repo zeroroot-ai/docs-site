@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.11](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.10...docs-site-v0.6.11) (2026-09-30)
+
+
+### Bug Fixes
+
+* **image:** bump the nginx runner base, libexpat 2.8.5 closes CVE-2026-93990 ([#49](https://github.com/zeroroot-ai/docs-site/issues/49)) ([6bc709f](https://github.com/zeroroot-ai/docs-site/commit/6bc709f271a1b80cbe3378b34584f9fa7f7d3938))
+
 ## [0.6.10](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.9...docs-site-v0.6.10) (2026-09-30)
 
 
