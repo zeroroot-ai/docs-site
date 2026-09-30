@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.10](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.9...docs-site-v0.6.10) (2026-09-30)
+
+
+### Documentation
+
+* **domain-packs:** add the domain-packs page (fixes /docs/domain-packs 404) ([#47](https://github.com/zeroroot-ai/docs-site/issues/47)) ([7301dcd](https://github.com/zeroroot-ai/docs-site/commit/7301dcda7a4252c069277358218202bf12f0acc3))
+
 ## [0.6.9](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.8...docs-site-v0.6.9) (2026-09-30)
 
 
