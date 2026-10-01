@@ -1,12 +1,33 @@
 # Stage 1: build
-# npm with the committed package-lock.json; @zeroroot-ai/brand comes from
+#
+# pnpm with the committed pnpm-lock.yaml, the SAME lockfile ci.yml installs
+# from and the Makefile `bootstrap` target names. @zeroroot-ai/brand comes from
 # registry.npmjs.org (attic#17), so no registry credential is involved.
+#
+# This used to be `npm ci` against a second lockfile, package-lock.json, and
+# that file is why the image build was broken for days. Nothing updated it: CI
+# runs pnpm, the Makefile runs pnpm, and `packageManager` pins pnpm, so a
+# dependency bump moved package.json and pnpm-lock.yaml together and left
+# package-lock.json a version behind. `npm ci` then refused the tree —
+# "lock file's next@16.3.4 does not satisfy next@16.3.6" (#46 bumped next,
+# the image has failed every build since). A lockfile that no toolchain in the
+# repo maintains cannot stay in sync, so there is one lockfile now and it is
+# the one CI verifies.
 FROM node:26-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS builder
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+# pnpm-workspace.yaml is not optional here: pnpm 10 moved `overrides` out of
+# package.json into it, and the lockfile records them. Without it
+# --frozen-lockfile refuses the tree with "the current overrides configuration
+# doesn't match the value found in the lockfile".
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# pnpm at exactly the version package.json's `packageManager` pins, read out of
+# that file so the image and the repo cannot name two different pnpm versions.
+# Not `corepack enable`: node:26-alpine ships no corepack (Node 25 removed it),
+# and the build failed with "corepack: not found".
+RUN npm i -g "$(node -p "require('./package.json').packageManager")"
+RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
-RUN npm run build
+RUN pnpm build
 
 # Stage 2: serve
 #
