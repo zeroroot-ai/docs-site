@@ -48,8 +48,8 @@ installs. There is no separate package and no second artifact to keep in step.
   install is reproducible inside a perimeter that never reaches our registry.
 - **An air-gap image list ships with the chart.** It names every image the
   chart pulls, and the operator mirrors each one into their own registry before
-  installing. The list is generated from the chart and a CI job fails the build
-  when it goes stale, so it cannot quietly fall behind what the chart deploys.
+  installing. The list is generated from the chart. A CI job fails the build
+  when it goes stale, so it cannot fall behind what the chart deploys.
 - **No GitOps controller is assumed.** `helm install` works, and so does your
   own Argo or Flux. You pin the chart version wherever you declare it.
 - **No service mesh is assumed.** The chart does not require Istio. It carries
