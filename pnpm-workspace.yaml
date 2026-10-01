@@ -25,7 +25,7 @@ minimumReleaseAgeExclude:
 # copy, and 5.x was never in the advisory's range.
 #
 # baseline-browser-mapping was ALREADY past the fix in this lockfile (2.11.21)
-# and was not in package-lock.json (2.10.41). It is here as a floor, so the
+# and the since-deleted package-lock.json pinned 2.10.41. It is here as a floor, so the
 # two resolvers cannot drift back apart across it.
 #
 # Drop each entry once the parent ships a version at or past the fix — an

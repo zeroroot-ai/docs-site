@@ -10,9 +10,9 @@
 # production build is the CI gate (see .github/workflows/ci.yml), so `check`
 # runs the build and `test` is an explicit no-op rather than a silent lie.
 #
-# Dev installs use pnpm (mirroring ci.yml); the container image builds with
-# npm from the committed package-lock.json (see Dockerfile). @zeroroot-ai/brand
-# resolves from registry.npmjs.org; no token is needed anywhere (attic#17).
+# Dev installs, ci.yml and the container image all use pnpm with the single
+# committed pnpm-lock.yaml. @zeroroot-ai/brand resolves from
+# registry.npmjs.org; no token is needed anywhere (attic#17).
 # ============================================================================
 
 PNPM ?= pnpm
@@ -35,7 +35,7 @@ test: ## No unit-test suite (static docs site) — the build is the gate; see `c
 
 check: build ## CI-equivalent gate (mirrors ci.yml: the production build)
 
-image: ## Build the production container image (npm/package-lock.json path)
+image: ## Build the production container image (pnpm/pnpm-lock.yaml, same lockfile as CI)
 	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
 help: ## List available targets
