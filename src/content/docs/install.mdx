@@ -44,12 +44,13 @@ make build
 export PATH="$PWD/gibson/bin:$PATH"
 ```
 
-`make build` compiles `gibson/bin/gibson`. If you only want the binary on
-your `PATH` and nothing else, this command also works:
+`make build` compiles `gibson/bin/gibson`. Run `make bootstrap` once for the
+pinned developer tools.
 
-```bash
-go install github.com/zeroroot-ai/adk/gibson/cmd/gibson@latest
-```
+Build from the clone. Installing only the binary leaves behind the mission
+templates, the toolchain pin and the scaffolder. The scaffolder writes
+`CLAUDE.md`, `AGENTS.md` and a component `prompts/` folder. An AI coding
+workflow depends on those files.
 
 Verify:
 
