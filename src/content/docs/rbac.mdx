@@ -37,18 +37,19 @@ To invite a person:
 1. Go to **Organization**, then **Users**.
 2. Select **Invite User**.
 3. Enter the email address and pick a role.
-4. Gibson sends an invitation email. The link is good for seven days.
+4. Gibson sends one invitation email. The link is good for seven days.
 
-Accepting the link creates the account and the role. The identity service
-then sends a second email with a code to set a password. Gibson stores no
-password of its own.
+That email is the only one the person gets. It carries the accept link. It
+also carries the commands to install the CLI, sign in and run a first
+mission. This workspace's platform URL and slug are already filled in.
+
+Opening the link creates the account and the role, then hands the person a
+one-time link to set a password. Gibson stores no password of its own, and
+the identity service sends no mail of its own.
 
 One address belongs to one workspace. An invitation to an address that
 already belongs elsewhere reports "sent", and only that mailbox learns about
 the conflict.
-
-New to a workspace someone else owns? Read
-[You Were Invited](/docs/invited).
 
 When you remove a user, Gibson revokes their session immediately and
 disables any component identities that they own. The components stay
