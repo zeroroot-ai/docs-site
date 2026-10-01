@@ -18,22 +18,37 @@ how the layers compose.
 
 ## Tenant roles
 
-Three roles ship out of the box. You assign roles to users in your
-tenant under **Settings → Members**.
+Four roles ship out of the box. You assign them under **Organization**,
+then **Users**.
 
 | Role | What they can do |
 |---|---|
-| **Owner** | Everything an admin can do, plus billing, tenant deletion, and ownership transfer. There is exactly one owner per tenant. |
-| **Admin** | Invite/remove users, configure secrets backends, enroll and configure components, write per-component grants, run any mission, see all findings. The default for technical staff. |
-| **Member** | Run missions, view findings, query the knowledge graph, build and enroll their own components. Cannot configure tenant-wide settings or write grants beyond their own components. |
+| **Owner** | Everything an Admin can do, plus billing, tenant deletion, and ownership transfer. There is exactly one Owner per tenant. Ownership moves only by transfer, never by invitation. |
+| **Admin** | Manage users, roles and settings, and everything an Editor can do. This covers invites, secrets, per-component grants and connector authorization. The default for technical staff. |
+| **Editor** | Create and run missions, edit targets and connectors, enroll components, configure model providers, export findings. |
+| **Viewer** | Read missions, findings, reports and the knowledge graph. Change nothing. |
 
-To invite users:
+**Editor is the lowest role that can run a mission.** Submitting a mission
+writes a mission definition, which a Viewer cannot do. Invite a person as
+Editor if they must use the product, and as Viewer if they only watch.
 
-1. Go to **Settings → Members → Invite**.
-2. Enter their email address.
-3. Pick a role.
-4. They receive an invitation link. When they sign in, Gibson adds
-   them to your tenant.
+To invite a person:
+
+1. Go to **Organization**, then **Users**.
+2. Select **Invite User**.
+3. Enter the email address and pick a role.
+4. Gibson sends an invitation email. The link is good for seven days.
+
+Accepting the link creates the account and the role. The identity service
+then sends a second email with a code to set a password. Gibson stores no
+password of its own.
+
+One address belongs to one workspace. An invitation to an address that
+already belongs elsewhere reports "sent", and only that mailbox learns about
+the conflict.
+
+New to a workspace someone else owns? Read
+[You Were Invited](/docs/invited).
 
 When you remove a user, Gibson revokes their session immediately and
 disables any component identities that they own. The components stay
