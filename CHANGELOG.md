@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.13](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.12...docs-site-v0.6.13) (2026-10-01)
+
+
+### Bug Fixes
+
+* **release:** image-tag.env annotation block form (unblocks the fan-out) ([#55](https://github.com/zeroroot-ai/docs-site/issues/55)) ([4ac6b5c](https://github.com/zeroroot-ai/docs-site/commit/4ac6b5c3a9e43ad6cf32180099b9fc80cab90cdb))
+* **release:** move image-tag.env annotation to block form ([4ac6b5c](https://github.com/zeroroot-ai/docs-site/commit/4ac6b5c3a9e43ad6cf32180099b9fc80cab90cdb))
+
 ## [0.6.12](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.11...docs-site-v0.6.12) (2026-10-01)
 
 
