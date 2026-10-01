@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     branches: [main]
+  # Manual re-fire. A merge of the release PR can drop the push event that
+  # triggers this workflow (seen on the 0.6.12 release commit e77db5e: it landed
+  # on main with no Release run, so release-please never cut the tag and the
+  # image/fan-out never ran). workflow_dispatch re-runs release-please against
+  # main, which cuts the pending release and fires publish-image + fan-out.
+  workflow_dispatch:
 
 # The GITHUB_TOKEN gets read access only. release-please runs with
 # RELEASE_PLEASE_TOKEN (a PAT), so it needs no write scope on the default
