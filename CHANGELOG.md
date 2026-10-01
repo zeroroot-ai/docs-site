@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.12](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.11...docs-site-v0.6.12) (2026-10-01)
+
+
+### Documentation
+
+* **ontology:** link the domain-packs page from Related ([#52](https://github.com/zeroroot-ai/docs-site/issues/52)) ([9ae6bb3](https://github.com/zeroroot-ai/docs-site/commit/9ae6bb30ce69eba11181ba64673eb0210d1f9a9c))
+
 ## [0.6.11](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.10...docs-site-v0.6.11) (2026-09-30)
 
 
