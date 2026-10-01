@@ -2,6 +2,7 @@
   "title": "Gibson",
   "pages": [
     "install",
+    "invited",
     "getting-started",
     "first-agent",
     "component-bootstrap",

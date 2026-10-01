@@ -1,0 +1,191 @@
+---
+title: You Were Invited
+description: Accept a Gibson invitation, set a password, install the gibson CLI, and run your first mission. The fast path for a person an admin added to a workspace.
+---
+
+An admin added you to a Gibson workspace. This page takes you from that
+invitation to your first mission. Budget 20 minutes.
+
+If you created the workspace yourself, read [Install](/docs/install)
+instead. That page covers signup, which you do not need.
+
+## 1. Accept the invitation
+
+You get **two** emails, from two systems. Both matter.
+
+**The first email comes from Gibson.** The subject line is
+`You've been invited to Gibson`. It names your role and carries one link.
+The link is good for seven days.
+
+1. Open the link. The page accepts your invitation as it loads.
+2. The page shows the title `You're in` and the line `Your membership is
+   active.`
+3. Select **Continue to sign in**.
+
+If the page says **Invitation unavailable**, the link expired or someone
+already used it. Ask your admin to send a new one.
+
+**The second email comes from the identity service.** It carries a code to
+set your password. Gibson stores no password of its own, so this email is
+the only way to get a credential.
+
+1. Open the second email.
+2. Use the code to set a password.
+3. Sign in.
+
+A person with one workspace lands on the dashboard. There is no workspace
+picker.
+
+## 2. Look around the web app
+
+Most pages are empty until a mission runs. That is correct, not a fault.
+
+| Page | What it shows |
+|---|---|
+| `/dashboard` | The workspace overview |
+| `/dashboard/missions` | Mission definitions and templates |
+| `/dashboard/results` | Mission runs, and one page per run |
+| `/dashboard/findings` | Every finding, with export |
+| `/dashboard/graph` | The knowledge graph |
+| `/dashboard/world` | The World timeline, and a frame at any tick |
+| `/dashboard/targets` | The targets a mission may act against |
+| `/dashboard/agents` | The agents this workspace enabled |
+| `/dashboard/tools` | The tools this workspace enabled |
+| `/dashboard/connectors` | Connectors, such as GitLab |
+
+## 3. Know your role
+
+Your role decides what you can do. The invitation email names it.
+
+| Role | What you can do |
+|---|---|
+| **Owner** | Everything. One per workspace. |
+| **Admin** | Manage users, roles and settings, and everything an Editor can do. |
+| **Editor** | Create and run missions, edit targets and connectors. |
+| **Viewer** | Read missions, findings and reports. Change nothing. |
+
+**A Viewer cannot author a mission.** Submitting a mission writes a mission
+definition, and that needs Editor. If step 6 refuses you, ask your admin to
+raise your role to Editor.
+
+## 4. Install the CLI
+
+The ADK ships the `gibson` binary. It is one Go binary and there is no
+container image.
+
+```bash
+go install github.com/zeroroot-ai/adk/gibson/cmd/gibson@latest
+```
+
+The ADK pins Go 1.26.8. To build from a clone instead:
+
+```bash
+git clone https://github.com/zeroroot-ai/adk.git
+cd adk && make build
+export PATH="$PWD/gibson/bin:$PATH"
+```
+
+## 5. Sign the CLI in
+
+Do not guess the URL. The web app prints the exact command for your
+workspace.
+
+1. Open **Settings**, then **CLI**. Every member can reach that page.
+2. Copy the **Authenticate** command. It looks like this, with your own
+   values already filled in:
+
+   ```bash
+   gibson login --gibson-url https://api.example.com --tenant your-workspace
+   ```
+
+3. Run it. The CLI prints a URL and a short code, and opens a browser when
+   it can. Approve the code.
+
+The CLI stores the session at `~/.gibson/auth/credentials` with mode 0600.
+It refreshes the session on its own. `gibson logout` removes it.
+
+Pin the platform URL once per working directory, so later commands need no
+flags:
+
+```bash
+gibson init --gibson-url https://api.example.com
+```
+
+Confirm the session answers. These three work on an empty workspace:
+
+```bash
+gibson target list
+gibson connector catalog
+gibson agent list
+```
+
+`gibson target list` prints a header and no rows until a target exists.
+
+## 6. Run your first mission
+
+A mission acts against a **target**. The target is the scope boundary. The
+server resolves a target by UUID, never by name.
+
+1. See the templates that ship:
+
+   ```bash
+   gibson mission new --list-templates
+   ```
+
+   They are `recon`, `webapp-scan`, `secrets-audit`, `scan-fix-verify` and
+   `compliance-check`.
+
+2. Write one to a file. `gibson mission new` prints to standard output and
+   writes no file by default:
+
+   ```bash
+   gibson mission new --from-template secrets-audit -o mission.cue
+   gibson mission validate mission.cue
+   ```
+
+   `validate` prints `ok` and nothing else.
+
+3. Create a target. Keep the UUID it prints:
+
+   ```bash
+   gibson target create --name my-first-target --type custom --url https://example.test
+   ```
+
+4. Submit the mission with that UUID:
+
+   ```bash
+   gibson mission submit mission.cue --target <uuid>
+   ```
+
+   Every shipped template leaves the target empty, so the flag is required.
+   The mission id goes to standard output. The event stream goes to standard
+   error. Add `--detach` to return at once.
+
+5. Open `/dashboard/results` and select the run. The run page carries the
+   findings, the jobs, the flow and the terminal output.
+
+## 7. Six things that will save you time
+
+1. **`gibson inspect` reports on a component, not on you.** It reads the
+   runtime credential that `gibson component register` writes. With no
+   registered component it fails. That is expected.
+2. **A mission needs a target.** `submit` refuses before it writes anything
+   on the server.
+3. **The shipped templates name no target.** Always pass `--target`.
+4. **A proxy breaks sign-in.** The login path ignores `HTTPS_PROXY` and
+   `HTTP_PROXY`. There is no proxy flag.
+5. **A private CA needs `--ca-cert`.** Pass the PEM path, or set
+   `GIBSON_CA_CERT`. Never set `SSL_CERT_FILE`, which replaces the whole
+   trust pool instead of adding to it.
+6. **Read `gibson --help` first.** The ADK README documents commands that
+   the binary does not have.
+
+## 8. Where to go next
+
+- [Getting Started](/docs/getting-started) builds and enrolls your first
+  agent.
+- [Missions](/docs/missions) explains the mission graph and every node kind.
+- [Findings](/docs/findings) explains the finding lifecycle.
+- [Knowledge Graph](/docs/knowledge-graph) explains what the platform
+  remembers between runs.
+- [Roles and Permissions](/docs/rbac) explains the layers under your role.
