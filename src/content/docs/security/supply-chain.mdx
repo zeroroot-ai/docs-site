@@ -1,6 +1,6 @@
 ---
 title: Supply chain
-description: One versioned OCI chart that pins every first-party image by digest at package time, so a version is an exact reproducible deployable. Big Bang compatible.
+description: One versioned OCI chart that pins every first-party image by digest at package time, so a version is an exact reproducible deployable. Installs on-prem and air-gapped.
 ---
 
 The product is **one self-contained umbrella Helm chart**, published as a
@@ -31,23 +31,35 @@ environment is green. No rebuild promotes anything.
 
 ## Everyone installs the same artifact
 
-The hosted fleet, ephemeral environments, a customer who self-hosts with `helm
-install`, and a federal Big Bang package all install the **same** chart. The
-GitOps tool consumes the artifact. It is never the unit of deployment.
+The hosted fleet, ephemeral environments, and a customer who self-hosts all
+install the **same** chart. The consumers are `helm install`, Argo, and Flux.
+The GitOps tool consumes the artifact. It is never the unit of deployment.
 
 **What that gets you:** the artifact you self-host is the artifact we test. It
 is not a re-derived approximation of it. A difference in behavior between your
 install and ours is a configuration difference, not a build difference.
 
-## Big Bang compatible
+## On-prem and air-gapped installs
 
-The chart is deliberately compatible with the DoD Big Bang platform:
+Federal, on-prem, and air-gapped customers install the same chart everyone else
+installs. There is no separate package and no second artifact to keep in step.
 
-- wrappable in a Flux `HelmRelease`
-- hardened, digest-pinned images
-- **no service-mesh assumption**. It does not require Istio
+- **Every first-party image is pinned by digest** at package time, so the
+  install is reproducible inside a perimeter that never reaches our registry.
+- **An air-gap image list ships with the chart.** It names every image the
+  chart pulls, and the operator mirrors each one into their own registry before
+  installing. The list is generated from the chart and a CI job fails the build
+  when it goes stale, so it cannot quietly fall behind what the chart deploys.
+- **No GitOps controller is assumed.** `helm install` works, and so does your
+  own Argo or Flux. You pin the chart version wherever you declare it.
+- **No service mesh is assumed.** The chart does not require Istio. It carries
+  its own Envoy and SPIRE auth edge.
 
-We hold the chart to this design constraint. It is not a claim made after the
+The air-gap list lives at
+[`airgap/`](https://github.com/zeroroot-ai/charts/tree/main/airgap) in the
+charts repository.
+
+We hold the chart to these constraints. They are not claims made after the
 fact.
 
 ## What to check
@@ -56,3 +68,4 @@ fact.
 2. Rollback is a version pin, not a rebuild.
 3. Self-hosted and hosted install the same artifact.
 4. The chart imposes no service mesh.
+5. The air-gap image list matches the chart, enforced in CI.
