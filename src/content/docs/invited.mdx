@@ -68,22 +68,44 @@ Your role decides what you can do. The invitation email names it.
 definition, and that needs Editor. If step 6 refuses you, ask your admin to
 raise your role to Editor.
 
-## 4. Install the CLI
+## 4. Clone the ADK
 
-The ADK ships the `gibson` binary. It is one Go binary and there is no
-container image.
-
-```bash
-go install github.com/zeroroot-ai/adk/gibson/cmd/gibson@latest
-```
-
-The ADK pins Go 1.26.8. To build from a clone instead:
+Clone the repository and build it. Do not install only the binary. The ADK is
+the surface you work on, and a bare binary leaves all of it behind.
 
 ```bash
 git clone https://github.com/zeroroot-ai/adk.git
-cd adk && make build
+cd adk
+make build
 export PATH="$PWD/gibson/bin:$PATH"
 ```
+
+`make build` compiles `gibson/bin/gibson`. Run `make bootstrap` once for the
+pinned developer tools, which are `cue`, `golangci-lint` and `deadcode`.
+
+The repository pins Go 1.26.8 in `.tool-versions`, so asdf or mise selects the
+right toolchain when you enter the directory.
+
+### What the clone gives you
+
+| Path | What it is for |
+|---|---|
+| `templates/<name>/` | The five mission templates in authored CUE, each with its own `template.mdx` and an ontology |
+| `.tool-versions` | The Go pin, shared by every contributor |
+| `Makefile` | `build`, `bootstrap`, `test`, `lint`, `check`, `templates` |
+| `scripts/` | CUE regeneration and the freshness check |
+
+It also gives you the scaffolder. This command writes a complete component
+directory:
+
+```bash
+gibson component init my-agent --kind agent
+```
+
+Alongside the code it writes `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`
+and a `prompts/` folder with real task prompts for adding a method, debugging
+enrollment and shipping. A coding agent has the context it needs from your first
+commit. That context is the reason to clone.
 
 ## 5. Sign the CLI in
 
