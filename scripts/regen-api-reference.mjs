@@ -53,7 +53,13 @@ import { fileURLToPath } from "node:url";
 import { renderApiReference, loadSpec, SPEC_PATH, PAGE_PATH } from "./gen-api-reference.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const MODULE_NAME = "buf.build/zeroroot-ai-platform/sdk";
+// The BSR module the SDK protos publish to. `buf.build/zeroroot-ai-platform/sdk`
+// was the pre-rename module; it was deleted from the BSR on 2026-10-02 along
+// with the rest of that org, whose GitHub source repos had been 404 since the
+// history reset (zeroroot-ai/sdk#19). This value is a label recorded in
+// api-spec.json, not a fetch target — the spec is built with `buf build` against
+// a local sdk clone — so it had gone stale without failing anything.
+const MODULE_NAME = "buf.build/zeroroot-ai/sdk";
 
 // Which packages land in the reference. The SDK is the Apache, component-dev
 // wire surface (ADR-0058); we document every first-party package a customer

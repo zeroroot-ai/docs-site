@@ -1,5 +1,5 @@
 {
-  "module": "buf.build/zeroroot-ai-platform/sdk",
+  "module": "buf.build/zeroroot-ai/sdk",
   "generator": "scripts/regen-api-reference.mjs",
   "packages": [
     {
