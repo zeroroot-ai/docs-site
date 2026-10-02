@@ -71,6 +71,18 @@ FROM nginxinc/nginx-unprivileged:alpine-slim@sha256:c81a27f28bc2d9c2da8998444e65
 # (it chowns the copied entries, not the pre-existing dir). Without this the
 # container fails startup on-cluster with EACCES (#23, same as www#17).
 USER root
+# APT_CACHE_BUST makes `apk upgrade` run on every build. The base is digest
+# pinned, which fixes where the build starts and says nothing about currency:
+# the pre-push vulnerability gate blocked every main build since 2026-10-02
+# on pcre2 10.48-r0 (CVE-2026-103111) with 10.49-r0 already in the Alpine
+# 3.24 index. An upgrade alone would not hold either: buildx caches this
+# layer on instruction text plus base digest, so it would run once and be
+# replayed forever. The org reusable workflow passes
+# APT_CACHE_BUST=${{ github.run_id }} to every build (.github#84), so
+# declaring the ARG here is the whole opt-in. Same form as gibson.
+ARG APT_CACHE_BUST=0
+RUN echo "apk refresh ${APT_CACHE_BUST}" >/dev/null \
+ && apk upgrade --no-cache
 RUN rm -rf /usr/share/nginx/html && install -d -o 101 -g 101 /usr/share/nginx/html
 USER 101
 COPY --from=builder --chown=101:101 /app/out /usr/share/nginx/html
