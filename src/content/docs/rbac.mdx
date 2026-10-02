@@ -51,10 +51,21 @@ One address belongs to one workspace. An invitation to an address that
 already belongs elsewhere reports "sent", and only that mailbox learns about
 the conflict.
 
-When you remove a user, Gibson revokes their session immediately and
-disables any component identities that they own. The components stay
-enrolled, so missions keep working. The dashboard flags them for
-re-assignment.
+When you remove a user, Gibson revokes every one of their sessions at once.
+Their next request fails. Gibson then revokes their tenant role and deletes
+their identity account, which frees their email address for another
+workspace. Their missions and findings stay in the workspace under the name
+recorded at the time. The Owner cannot be removed. Transfer ownership first.
+
+Removal does not touch the components that the user enrolled. Those
+components stay enrolled, with the grants they had, and keep their
+enrolling user as owner. No dashboard page lists them for re-assignment.
+Review them yourself after a removal.
+
+Gibson enforces removal in
+[`tenant_admin_removal.go`](https://github.com/zeroroot-ai/gibson/blob/main/internal/server/admin/tenant_admin_removal.go).
+The dashboard calls it from
+[`member.ts`](https://github.com/zeroroot-ai/dashboard/blob/main/app/actions/crd/member.ts).
 
 ## Per-component grants
 
@@ -169,10 +180,10 @@ can export the filtered view as CSV or JSON for compliance evidence.
 
 ### Rotate access when a contractor leaves
 
-1. Go to **Settings → Members → Remove**. Gibson deactivates their
-   session and components.
-2. Re-assign their components to a remaining team member. If a
-   component is no longer needed, retire it.
+1. Go to **Organization**, then **Users**, then **Remove** on their row.
+   Gibson revokes their sessions and deletes their account.
+2. Review the components that they enrolled. Removal leaves them as they
+   are. If a component is no longer needed, retire it.
 3. Filter the audit log on their actor ID for any forensic review.
 
 ## Related
