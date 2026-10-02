@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.6.14](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.13...docs-site-v0.6.14) (2026-10-02)
+
+
+### Bug Fixes
+
+* **api-reference:** the recorded BSR module name points at a deleted module ([#64](https://github.com/zeroroot-ai/docs-site/issues/64)) ([352c11c](https://github.com/zeroroot-ai/docs-site/commit/352c11c37636bdc7587073bc58384c8906960f1d))
+* **image:** apk upgrade the runtime stage behind APT_CACHE_BUST ([#68](https://github.com/zeroroot-ai/docs-site/issues/68)) ([5996097](https://github.com/zeroroot-ai/docs-site/commit/59960972d414a1b3227fe7f891d96869ea000554)), closes [#45](https://github.com/zeroroot-ai/docs-site/issues/45)
+* **image:** build from the one lockfile CI verifies, and delete the other ([#63](https://github.com/zeroroot-ai/docs-site/issues/63)) ([c775da5](https://github.com/zeroroot-ai/docs-site/commit/c775da5fe4f02761564a5fdbf87f84fa75e0761f))
+* **image:** hash-pin pnpm with npm ci and drop libpng from the runtime base ([#66](https://github.com/zeroroot-ai/docs-site/issues/66)) ([b6d9970](https://github.com/zeroroot-ai/docs-site/commit/b6d9970bc9420a8333ee787d3864d04eb26411f6)), closes [#45](https://github.com/zeroroot-ai/docs-site/issues/45)
+
+
+### Documentation
+
+* add the invited-member quickstart and correct the tenant roles ([#57](https://github.com/zeroroot-ai/docs-site/issues/57)) ([e1cbd6d](https://github.com/zeroroot-ai/docs-site/commit/e1cbd6d019e30c7bef60f5b216c57431f0ac8861))
+* clone the ADK, and stop offering a bare binary install ([#60](https://github.com/zeroroot-ai/docs-site/issues/60)) ([179179b](https://github.com/zeroroot-ai/docs-site/commit/179179bef22865452e94f9aad25d37ec2e0f0974))
+* delete the invited-member page, and stop promising a second email ([#62](https://github.com/zeroroot-ai/docs-site/issues/62)) ([1bbe6c9](https://github.com/zeroroot-ai/docs-site/commit/1bbe6c9da6c6101a7d60461546b9ab370e872843))
+* **rbac:** state what removal does, and drop the two unimplemented claims ([#67](https://github.com/zeroroot-ai/docs-site/issues/67)) ([6d60be9](https://github.com/zeroroot-ai/docs-site/commit/6d60be9588216afefe044e347bd336ab2a56b48a)), closes [#59](https://github.com/zeroroot-ai/docs-site/issues/59)
+* **security:** the supply-chain page describes on-prem and air-gapped installs ([#61](https://github.com/zeroroot-ai/docs-site/issues/61)) ([13e1a42](https://github.com/zeroroot-ai/docs-site/commit/13e1a4270fcd7f320eee6df30379ba718832aac4))
+
+
+### Miscellaneous
+
+* **deps:** bump next from 16.3.4 to 16.3.6 ([#46](https://github.com/zeroroot-ai/docs-site/issues/46)) ([7f995dd](https://github.com/zeroroot-ai/docs-site/commit/7f995ddc4d90b94f6c19856128c7311dec6f8862))
+* **deps:** bump node from `ef24c50` to `0b36e8c` ([#43](https://github.com/zeroroot-ai/docs-site/issues/43)) ([7461b64](https://github.com/zeroroot-ai/docs-site/commit/7461b64a515cba9cbe7533e889f10956ea124e5f))
+
 ## [0.6.13](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.12...docs-site-v0.6.13) (2026-10-01)
 
 
