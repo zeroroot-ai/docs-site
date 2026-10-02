@@ -20,11 +20,29 @@ WORKDIR /app
 # --frozen-lockfile refuses the tree with "the current overrides configuration
 # doesn't match the value found in the lockfile".
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-# pnpm at exactly the version package.json's `packageManager` pins, read out of
-# that file so the image and the repo cannot name two different pnpm versions.
-# Not `corepack enable`: node:26-alpine ships no corepack (Node 25 removed it),
-# and the build failed with "corepack: not found".
-RUN npm i -g "$(node -p "require('./package.json').packageManager")"
+# pnpm comes from tools/pnpm, hash pinned: `npm ci` installs the one version
+# tools/pnpm/package-lock.json records and verifies every tarball against the
+# integrity hash in that lockfile (the zerocool-plugins pattern). Not
+# `corepack enable`: node:26-alpine ships no corepack (Node 25 removed it), and
+# the build failed with "corepack: not found". Not `npm i -g pnpm@<version>`
+# either: that pins a version and no hash, and Scorecard flags it
+# (PinnedDependenciesID, #45).
+COPY tools/pnpm/package.json tools/pnpm/package-lock.json /opt/pnpm/
+RUN cd /opt/pnpm \
+ && npm ci --omit=dev --no-audit --no-fund \
+ && ln -s /opt/pnpm/node_modules/.bin/pnpm /usr/local/bin/pnpm
+# The installed pnpm must be the one package.json's `packageManager` names.
+# pnpm self-switches to the `packageManager` version when they differ
+# (manage-package-manager-versions), which would download an unpinned pnpm
+# and defeat the hash pin above. So a bump to one file without the other
+# fails here, before any install runs.
+RUN want="$(node -p "require('./package.json').packageManager.split('@')[1]")" \
+ && have="$(node -p "require('/opt/pnpm/node_modules/pnpm/package.json').version")" \
+ && if [ "$have" != "$want" ]; then \
+      echo "tools/pnpm installs pnpm $have but package.json packageManager names pnpm $want" >&2; \
+      exit 1; \
+    fi \
+ && pnpm --version
 RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
 RUN pnpm build
@@ -38,7 +56,14 @@ RUN pnpm build
 #   [emerg] bind() to 0.0.0.0:80 failed (13: Permission denied)
 # and the docs vhost answered 503. The unprivileged image is built for exactly
 # this: it owns its own cache/run paths and defaults to :8080.
-FROM nginxinc/nginx-unprivileged:alpine@sha256:26b0bf6fbf07297983cb341998d79c831508787de26627dd2a112321b9c3a4af AS runner
+#
+# alpine-slim, not alpine: the full image adds the geoip, image-filter, njs
+# and xslt modules, and nginx.conf loads none of them. image-filter pulls in
+# libgd and libpng, and libpng was the image's open Trivy alert
+# (CVE-2026-46675, #45): no `:alpine` digest carried the fixed 1.6.59-r0 yet.
+# The slim image ships the same nginx, the same entrypoint scripts (envsubst
+# on templates, /docker-entrypoint.d) and no libpng at all.
+FROM nginxinc/nginx-unprivileged:alpine-slim@sha256:c81a27f28bc2d9c2da8998444e653c7b85b9bbbaa92e44ef18d8920784e06507 AS runner
 # Recreate the html tree owned by the runtime uid: the base image ships
 # /usr/share/nginx/html owned by root (with a stock 50x.html), and
 # 40-substitute-origins.sh sed-edits in place as uid 101 — sed's temp file
