@@ -4656,6 +4656,14 @@
               "comment": "ListAgents returns all registered agents from the etcd registry."
             },
             {
+              "name": "ListCatalogMissions",
+              "input": "ListCatalogMissionsRequest",
+              "output": "ListCatalogMissionsResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ListCatalogMissions returns the mission definitions gibson ships compiled\ninto its own binary (ADR-0018), with what each one declares.\n\nUntil this RPC, the catalog had exactly one reader: the agent-facing\nharness callback, which takes catalog_mission + catalog_params. A person\ncould neither list what the platform ships nor submit one of them, so the\nonly way to run a first-party mission by hand was to copy its CUE out of\nthe gibson repository and submit the copy — a second definition of one\nmission, which ADR-0027 forbids and which would silently stop tracking the\nchecked-in one (gibson#631).\n\nA read. Nothing here is per-tenant: the catalog is the same for every\ntenant, and a mission is not gated — the components it dispatches are."
+            },
+            {
               "name": "ListMissionDefinitions",
               "input": "ListMissionDefinitionsRequest",
               "output": "ListMissionDefinitionsResponse",
@@ -4726,6 +4734,14 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "QueryPlugin executes a method on a plugin and returns the result.\nThe plugin must be registered in the etcd registry."
+            },
+            {
+              "name": "RenderCatalogMission",
+              "input": "RenderCatalogMissionRequest",
+              "output": "RenderCatalogMissionResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "RenderCatalogMission renders one checked-in mission with the parameters it\ndeclares, and returns the definition the daemon would run.\n\nRendered SERVER-SIDE, which is the whole point. The parameter set is\nclosed, so an unrecognised key is refused rather than dropped — a caller\nthat could send an ignored key would believe a parameter bound when it did\nnot. No mission declares a target or a host, so the runtime target still\nbinds from the mission's target at submit and from nowhere else.\n\nA caller registers the result with CreateMissionDefinition and runs it the\nway it runs any definition. That is referencing the authoritative\ndefinition, not rebuilding it: the graph came from the gibson binary."
             },
             {
               "name": "RenewCapabilityGrant",
@@ -5092,6 +5108,36 @@
               "number": 6,
               "type": "map<string, string>",
               "comment": "arg_alternatives maps blocked arguments to their safer alternatives"
+            }
+          ]
+        },
+        {
+          "name": "CatalogMission",
+          "comment": "CatalogMission is one checked-in mission, and what a caller must supply to\nrender it.",
+          "fields": [
+            {
+              "name": "name",
+              "number": 1,
+              "type": "string",
+              "comment": "name is the catalog name, which is also what catalog_mission and\nRenderCatalogMissionRequest.name take."
+            },
+            {
+              "name": "description",
+              "number": 2,
+              "type": "string",
+              "comment": "description is the one-line description from the mission's own definition."
+            },
+            {
+              "name": "version",
+              "number": 3,
+              "type": "string",
+              "comment": "version is the mission's declared version."
+            },
+            {
+              "name": "declared_params",
+              "number": 4,
+              "type": "repeated string",
+              "comment": "declared_params names every parameter this mission requires, sorted. The\nset is closed: RenderCatalogMission refuses a key that is not here, and\nrefuses a render that omits one."
             }
           ]
         },
@@ -6003,6 +6049,23 @@
           ]
         },
         {
+          "name": "ListCatalogMissionsRequest",
+          "comment": "ListCatalogMissionsRequest takes nothing. The catalog is the same for every\ntenant and is not filtered.",
+          "fields": []
+        },
+        {
+          "name": "ListCatalogMissionsResponse",
+          "comment": "ListCatalogMissionsResponse lists the catalog, sorted by name.",
+          "fields": [
+            {
+              "name": "missions",
+              "number": 1,
+              "type": "repeated CatalogMission",
+              "comment": ""
+            }
+          ]
+        },
+        {
           "name": "ListMissionDefinitionsRequest",
           "comment": "ListMissionDefinitionsRequest queries installed mission definitions.",
           "fields": [
@@ -6302,6 +6365,12 @@
               "number": 13,
               "type": "int64",
               "comment": "completed_at is when the mission execution completed (Unix timestamp in milliseconds, 0 if not completed)"
+            },
+            {
+              "name": "created_by",
+              "number": 14,
+              "type": "gibson.common.v1.Principal",
+              "comment": "created_by is the principal that created the mission. See\nMissionInfo.created_by."
             }
           ]
         },
@@ -6674,6 +6743,12 @@
               "number": 12,
               "type": "string",
               "comment": "target_id is the registered target this mission ran against."
+            },
+            {
+              "name": "created_by",
+              "number": 13,
+              "type": "gibson.common.v1.Principal",
+              "comment": "created_by is the principal that created the mission: the person who\nasked for the run, or the service that scheduled it. A reader resolves\nthe id to a name at read time; a person who has left the tenant resolves\nto nobody, and the dashboard shows \"removed user\". Empty on a mission\ncreated before the field existed."
             }
           ]
         },
@@ -7231,6 +7306,42 @@
               "number": 3,
               "type": "int64",
               "comment": "duration_ms is how long the query took in milliseconds"
+            }
+          ]
+        },
+        {
+          "name": "RenderCatalogMissionRequest",
+          "comment": "RenderCatalogMissionRequest names a checked-in mission and supplies its\nparameters.",
+          "fields": [
+            {
+              "name": "name",
+              "number": 1,
+              "type": "string",
+              "comment": "name is the catalog name. An unknown name is InvalidArgument and the error\nnames what the catalog does ship."
+            },
+            {
+              "name": "params",
+              "number": 2,
+              "type": "map<string, string>",
+              "comment": "params carries the parameters the named mission declares, keyed by its own\nparameter names. CLOSED: an unrecognised key is refused rather than\nignored, and every missing one is reported at once rather than one render\nat a time."
+            }
+          ]
+        },
+        {
+          "name": "RenderCatalogMissionResponse",
+          "comment": "RenderCatalogMissionResponse returns the rendered definition.",
+          "fields": [
+            {
+              "name": "mission",
+              "number": 1,
+              "type": "gibson.mission.v1.MissionDefinition",
+              "comment": "mission is the definition the daemon would run. Register it with\nCreateMissionDefinition to run it."
+            },
+            {
+              "name": "source",
+              "number": 2,
+              "type": "string",
+              "comment": "source is the mission's CUE, verbatim, so a person can read what the daemon\nwill run rather than trusting a rendered summary."
             }
           ]
         },
@@ -9357,12 +9468,6 @@
               "number": 21,
               "type": "repeated ExplicitRelationship",
               "comment": ""
-            },
-            {
-              "name": "compliance_signals",
-              "number": 22,
-              "type": "repeated taxonomy.v1.ComplianceSignal",
-              "comment": "Compliance signals — daemon-emitted observations of harness calls.\nPopulated exclusively by the daemon ComplianceMiddleware (agents and tools\nnever self-report). Routed through the same DiscoveryResult → processor →\nloader pipeline as asset discoveries so signals land in Neo4j with the\nEMITTED_SIGNAL parent relationship to the originating agent_run."
             }
           ]
         },
@@ -9837,6 +9942,18 @@
               "number": 12,
               "type": "double",
               "comment": ""
+            },
+            {
+              "name": "from_node_id",
+              "number": 13,
+              "type": "string",
+              "comment": "from_node_id anchors a relationship traversal: with relationship_type,\nrestrict results to nodes reachable from this node by that relationship\n(sdk#72, the SDK search primitive). Optional; a query with neither this\nnor relationship_type is a plain type/text/relevance search, unchanged."
+            },
+            {
+              "name": "relationship_type",
+              "number": 14,
+              "type": "string",
+              "comment": "relationship_type names the relationship to traverse from from_node_id,\ne.g. \"RESOLVES_TO\" (sdk#72). Optional; requires from_node_id to have any\neffect."
             }
           ]
         },
@@ -10669,6 +10786,22 @@
               "comment": "OpenJob opens a job on a bank from a dispatched agent, under its\ngrant. It mirrors gibson.job.v1.JobService.OpenJob."
             },
             {
+              "name": "PlaceBet",
+              "input": "PlaceBetRequest",
+              "output": "PlaceBetResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "PlaceBet stakes a calibrated confidence on a Hypothesis (ADR-0022). Betting\nis a first-class SDK primitive, parallel to Observe: storage, settlement\nand scoring of the bet are a gibson-side concern (ADR-0023)."
+            },
+            {
+              "name": "ProposeOntologyExtension",
+              "input": "ProposeOntologyExtensionRequest",
+              "output": "ProposeOntologyExtensionResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ProposeOntologyExtension proposes a new Taxonomy node label or\nrelationship type discovered by an agent at runtime (ADR-0024 §2,\nADR-0033 decision 2). The agent proposes; it never promotes — the\ndaemon checks the identifier against its safety gate before recording\nit as a per-tenant proposal, and the resulting recurrence only ever\nfeeds a later, explicit tenant-owner approval. This call never blocks\non that approval."
+            },
+            {
               "name": "PullJob",
               "input": "PullJobRequest",
               "output": "PullJobResponse",
@@ -10749,6 +10882,14 @@
               "comment": ""
             },
             {
+              "name": "RequestDestructiveAuthorization",
+              "input": "RequestDestructiveAuthorizationRequest",
+              "output": "RequestDestructiveAuthorizationResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "RequestDestructiveAuthorization asks a human to approve an irreversible\ndemonstration BEFORE the agent performs it (ADR-0032). It returns\nimmediately with a pending request id — the fleet keeps working while\nthe decision is pending. The agent performs the destructive act only\nafter it reads back an approval, then calls SubmitProof."
+            },
+            {
               "name": "RunMission",
               "input": "RunMissionRequest",
               "output": "RunMissionResponse",
@@ -10779,6 +10920,14 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "Finding Operations"
+            },
+            {
+              "name": "SubmitProof",
+              "input": "SubmitProofRequest",
+              "output": "SubmitProofResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "SubmitProof triggers settlement of a Bet by submitting the raw evidence\nan agent's own tools captured (ADR-0030). The agent never submits a\nverdict or an interpretation — only raw evidence — because a\ndeterministic, typed predicate on the daemon decides settlement, never\nan LLM and never the bet's own beneficiary. A non-destructive proof\nsettles synchronously; a destructive proof settles only after a prior\nRequestDestructiveAuthorization approval, and this call never blocks on\nthat decision (ADR-0032)."
             },
             {
               "name": "SubscribeInput",
@@ -10911,6 +11060,36 @@
               "number": 2,
               "type": "string",
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "AnalysisObservation",
+          "comment": "AnalysisObservation reports a typed analysis artifact (sdk#74): a\nconclusion an agent draws FROM evidence already on the graph, with the\nconfidence it holds and the evidence it used — the bridge between raw\nfindings and reportable output. Unlike a Hypothesis (an unproven,\nforward-looking claim awaiting settlement, ADR-0021), an Analysis is\nbackward-looking: it synthesizes what is already known rather than\nproposing something new to test. Like every Observation, this feeds\nhypotheses and findings as a typed artifact, never as free text, and it is\nan emit: the daemon folds it onto the Timeline (ADR-0007).",
+          "fields": [
+            {
+              "name": "agent",
+              "number": 1,
+              "type": "string",
+              "comment": "agent identifies the agent producing the analysis."
+            },
+            {
+              "name": "conclusion",
+              "number": 2,
+              "type": "string",
+              "comment": "conclusion states the typed conclusion in a form the brain can fold\ninto a Finding or a Hypothesis, not free text."
+            },
+            {
+              "name": "confidence",
+              "number": 3,
+              "type": "double",
+              "comment": "confidence is the agent's calibrated confidence in the conclusion."
+            },
+            {
+              "name": "evidence",
+              "number": 4,
+              "type": "repeated ReferencedEntity",
+              "comment": "evidence names the entities on the graph this conclusion is based on,\nby label and identity (the same scheme HypothesisObservation.references\nuses) — the link from the conclusion back to the evidence it used."
             }
           ]
         },
@@ -11259,6 +11438,36 @@
               "number": 2,
               "type": "string",
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "Bet",
+          "comment": "Bet is an agent's calibrated stake on a Hypothesis: a stake that later\nsettles, not a bare confidence number (ADR-0022). Reputation attaches to\ntechnique × environment, never to an agent, so the technique the bet\nexercises rides on the bet itself.",
+          "fields": [
+            {
+              "name": "hypothesis_id",
+              "number": 1,
+              "type": "string",
+              "comment": "hypothesis_id names the Hypothesis this bet is on."
+            },
+            {
+              "name": "staking_agent",
+              "number": 2,
+              "type": "string",
+              "comment": "staking_agent identifies the agent placing the bet."
+            },
+            {
+              "name": "confidence",
+              "number": 3,
+              "type": "double",
+              "comment": "confidence is the staked calibrated confidence."
+            },
+            {
+              "name": "technique",
+              "number": 4,
+              "type": "string",
+              "comment": "technique names the technique this bet exercises. The reputation key is\ntechnique × environment, so this must ride on the bet."
             }
           ]
         },
@@ -12946,6 +13155,48 @@
           ]
         },
         {
+          "name": "HypothesisObservation",
+          "comment": "HypothesisObservation reports an agent's own reasoning: a proposed, unproven\nclaim, not a sighting (ADR-0021). It is attributed to the proposing agent and\ncarries a confidence; it stays unverified until it settles (the betting /\nsettlement slices, ADR-0022 / ADR-0023). This keeps the agent write surface\nemit-only — one more observation kind, never a raw graph write (ADR-0007).",
+          "fields": [
+            {
+              "name": "proposer",
+              "number": 1,
+              "type": "string",
+              "comment": "proposer identifies the agent making the claim."
+            },
+            {
+              "name": "confidence",
+              "number": 2,
+              "type": "double",
+              "comment": "confidence is the proposer's calibrated confidence in the claim."
+            },
+            {
+              "name": "claim",
+              "number": 3,
+              "type": "string",
+              "comment": "claim states the hypothesis in a form the brain can later settle, e.g.\n\"port 6443 on this host is unauthenticated\"."
+            },
+            {
+              "name": "references",
+              "number": 4,
+              "type": "repeated ReferencedEntity",
+              "comment": "references names the entities the claim is about, by label and identity —\nthe emitter does not know node ids, and must not be able to guess them."
+            },
+            {
+              "name": "technique",
+              "number": 5,
+              "type": "string",
+              "comment": "technique names the technique this hypothesis exercises. Reputation\nkeys on technique x environment (ADR-0022, gibson#333/#284), so this\nmust ride on the Hypothesis the same way it already rides on Bet.\nOptional and additive: empty means the hypothesis carries no technique\nsignal (resolves to the neutral prior), same as before this field\nexisted."
+            },
+            {
+              "name": "hypothesis_id",
+              "number": 6,
+              "type": "string",
+              "comment": "hypothesis_id is the agent-chosen identifier for this claim. The SAME\nvalue the agent later names as Bet.hypothesis_id when it stakes on\nthis claim, and that a settlement path (Engine.SettleBetByHITL,\ngibson#280) records against — the one join key across Hypothesis, Bet\nand BetSettlement (gibson#339). Optional: empty preserves the\npre-existing behavior of a Hypothesis with no bettable identity (it\nstill folds as a claim, ADR-0021, it just cannot be staked on or\nsettled by id)."
+            }
+          ]
+        },
+        {
           "name": "JSONSchemaNode",
           "comment": "JSONSchemaNode represents a JSON Schema node with taxonomy support.\nUsed for structured schema transmission that preserves taxonomy mappings.",
           "fields": [
@@ -14124,6 +14375,24 @@
               "number": 8,
               "type": "LifecycleEntityObservation",
               "comment": ""
+            },
+            {
+              "name": "hypothesis",
+              "number": 9,
+              "type": "HypothesisObservation",
+              "comment": ""
+            },
+            {
+              "name": "reasoning_step",
+              "number": 10,
+              "type": "ReasoningStepObservation",
+              "comment": ""
+            },
+            {
+              "name": "analysis",
+              "number": 11,
+              "type": "AnalysisObservation",
+              "comment": ""
             }
           ],
           "oneofs": [
@@ -14136,7 +14405,10 @@
                 "credential",
                 "account",
                 "memory",
-                "lifecycle_entity"
+                "lifecycle_entity",
+                "hypothesis",
+                "reasoning_step",
+                "analysis"
               ]
             }
           ]
@@ -14196,6 +14468,36 @@
             {
               "name": "error",
               "number": 2,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "PlaceBetRequest",
+          "comment": "PlaceBetRequest carries a calibrated stake on a Hypothesis (ADR-0022).",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "bet",
+              "number": 2,
+              "type": "Bet",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "PlaceBetResponse",
+          "comment": "PlaceBetResponse acknowledges a bet placement.",
+          "fields": [
+            {
+              "name": "error",
+              "number": 1,
               "type": "HarnessError",
               "comment": ""
             }
@@ -14317,6 +14619,66 @@
               "name": "transform",
               "number": 4,
               "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ProposeOntologyExtensionRequest",
+          "comment": "ProposeOntologyExtensionRequest carries an agent-proposed Taxonomy node\nlabel or relationship type discovered at runtime. The agent supplies the\nidentifier and its rationale; a deterministic safety gate on the daemon\n(taxonomy.ValidIdentifier) decides whether it is even recorded as a\nsighting — an invalid identifier is refused outright and never reaches\nthe Timeline.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "kind",
+              "number": 2,
+              "type": "OntologyExtensionKind",
+              "comment": "kind distinguishes a proposed node label from a proposed relationship\ntype."
+            },
+            {
+              "name": "label",
+              "number": 3,
+              "type": "string",
+              "comment": "label is the proposed identifier — the node label or relationship\ntype name itself."
+            },
+            {
+              "name": "proposer",
+              "number": 4,
+              "type": "string",
+              "comment": "proposer identifies the agent (or agent run) that proposed this\nextension, carried through for audit/attribution."
+            },
+            {
+              "name": "claim",
+              "number": 5,
+              "type": "string",
+              "comment": "claim is a short, free-text rationale for the proposal, carried\nthrough for the tenant owner's eventual review."
+            }
+          ]
+        },
+        {
+          "name": "ProposeOntologyExtensionResponse",
+          "comment": "ProposeOntologyExtensionResponse acknowledges the proposal. accepted is\ntrue when the identifier passed the safety gate and the proposal was\nrecorded as a sighting; false means it was refused outright (see\nrejection_reason) and never recorded, so it can never accumulate\nrecurrence.",
+          "fields": [
+            {
+              "name": "accepted",
+              "number": 1,
+              "type": "bool",
+              "comment": ""
+            },
+            {
+              "name": "rejection_reason",
+              "number": 2,
+              "type": "string",
+              "comment": "rejection_reason states, in plain words, why an unaccepted proposal\nwas refused — e.g. an invalid identifier. Empty when accepted is true."
+            },
+            {
+              "name": "error",
+              "number": 3,
+              "type": "HarnessError",
               "comment": ""
             }
           ]
@@ -14538,6 +14900,42 @@
           ]
         },
         {
+          "name": "ReasoningStepObservation",
+          "comment": "ReasoningStepObservation reports one step of an agent's own structured,\nmulti-step reasoning over graph state (sdk#73): what it inferred, and the\nentities its inference is about. It builds on the planning package's step\nmodel — step_index is typically the mission's current step\n(PlanningContext.CurrentStepIndex) — so a reasoning trace aligns with the\nmission's own plan. Like every Observation, this is an emit: the daemon\nfolds it onto the Timeline (flight recorder), so a completed multi-step\ntrace is inspectable afterward by plan_id, in step order.",
+          "fields": [
+            {
+              "name": "agent",
+              "number": 1,
+              "type": "string",
+              "comment": "agent identifies the agent doing the reasoning."
+            },
+            {
+              "name": "plan_id",
+              "number": 2,
+              "type": "string",
+              "comment": "plan_id groups every step of one reasoning trace. Agent-assigned: the\nSDK does not read node ids back, so a plan does not get one from the\ndaemon."
+            },
+            {
+              "name": "step_index",
+              "number": 3,
+              "type": "int32",
+              "comment": "step_index orders steps within plan_id."
+            },
+            {
+              "name": "step",
+              "number": 4,
+              "type": "string",
+              "comment": "step states what the agent reasoned or decided at this step."
+            },
+            {
+              "name": "references",
+              "number": 5,
+              "type": "repeated ReferencedEntity",
+              "comment": "references names the entities this step's reasoning is about, by label\nand identity (the same scheme HypothesisObservation.references uses)."
+            }
+          ]
+        },
+        {
           "name": "RecordSpanRequest",
           "comment": "",
           "fields": [
@@ -14594,6 +14992,24 @@
               "number": 1,
               "type": "HarnessError",
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ReferencedEntity",
+          "comment": "ReferencedEntity names an entity a Hypothesis is about, by its Taxonomy label\nand identity properties rather than a node id (same scheme as\nLifecycleEntityEdge's target).",
+          "fields": [
+            {
+              "name": "label",
+              "number": 1,
+              "type": "string",
+              "comment": "label is the Taxonomy label, e.g. \"Host\" / \"Package\"."
+            },
+            {
+              "name": "id_properties",
+              "number": 2,
+              "type": "map<string, string>",
+              "comment": "id_properties identify the entity, folded the same way as\nLifecycleEntityObservation.id_properties."
             }
           ]
         },
@@ -14772,6 +15188,72 @@
             {
               "name": "error",
               "number": 1,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "RequestDestructiveAuthorizationRequest",
+          "comment": "RequestDestructiveAuthorizationRequest asks a human to approve an\nirreversible demonstration before the agent performs it (ADR-0032). It\ncarries what a human reviewer needs to decide (ADR-0028 decision 3): what\nthe action would do, its blast radius, its reversibility, and the\npredicate it would satisfy.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "hypothesis_id",
+              "number": 2,
+              "type": "string",
+              "comment": "hypothesis_id names the Hypothesis the destructive demonstration would\nprove, and the join key a later SubmitProof settles by."
+            },
+            {
+              "name": "technique",
+              "number": 3,
+              "type": "string",
+              "comment": "technique names the technique the demonstration exercises."
+            },
+            {
+              "name": "predicate_name",
+              "number": 4,
+              "type": "string",
+              "comment": "predicate_name names the CEL predicate the demonstration would\nsatisfy — the same value a subsequent SubmitProof names."
+            },
+            {
+              "name": "action_description",
+              "number": 5,
+              "type": "string",
+              "comment": "action_description states, in plain words, what the demonstration\nwould do. Shown to the human reviewer verbatim."
+            },
+            {
+              "name": "blast_radius",
+              "number": 6,
+              "type": "string",
+              "comment": "blast_radius states, in plain words, what the action would reach — one\nhost, one tenant's data, a shared production resource. Empty means the\ncaller has no signal to report; it is not a claim of zero blast radius."
+            },
+            {
+              "name": "reversibility",
+              "number": 7,
+              "type": "Reversibility",
+              "comment": "reversibility states whether the action can be undone after it runs."
+            }
+          ]
+        },
+        {
+          "name": "RequestDestructiveAuthorizationResponse",
+          "comment": "RequestDestructiveAuthorizationResponse returns immediately: the fleet\nkeeps working while the human decision is pending (ADR-0028, ADR-0032).",
+          "fields": [
+            {
+              "name": "authorization_request_id",
+              "number": 1,
+              "type": "string",
+              "comment": "authorization_request_id names the pending request. The agent reads\nthe decision back before it performs the destructive act, then names\nthis same hypothesis_id on the eventual SubmitProof."
+            },
+            {
+              "name": "error",
+              "number": 2,
               "type": "HarnessError",
               "comment": ""
             }
@@ -15138,6 +15620,72 @@
             {
               "name": "error",
               "number": 1,
+              "type": "HarnessError",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "SubmitProofRequest",
+          "comment": "SubmitProofRequest carries the raw evidence an agent captured for a\nHypothesis it staked a Bet on. The agent supplies raw, uninterpreted tool\noutput — never a verdict (ADR-0030 decision 1) — and a deterministic,\ntyped predicate on the daemon decides whether the Bet settles.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "hypothesis_id",
+              "number": 2,
+              "type": "string",
+              "comment": "hypothesis_id names the Hypothesis this proof settles. The same value\nthe agent named on the HypothesisObservation and on the Bet it staked —\nthe one join key across Hypothesis, Bet and BetSettlement."
+            },
+            {
+              "name": "technique",
+              "number": 3,
+              "type": "string",
+              "comment": "technique names the technique this proof exercises, the same value\ncarried on the Bet (reputation keys on technique x environment,\nADR-0022)."
+            },
+            {
+              "name": "predicate_name",
+              "number": 4,
+              "type": "string",
+              "comment": "predicate_name names the enabled pack's CEL predicate the daemon\nevaluates against evidence to decide settlement. The agent names a\npredicate; it never evaluates one."
+            },
+            {
+              "name": "evidence",
+              "number": 5,
+              "type": "repeated gibson.types.v1.Evidence",
+              "comment": "evidence is the raw tool output the predicate evaluates. It is never a\nverdict or an interpretation of what the evidence shows."
+            },
+            {
+              "name": "destructive",
+              "number": 6,
+              "type": "bool",
+              "comment": "destructive is true when this proof follows an irreversible\ndemonstration. A destructive proof settles only after a prior\nRequestDestructiveAuthorization approval for this hypothesis_id\n(ADR-0032); a non-destructive proof settles synchronously."
+            }
+          ]
+        },
+        {
+          "name": "SubmitProofResponse",
+          "comment": "SubmitProofResponse reports the settlement outcome. SubmitProof never\nblocks on a human decision (ADR-0032 decision 2): a destructive proof\nreturns SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION immediately rather than\nwaiting for the pending authorization to resolve.",
+          "fields": [
+            {
+              "name": "hypothesis_id",
+              "number": 1,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "outcome",
+              "number": 2,
+              "type": "SettlementOutcome",
+              "comment": ""
+            },
+            {
+              "name": "error",
+              "number": 3,
               "type": "HarnessError",
               "comment": ""
             }
@@ -16525,6 +17073,48 @@
           ]
         },
         {
+          "name": "OntologyExtensionKind",
+          "comment": "OntologyExtensionKind distinguishes what an agent is proposing: a new\nTaxonomy node label or a new relationship type. These are Taxonomy's own\ntwo vocabularies (ADR-0024 §2) — the HEAVY safety gate, because a\npromoted label becomes Cypher query structure. This is deliberately not\nthe LIGHT gate for ontology triples (classes/equivalences/inverse-\nfunctional properties, ADR-0024 §1): that is a separate proposal kind\nwith no identifier-safety concern, and is not carried by this RPC.",
+          "values": [
+            {
+              "name": "ONTOLOGY_EXTENSION_KIND_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "ONTOLOGY_EXTENSION_KIND_NODE_LABEL",
+              "number": 1,
+              "comment": ""
+            },
+            {
+              "name": "ONTOLOGY_EXTENSION_KIND_RELATIONSHIP_TYPE",
+              "number": 2,
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "Reversibility",
+          "comment": "Reversibility states whether a destructive action can be undone once it\nruns.",
+          "values": [
+            {
+              "name": "REVERSIBILITY_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "REVERSIBILITY_REVERSIBLE",
+              "number": 1,
+              "comment": ""
+            },
+            {
+              "name": "REVERSIBILITY_IRREVERSIBLE",
+              "number": 2,
+              "comment": ""
+            }
+          ]
+        },
+        {
           "name": "RunScope",
           "comment": "RunScope selects which mission runs GetRunFindings reads.",
           "values": [
@@ -16542,6 +17132,32 @@
               "name": "RUN_SCOPE_ALL",
               "number": 2,
               "comment": "RUN_SCOPE_ALL reads every run of this mission."
+            }
+          ]
+        },
+        {
+          "name": "SettlementOutcome",
+          "comment": "SettlementOutcome reports what SubmitProof did with the submitted proof.",
+          "values": [
+            {
+              "name": "SETTLEMENT_OUTCOME_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "SETTLEMENT_OUTCOME_SETTLED_TRUE",
+              "number": 1,
+              "comment": "SETTLEMENT_OUTCOME_SETTLED_TRUE means the predicate fired against the\nsubmitted evidence and the Bet settled true."
+            },
+            {
+              "name": "SETTLEMENT_OUTCOME_NOT_SETTLED",
+              "number": 2,
+              "comment": "SETTLEMENT_OUTCOME_NOT_SETTLED means the predicate did not fire. The\nBet stays unsettled."
+            },
+            {
+              "name": "SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION",
+              "number": 3,
+              "comment": "SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION means the proof was destructive\nand settlement is deferred until the daemon reads back an approved\nauthorization decision for this hypothesis_id (ADR-0032). SubmitProof\nnever blocks on that decision."
             }
           ]
         },
@@ -16865,6 +17481,11 @@
               "name": "PRINCIPAL_KIND_PLUGIN",
               "number": 3,
               "comment": ""
+            },
+            {
+              "name": "PRINCIPAL_KIND_USER",
+              "number": 4,
+              "comment": "A person who signed in through OIDC. Not a component principal."
             }
           ]
         }
@@ -18328,6 +18949,30 @@
           ]
         },
         {
+          "name": "ForEachNodeConfig",
+          "comment": "ForEachNodeConfig configures a for_each node: ONE template node, run once\nper item in a source set.\n\nThe distinction from ParallelNodeConfig is the point. Parallel runs N\nDIFFERENT declared sub_nodes concurrently. ForEach runs ONE declared node N\ntimes, where N is discovered from the source rather than written down. A\nmission that fans a scan across every target in its target set declares the\nscan once.",
+          "fields": [
+            {
+              "name": "template",
+              "number": 1,
+              "type": "MissionNode",
+              "comment": "template is the node run once per item.\n\nIt must not itself be a for_each node. That is a submit-time check in\nthe daemon rather than a protovalidate rule, because protovalidate\ncannot express \"this nested MissionNode's config is not this variant\"."
+            },
+            {
+              "name": "source",
+              "number": 2,
+              "type": "ForEachNodeConfig.Source",
+              "comment": "source is required and must be a named value. Omission is NOT taken to\nmean the target set: an unset source is a mission that did not say what\nit iterates, and a future second source would silently change what the\nomission meant."
+            },
+            {
+              "name": "max_concurrency",
+              "number": 3,
+              "type": "int32",
+              "comment": "max_concurrency limits instances in flight (0 = unlimited), the same\nsemantics as ParallelNodeConfig.max_concurrency."
+            }
+          ]
+        },
+        {
           "name": "JobNodeConfig",
           "comment": "RetryPolicy defines the retry behavior for a mission node\nJobNodeConfig contains configuration for job nodes.\nJOB = a unit of work driven on a bank of always-on coding agents.\nThe executor opens a job on the bank, then runs the verify\nloop: it dispatches the acceptance step to the declared verifier\ncomponent, and on failure sends the verifier's report as the next input\nto the SAME job, so the agent keeps its conversation and its worktrees.\nWhen the verifier passes, or the passes run out, the executor calls\nCloseJob with a verdict and a score.\n\nThe loop lives inside this node. The mission graph stays a DAG: a job\nnode never adds a loop edge.",
           "fields": [
@@ -18582,6 +19227,12 @@
               "number": 17,
               "type": "optional LLMSlotConfig",
               "comment": "DeciderSlot names the mission-level LLM the brain's Decider runs on — the\norchestration decision-maker, distinct from per-node agent slots.\nOnly the provider+model are used (the slot name is implicitly\n\"decider\"). Absent means the brain uses the tenant's dashboard-default\nprovider/model, so missions need not set it."
+            },
+            {
+              "name": "secrets",
+              "number": 18,
+              "type": "optional MissionSecrets",
+              "comment": "Secrets declares which named tenant secrets this mission's components may\nbe handed at dispatch. Names only; a value never appears here."
             }
           ]
         },
@@ -18744,6 +19395,12 @@
               "number": 17,
               "type": "JobNodeConfig",
               "comment": "JobConfig for job nodes. Field number 17 because\n16 is the sibling reuse_policy field."
+            },
+            {
+              "name": "for_each_config",
+              "number": 18,
+              "type": "ForEachNodeConfig",
+              "comment": "ForEachConfig for for_each nodes. Field number 18 as the next free\ntag; 13 is NOT free despite looking it, because data_policy is\n`= 13 [deprecated = true]` and a field-number scan that expects a\ntrailing semicolon misses it."
             }
           ],
           "oneofs": [
@@ -18756,8 +19413,57 @@
                 "condition_config",
                 "parallel_config",
                 "join_config",
-                "job_config"
+                "job_config",
+                "for_each_config"
               ]
+            }
+          ]
+        },
+        {
+          "name": "MissionSecrets",
+          "comment": "MissionSecrets declares which named tenant secrets the components of a\nmission may be handed, and to which of them.\n\nNAMES ONLY. A secret's value is resolved server-side at dispatch by the\ndaemon, which holds the KEK and the broker, and is handed to the component as\nenvironment. A value never appears in a mission definition, which is stored,\nlisted, rendered, validated and displayed. A component never names a secret\nitself: the same property ScopeID has, where an agent-supplied value would\nmake the decision attacker-influenceable.\n\nThis does NOT widen FGA. `secret.can_resolve` admits only plugin_principal,\nand the non-plugin-secret-isolation spec asserts an agent and a tool are each\ndenied (gibson tests/e2e/secrets/non_plugin_deny_test.go). That property is\npreserved exactly: a component still cannot ask for a secret. This declares\nwhat the daemon may hand it, and the daemon resolves as itself.\n\nThe wide lists and the per-name maps UNION. A tool named T in a mission whose\ndefinition sets `mission`, `tools` and `tool[T]` may be handed any name in any\nof the three. An absent block means no component is handed anything, which is\nthe behavior before this field existed.",
+          "fields": [
+            {
+              "name": "mission",
+              "number": 1,
+              "type": "repeated string",
+              "comment": "Mission is handed to every component in the run, whatever its kind."
+            },
+            {
+              "name": "agents",
+              "number": 2,
+              "type": "repeated string",
+              "comment": "Agents, Tools and Plugins are handed to every component of that kind."
+            },
+            {
+              "name": "tools",
+              "number": 3,
+              "type": "repeated string",
+              "comment": ""
+            },
+            {
+              "name": "plugins",
+              "number": 4,
+              "type": "repeated string",
+              "comment": ""
+            },
+            {
+              "name": "agent",
+              "number": 5,
+              "type": "map<string, SecretNames>",
+              "comment": "Agent, Tool and Plugin are handed to one NAMED component. The key is the\ncomponent name as the catalog and the mission node spell it.\n\nThree explicit maps rather than one keyed by a ComponentKind enum: no\nsuch enum exists in this module, adding one to express three cases is a\npermanent API surface for no gain, and a map per kind is what the file\nalready does for nodes (`map<string, MissionNode> nodes = 6`)."
+            },
+            {
+              "name": "tool",
+              "number": 6,
+              "type": "map<string, SecretNames>",
+              "comment": ""
+            },
+            {
+              "name": "plugin",
+              "number": 7,
+              "type": "map<string, SecretNames>",
+              "comment": ""
             }
           ]
         },
@@ -18912,6 +19618,18 @@
           ]
         },
         {
+          "name": "SecretNames",
+          "comment": "SecretNames is a list of secret names, as the value of a per-component map.\nproto3 has no repeated map value, so the list needs a message.",
+          "fields": [
+            {
+              "name": "names",
+              "number": 1,
+              "type": "repeated string",
+              "comment": ""
+            }
+          ]
+        },
+        {
           "name": "ToolNodeConfig",
           "comment": "ToolNodeConfig contains configuration for tool nodes.\nTOOL = single-purpose named function with a typed input map. The\nexecutor invokes the named tool through the tool worker queue and\nreturns the tool's output as the node result.",
           "fields": [
@@ -19018,6 +19736,22 @@
           ]
         },
         {
+          "name": "ForEachNodeConfig.Source",
+          "comment": "Source selects what is iterated.",
+          "values": [
+            {
+              "name": "SOURCE_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "SOURCE_TARGET_SET",
+              "number": 1,
+              "comment": "TARGET_SET is the mission's resolved target set, primary first, in\nthe order TargetSet returns."
+            }
+          ]
+        },
+        {
           "name": "Language",
           "comment": "Language declares the expression language used by mission constructs\nthat evaluate string expressions (currently only ConditionNodeConfig).\n\nSpec: mission-schema-canonicalization Requirement 4. CEL is the only\nlanguage supported in v1; LANGUAGE_UNSPECIFIED is treated as\nLANGUAGE_CEL for backwards compatibility with documents authored\nbefore this enum existed.",
           "values": [
@@ -19112,6 +19846,11 @@
               "name": "NODE_TYPE_JOB",
               "number": 7,
               "comment": "Job node drives a job on a bank of always-on agents.\nIts executor opens the job, runs the verify loop against the\nacceptance the spec declares, and closes the job with a verdict."
+            },
+            {
+              "name": "NODE_TYPE_FOR_EACH",
+              "number": 8,
+              "comment": "ForEach node runs ONE template node once per item in a source set.\nIt is a CONTAINER, so one graph node remains one execution unit and\nJoinNodeConfig.wait_for keeps meaning \"this node\", not \"one of its\ninstances\". A boolean on MissionNode would have made every consumer\nof a node 1:N and made wait_for ambiguous between one instance and all."
             }
           ]
         }
@@ -19658,6 +20397,753 @@
       ]
     },
     {
+      "name": "gibson.secrets.v1",
+      "comment": "Package gibson.secrets.v1 — SecretsService: the customer-callable secrets\nmanagement surface.\n\nThis service has moved three times, which is worth recording so a fourth move\nis argued rather than assumed:\n\n ADR-0039 gibson.admin.v1.SecretsAdminService (platform-sdk) -> the OSS SDK\n ADR-0058 out of the SDK to the gibson platform protos, as tenant admin\n ADR-0096 back into the SDK, here, as its own wire package\n\nThe 2026-10-01 amendment to ADR-0058 is the current authority. ADR-0096\nremoved the credential reference from a Target, which left the command line as\nthe only surface a developer has for the credential their tool needs, so the\nservice that stores it belongs on the developer surface.\n\nWHY ITS OWN WIRE PACKAGE: one proto package may have exactly ONE generated Go\nhome linked into a binary, and the daemon links both the SDK and its own\nprotos. Two homes for one package is the documented\n`proto: duplicate registration` panic. AgentIdentityService\n(gibson.agentidentity.v1) and PluginAdminService (gibson.pluginadmin.v1) set\nthis precedent when ADR-0058's first amendment kept them in the SDK.\n\nThe broker-config RPCs (GetBrokerConfig, ProbeBrokerConfig, SetBrokerConfig,\nCountSecrets) come with the service rather than staying behind. Splitting one\nservice across the two surfaces would split its wire package and reintroduce\nthe panic above for no benefit, and a developer whose tenant has no broker\nconfigured cannot store a secret at all.\n\nSECURITY: SecretsService NEVER returns a secret's plaintext value. The only\nRPC in Gibson that returns plaintext is HarnessCallbackService.GetCredential,\nwhich is plugin-only by FGA and not callable from the dashboard or SDK.\n\nAuthorization: every RPC carries a (gibson.auth.v1.authz) annotation. The\nannotations are unchanged by the move: every RPC still derives its object via\ntenant_from_identity and still admits USER identities only.",
+      "services": [
+        {
+          "name": "SecretsService",
+          "comment": "SecretsService manages tenant secrets and their lifecycle, including\nbroker configuration for the tenant's active secrets backend.",
+          "methods": [
+            {
+              "name": "CountSecrets",
+              "input": "CountSecretsRequest",
+              "output": "CountSecretsResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "CountSecrets returns the number of secrets currently stored in the\ntenant's active broker. No names, values, or per-row metadata — only an\ninteger count."
+            },
+            {
+              "name": "DeleteSecret",
+              "input": "DeleteSecretRequest",
+              "output": "DeleteSecretResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "DeleteSecret removes the named secret from the broker and emits a\nsecret_revoked audit event."
+            },
+            {
+              "name": "GetBrokerConfig",
+              "input": "GetBrokerConfigRequest",
+              "output": "GetBrokerConfigResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "GetBrokerConfig returns the redacted current configuration. Sensitive\nfields are NEVER returned."
+            },
+            {
+              "name": "GetMissionAudit",
+              "input": "GetMissionAuditRequest",
+              "output": "GetMissionAuditResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "GetMissionAudit returns the per-mission aggregated list of resolved\nsecret refs (one row per ref) for the mission detail \"Secrets accessed\"\npanel. Refs only — never values."
+            },
+            {
+              "name": "GetSecret",
+              "input": "GetSecretRequest",
+              "output": "GetSecretResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "GetSecret returns metadata for one named secret. Never carries the\nplaintext value."
+            },
+            {
+              "name": "ListSecrets",
+              "input": "ListSecretsRequest",
+              "output": "ListSecretsResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ListSecrets returns the metadata-only list of secrets owned by the\ntenant resolved from identity. NEVER returns plaintext values."
+            },
+            {
+              "name": "ProbeBrokerConfig",
+              "input": "ProbeBrokerConfigRequest",
+              "output": "ProbeBrokerConfigResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ProbeBrokerConfig validates a candidate config without persisting it."
+            },
+            {
+              "name": "RotateSecret",
+              "input": "RotateSecretRequest",
+              "output": "RotateSecretResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "RotateSecret creates a new version of the named secret with a new value.\nEmits a secret_rotated audit event."
+            },
+            {
+              "name": "SetBrokerConfig",
+              "input": "SetBrokerConfigRequest",
+              "output": "SetBrokerConfigResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "SetBrokerConfig probes the candidate config and persists it on success.\nEmits a tenant_secrets_backend_configured audit event."
+            },
+            {
+              "name": "SetSecret",
+              "input": "SetSecretRequest",
+              "output": "SetSecretResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "SetSecret creates or overwrites the named secret. The value is sent in\nthe request bytes (TLS in transit; never logged)."
+            }
+          ]
+        }
+      ],
+      "messages": [
+        {
+          "name": "CandidateConfig",
+          "comment": "CandidateConfig is the submitted config for Probe / Set. It carries the\nfull set of fields including sensitive ones.\n\nSECURITY: never log this message.",
+          "fields": [
+            {
+              "name": "provider",
+              "number": 1,
+              "type": "BrokerProvider",
+              "comment": ""
+            },
+            {
+              "name": "address",
+              "number": 2,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "namespace_or_path",
+              "number": 3,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "mount",
+              "number": 4,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "auth_method",
+              "number": 5,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "region",
+              "number": 6,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "project",
+              "number": 7,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "tenant_id_external",
+              "number": 8,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "client_id",
+              "number": 9,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "role_arn",
+              "number": 10,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "vault_token",
+              "number": 20,
+              "type": "bytes",
+              "comment": "Vault token (token auth method). Sensitive."
+            },
+            {
+              "name": "approle_role_id",
+              "number": 21,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "approle_secret_id",
+              "number": 22,
+              "type": "bytes",
+              "comment": ""
+            },
+            {
+              "name": "aws_access_key_id",
+              "number": 23,
+              "type": "bytes",
+              "comment": ""
+            },
+            {
+              "name": "aws_secret_access_key",
+              "number": 24,
+              "type": "bytes",
+              "comment": ""
+            },
+            {
+              "name": "aws_external_id",
+              "number": 25,
+              "type": "bytes",
+              "comment": ""
+            },
+            {
+              "name": "gcp_service_account_json",
+              "number": 26,
+              "type": "bytes",
+              "comment": ""
+            },
+            {
+              "name": "azure_client_secret",
+              "number": 27,
+              "type": "bytes",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "CountSecretsRequest",
+          "comment": "",
+          "fields": []
+        },
+        {
+          "name": "CountSecretsResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "count",
+              "number": 1,
+              "type": "int64",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "DeleteSecretRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "name",
+              "number": 1,
+              "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "DeleteSecretResponse",
+          "comment": "",
+          "fields": []
+        },
+        {
+          "name": "GetBrokerConfigRequest",
+          "comment": "",
+          "fields": []
+        },
+        {
+          "name": "GetBrokerConfigResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "config",
+              "number": 1,
+              "type": "RedactedConfig",
+              "comment": ""
+            },
+            {
+              "name": "configured",
+              "number": 2,
+              "type": "bool",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "GetMissionAuditRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "mission_id",
+              "number": 1,
+              "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "GetMissionAuditResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "accesses",
+              "number": 1,
+              "type": "repeated MissionSecretAccess",
+              "comment": ""
+            },
+            {
+              "name": "aggregation_lag_seconds",
+              "number": 2,
+              "type": "int32",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "GetSecretRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "name",
+              "number": 1,
+              "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "GetSecretResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "metadata",
+              "number": 1,
+              "type": "SecretMetadata",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ListSecretsRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "category_filter",
+              "number": 1,
+              "type": "SecretCategory",
+              "comment": ""
+            },
+            {
+              "name": "limit",
+              "number": 2,
+              "type": "int32",
+              "comment": ""
+            },
+            {
+              "name": "offset",
+              "number": 3,
+              "type": "int32",
+              "comment": ""
+            },
+            {
+              "name": "name_prefix",
+              "number": 4,
+              "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ListSecretsResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "secrets",
+              "number": 1,
+              "type": "repeated SecretMetadata",
+              "comment": ""
+            },
+            {
+              "name": "total",
+              "number": 2,
+              "type": "int32",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "MissionSecretAccess",
+          "comment": "MissionSecretAccess describes one ref's access pattern across the\nmission's lifetime.",
+          "fields": [
+            {
+              "name": "ref",
+              "number": 1,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "category",
+              "number": 2,
+              "type": "SecretCategory",
+              "comment": ""
+            },
+            {
+              "name": "first_access_at_unix",
+              "number": 3,
+              "type": "int64",
+              "comment": ""
+            },
+            {
+              "name": "last_access_at_unix",
+              "number": 4,
+              "type": "int64",
+              "comment": ""
+            },
+            {
+              "name": "count",
+              "number": 5,
+              "type": "int32",
+              "comment": ""
+            },
+            {
+              "name": "plugin_install_ids",
+              "number": 6,
+              "type": "repeated string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ProbeBrokerConfigRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "candidate",
+              "number": 1,
+              "type": "CandidateConfig",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ProbeBrokerConfigResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "result",
+              "number": 1,
+              "type": "ProbeResult",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ProbeResult",
+          "comment": "ProbeResult carries the structured outcome of a broker config probe.",
+          "fields": [
+            {
+              "name": "ok",
+              "number": 1,
+              "type": "bool",
+              "comment": ""
+            },
+            {
+              "name": "error_class",
+              "number": 2,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "error_message",
+              "number": 3,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "duration_ms",
+              "number": 4,
+              "type": "int64",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "RedactedConfig",
+          "comment": "RedactedConfig is the dashboard-safe view of a tenant's broker config.\nAll fields are non-sensitive; sensitive fields are dropped server-side.\n\nSECURITY: this message MUST NOT carry any sensitive auth field.",
+          "fields": [
+            {
+              "name": "provider",
+              "number": 1,
+              "type": "BrokerProvider",
+              "comment": ""
+            },
+            {
+              "name": "address",
+              "number": 2,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "namespace_or_path",
+              "number": 3,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "mount",
+              "number": 4,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "auth_method",
+              "number": 5,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "region",
+              "number": 6,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "project",
+              "number": 7,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "tenant_id_external",
+              "number": 8,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "client_id",
+              "number": 9,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "role_arn",
+              "number": 10,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "sensitive_fields_set",
+              "number": 11,
+              "type": "repeated string",
+              "comment": "sensitive_fields_set lists the names of sensitive fields that have a\nvalue stored on the server."
+            },
+            {
+              "name": "updated_at_unix",
+              "number": 12,
+              "type": "int64",
+              "comment": ""
+            },
+            {
+              "name": "updated_by",
+              "number": 13,
+              "type": "string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "RotateSecretRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "name",
+              "number": 1,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "value",
+              "number": 2,
+              "type": "bytes",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "RotateSecretResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "metadata",
+              "number": 1,
+              "type": "SecretMetadata",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "SecretMetadata",
+          "comment": "SecretMetadata is the wire-shape returned by GetSecret and ListSecrets.\nSECURITY: this message MUST NOT carry the secret's plaintext value.",
+          "fields": [
+            {
+              "name": "name",
+              "number": 1,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "category",
+              "number": 2,
+              "type": "SecretCategory",
+              "comment": ""
+            },
+            {
+              "name": "version",
+              "number": 3,
+              "type": "int64",
+              "comment": ""
+            },
+            {
+              "name": "created_at_unix",
+              "number": 4,
+              "type": "int64",
+              "comment": ""
+            },
+            {
+              "name": "created_by",
+              "number": 5,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "updated_at_unix",
+              "number": 6,
+              "type": "int64",
+              "comment": ""
+            },
+            {
+              "name": "updated_by",
+              "number": 7,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "last_accessed_at_unix",
+              "number": 8,
+              "type": "int64",
+              "comment": ""
+            },
+            {
+              "name": "plugin_associations",
+              "number": 9,
+              "type": "repeated string",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "SetBrokerConfigRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "candidate",
+              "number": 1,
+              "type": "CandidateConfig",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "SetBrokerConfigResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "config",
+              "number": 1,
+              "type": "RedactedConfig",
+              "comment": ""
+            },
+            {
+              "name": "probe_result",
+              "number": 2,
+              "type": "ProbeResult",
+              "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "SetSecretRequest",
+          "comment": "",
+          "fields": [
+            {
+              "name": "name",
+              "number": 1,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "category",
+              "number": 2,
+              "type": "SecretCategory",
+              "comment": ""
+            },
+            {
+              "name": "value",
+              "number": 3,
+              "type": "bytes",
+              "comment": "value is the plaintext bytes to store. TLS in transit; never logged."
+            }
+          ]
+        },
+        {
+          "name": "SetSecretResponse",
+          "comment": "",
+          "fields": [
+            {
+              "name": "metadata",
+              "number": 1,
+              "type": "SecretMetadata",
+              "comment": ""
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "BrokerProvider",
+          "comment": "Retired providers — reserved to keep the wire unambiguous:\n 1 = POSTGRES, 2 = VAULT (old ambiguous single-Vault value),\n 3 = AWSSM, 4 = GCPSM, 5 = AZUREKV.",
+          "values": [
+            {
+              "name": "BROKER_PROVIDER_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "BROKER_PROVIDER_VAULT_HOSTED",
+              "number": 6,
+              "comment": "BROKER_PROVIDER_VAULT_HOSTED is the platform-managed OpenBao broker.\nZero configuration; already active for every tenant (namespace mode)."
+            },
+            {
+              "name": "BROKER_PROVIDER_VAULT_BYO",
+              "number": 7,
+              "comment": "BROKER_PROVIDER_VAULT_BYO is a customer-supplied HashiCorp Vault /\nOpenBao. Tenant isolation is by path prefix (path-prefix mode) since\nOSS Vault/OpenBao CE has no namespaces."
+            }
+          ]
+        },
+        {
+          "name": "SecretCategory",
+          "comment": "SecretCategory classifies what role a secret plays in the system.",
+          "values": [
+            {
+              "name": "SECRET_CATEGORY_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "SECRET_CATEGORY_CRED",
+              "number": 1,
+              "comment": "SECRET_CATEGORY_CRED is a generic credential bound to a plugin via FGA\ncan_resolve tuples."
+            },
+            {
+              "name": "SECRET_CATEGORY_PROVIDER_CONFIG",
+              "number": 2,
+              "comment": "SECRET_CATEGORY_PROVIDER_CONFIG is an LLM provider configuration."
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "gibson.target.v1",
       "comment": "gibson.target.v1 is the customer-facing target contract. A Target is a\nsystem to be assessed by a mission. The id (UUID) is the canonical identity;\nevery other field is metadata. Nothing resolves targets by name — clients\nreference a target solely by its server-minted UUID.\n\nThis package mirrors the daemon's types.Target / types.TargetFilter storage\nshape. The daemon, the `gibson` CLI (ADK), and the dashboard all consume the\ngenerated bindings of this file; hand-written parallel representations are\nforbidden.\n\nSchema evolution policy: message field numbers are append-only — no\nrenumbers, no reuse. Type-of-field changes are breaking and require a ship\nsequence across the SDK and every consumer.",
       "services": [],
@@ -19713,18 +21199,6 @@
               "number": 8,
               "type": "repeated string",
               "comment": "capabilities lists capability tags advertised by the target."
-            },
-            {
-              "name": "auth_type",
-              "number": 9,
-              "type": "string",
-              "comment": "auth_type is the authentication scheme for the target."
-            },
-            {
-              "name": "credential_id",
-              "number": 10,
-              "type": "string",
-              "comment": "credential_id references a stored credential. Empty when none."
             },
             {
               "name": "status",
@@ -21150,240 +22624,6 @@
           ]
         },
         {
-          "name": "ComplianceSignal",
-          "comment": "ComplianceSignal represents: Daemon-emitted observation of a single harness call. Append-only. Immutable.\nThe graph projection of the Redis Streams audit log entry for one platform\naction. Every compliance_signal is an objective observation; evidence,\nviolation, and attestation classifications are queries over the stream,\nnever stored types. No kind discriminator field exists on this node type.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "signal_id",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "actor_id",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "actor_tenant_id",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "api_key_id",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "on_behalf_of",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "roles_snapshot",
-              "number": 7,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "mission_id",
-              "number": 8,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "mission_run_id",
-              "number": 9,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "agent_run_id",
-              "number": 10,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "parent_agent_run_id",
-              "number": 11,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "delegation_depth",
-              "number": 12,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "trace_id",
-              "number": 13,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "caller_chain",
-              "number": 14,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "caller_component",
-              "number": 15,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "caller_component_version",
-              "number": 16,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "target_component",
-              "number": 17,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "target_component_version",
-              "number": 18,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "system_owned",
-              "number": 19,
-              "type": "bool",
-              "comment": ""
-            },
-            {
-              "name": "action",
-              "number": 20,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "effect",
-              "number": 21,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "resource_type",
-              "number": 22,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "resource_node_id",
-              "number": 23,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "resource_uri",
-              "number": 24,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "decision",
-              "number": 25,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "policy_id",
-              "number": 26,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "decision_reason",
-              "number": 27,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "success",
-              "number": 28,
-              "type": "bool",
-              "comment": ""
-            },
-            {
-              "name": "error_code",
-              "number": 29,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "latency_ms",
-              "number": 30,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "bytes_in",
-              "number": 31,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "bytes_out",
-              "number": 32,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "tokens_prompt",
-              "number": 33,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "tokens_completion",
-              "number": 34,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "occurred_at",
-              "number": 35,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "resource_tags",
-              "number": 36,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "custom",
-              "number": 37,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "control_ids",
-              "number": 38,
-              "type": "repeated string",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "Credential",
           "comment": "Credential represents: A credential (secret material), identified by the hash of its secret. May work across scopes.",
           "fields": [
@@ -22506,7 +23746,7 @@
       "enums": [
         {
           "name": "CoreNodeType",
-          "comment": "CoreNodeType enumerates all core (validated) node types.\nCustom types use string directly, not this enum.",
+          "comment": "Retired. The number and the name are reserved so neither can be reused:\na reused number changes the meaning of data already on the wire.",
           "values": [
             {
               "name": "CORE_NODE_TYPE_UNSPECIFIED",
@@ -22594,11 +23834,6 @@
               "comment": ""
             },
             {
-              "name": "CORE_NODE_TYPE_COMPLIANCE_SIGNAL",
-              "number": 17,
-              "comment": ""
-            },
-            {
               "name": "CORE_NODE_TYPE_SCOPE",
               "number": 18,
               "comment": ""
@@ -22617,7 +23852,7 @@
         },
         {
           "name": "CoreRelationType",
-          "comment": "CoreRelationType enumerates all core relationship types.",
+          "comment": "Retired. See the note in CoreNodeType.",
           "values": [
             {
               "name": "CORE_RELATION_TYPE_UNSPECIFIED",
@@ -22632,16 +23867,6 @@
             {
               "name": "CORE_RELATION_TYPE_DELEGATED_TO",
               "number": 2,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_EMITTED_SIGNAL",
-              "number": 3,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_T_R_I_G_G_E_R_E_D",
-              "number": 4,
               "comment": ""
             },
             {
@@ -22680,7 +23905,7 @@
               "comment": ""
             },
             {
-              "name": "CORE_RELATION_TYPE_A_F_F_E_C_T_S",
+              "name": "CORE_RELATION_TYPE_AFFECTS",
               "number": 12,
               "comment": ""
             },
