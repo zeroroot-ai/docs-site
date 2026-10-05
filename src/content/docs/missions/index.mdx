@@ -100,6 +100,8 @@ each node type below. All node types share these node-level fields:
 | `reuse_policy` | ReusePolicy | Scope and re-use across runs, see [Reuse policy](#reuse-policy-skip--rerun--merge). |
 | `data_policy` | DataPolicy | Knowledge-graph storage + retention. |
 | `metadata` | map\<string, string\> | Per-node labels. |
+| `research` | bool | The node gathers information from outside the targets, with open egress. Each other node reaches only its targets. |
+| `starts_from` | string | The ID of an earlier node. This node starts from the state of that node at its end. See [Fork a node](#fork-a-node-starts_from). |
 
 ## Per-NodeType config
 
@@ -471,6 +473,7 @@ Each layer fails closed. An error at any layer aborts the submit.
    against the embedded `#MissionDefinition` schema. Then it runs the
    same protovalidate rules that the daemon enforces server-side. This
    layer catches typos, missing required fields, and wrong enum values.
+   It also checks that each `starts_from` names an earlier node.
 
    ```text
    validate: validation error: - definition.target_ref: value is required
@@ -653,6 +656,48 @@ The `input_scope` and `output_scope` fields accept `"mission_run"`,
 `"mission"`, or `"global"`. The default is `"mission"`. With this
 default, outputs are reusable across runs of the same mission
 definition but not across definitions.
+
+### Fork a node, `starts_from`
+
+A node usually starts in a fresh sandbox. Set `starts_from` to the ID of
+an earlier node, and the node starts from the state that the earlier
+node had when it ended. The brain keeps a snapshot at the end of that
+node. Use a fork to try two ways forward from one point, with no new
+recon.
+
+```yaml
+nodes:
+  recon:
+    id: recon
+    type: NODE_TYPE_AGENT
+    agent_config: { agent_name: recon-agent }
+  exploit_web:
+    id: exploit_web
+    type: NODE_TYPE_AGENT
+    agent_config: { agent_name: web-agent }
+    dependencies: ["recon"]
+    starts_from: recon
+  exploit_ssh:
+    id: exploit_ssh
+    type: NODE_TYPE_AGENT
+    agent_config: { agent_name: ssh-agent }
+    dependencies: ["recon"]
+    starts_from: recon
+```
+
+The rules:
+
+- The named node must be an earlier node. It must be an ancestor of the
+  node through `dependencies` or `edges`. `gibson mission validate`
+  refuses a node that does not exist, the node itself and a later node.
+  The daemon refuses them again at submit.
+- The template node of a `for_each` node can set `starts_from`. Each
+  instance then starts from the same state, so one state becomes one
+  branch for each item. The named node must be an ancestor of the
+  `for_each` node.
+- A fork gets the network scope of its own node. It never gets the
+  scope of the node that it names. A fork of a `research` node that is
+  not itself a `research` node reaches only its targets.
 
 ## Authoring loop
 
