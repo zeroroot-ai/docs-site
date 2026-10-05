@@ -22,7 +22,6 @@ updates:
           - "patch"
     commit-message:
       prefix: "chore(deps)"
-      include: "scope"
 
   - package-ecosystem: "docker"
     directory: "/"
@@ -40,7 +39,6 @@ updates:
           - "patch"
     commit-message:
       prefix: "chore(deps)"
-      include: "scope"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -65,5 +63,4 @@ updates:
           - "patch"
     commit-message:
       prefix: "chore(deps)"
-      include: "scope"
 
