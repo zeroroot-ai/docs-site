@@ -133,7 +133,7 @@ _No fields._
 
 Package gibson.agentidentity.v1 — AgentIdentityService: customer-callable
 machine-identity provisioning surface and the developer enrollment dev-loop
-(`gibson component register` / `gibson agent`). Re-homed out of
+(`gibson agent`). Re-homed out of
 gibson.tenant.v1 into its own wire package so it can stay in the OSS SDK
 while the nine tenant-administration services move to the gibson platform
 protos under the unchanged gibson.tenant.v1 package — keeping both in one
@@ -220,9 +220,8 @@ The bootstrap_token is emitted exactly once and cannot be recovered.
 | `principal_id` | 1 | `string` | principal_id is the FGA principal identifier (e.g. "agent_principal:uuid"). |
 | `kind` | 2 | `PrincipalKind` | — |
 | `name` | 3 | `string` | — |
-| `gibson_url` | 6 | `string` | gibson_url is the daemon's public Envoy URL for use in enroll_command. |
-| `enroll_command` | 7 | `string` | enroll_command is a complete copy-pasteable shell invocation for component enrollment: `gibson component register --kind &lt;kind> --token -`. |
-| `bootstrap_token` | 8 | `string` | bootstrap_token is a one-time, daemon-signed Capability-Grant bootstrap credential the component presents to the CG register endpoint to complete its FIRST host registration (it carries no Capability Grant yet). Under the unified-identity model (ADR-0045) this is the SOLE credential `gibson component register` uses for every kind; the enroll_command pipes it via `--token -`. Store it immediately; it will not be shown again. |
+| `gibson_url` | 6 | `string` | gibson_url is the public URL of the daemon. The component reads it from GIBSON_URL when it starts. |
+| `bootstrap_token` | 8 | `string` | bootstrap_token is a one-time, daemon-signed Capability-Grant bootstrap credential. The component reads it from GIBSON_BOOTSTRAP_TOKEN when it starts and presents it to the CG register endpoint to complete its FIRST host registration (it carries no Capability Grant yet). Under the unified-identity model (ADR-0045) it is the sole enrollment credential for every kind. Store it immediately; it will not be shown again. |
 
 #### `ListAgentIdentitiesRequest`
 
@@ -275,7 +274,7 @@ PrincipalKind identifies the type of machine principal being provisioned.
 ## Package `gibson.bank.v1`
 
 Package gibson.bank.v1 declares banks of always-on coding agents and their
-members (ADR-0017).
+members (ADR-0119).
 
 A bank is a declarative, daemon-reconciled pool of always-on Claude Code
 instances. The daemon keeps desired_count members running in sandboxes,
@@ -652,7 +651,7 @@ gibson.admin.v1.GrantsAdminService (WRITE side in platform-sdk).
 
 Spec: llm-user-attribution-governance (Requirement 3, READ-side
  wire contract); two-surface platform contract
- (ADR-0025 / ADR-0030).
+ (ADR-0058).
 
 ### Messages
 
@@ -711,7 +710,7 @@ lives in the internal platform-sdk. Customer code that embeds the
 agent runtime parses CapabilityGrantInfo to render "what can I do
 right now" UI without needing the admin service descriptor.
 
-Spec: two-surface platform contract (ADR-0001, forthcoming);
+Spec: two-surface platform contract (ADR-0058);
  component-bootstrap-e2e Requirement 10 (read side);
  secrets-tenant-lifecycle Requirement 8.1 (write side, moved
  to platform-sdk).
@@ -737,14 +736,14 @@ I do right now" UI.
 | `issued_at_unix` | 8 | `int64` | issued_at_unix is the iat claim, Unix seconds. |
 | `expires_at_unix` | 9 | `int64` | expires_at_unix is the exp claim, Unix seconds. |
 | `near_expiry` | 10 | `bool` | near_expiry is true when the grant expires within 5 minutes from now. The dashboard renders these rows with a warning highlight. |
-| `isolation` | 11 | `IsolationMode` | isolation is where this grant's untrusted-execution boundary lives (ADR-0010). UNSPECIFIED is treated as HOSTED_SANDBOX by the daemon's dispatch-policy gate. Consumed together with the deployment shape: setec-only permits only HOSTED_SANDBOX (fail-closed otherwise). |
+| `isolation` | 11 | `IsolationMode` | isolation is where this grant's untrusted-execution boundary lives (ADR-0110). UNSPECIFIED is treated as HOSTED_SANDBOX by the daemon's dispatch-policy gate. Consumed together with the deployment shape: setec-only permits only HOSTED_SANDBOX (fail-closed otherwise). |
 
 ### Enums
 
 #### `IsolationMode`
 
 IsolationMode is where the untrusted-execution isolation boundary lives for
-a capability grant (ADR-0010). It is consumed by the daemon's dispatch-policy
+a capability grant (ADR-0110). It is consumed by the daemon's dispatch-policy
 gate together with the deployment shape (GIBSON_UNTRUSTED_EXEC): under the
 hosted SaaS shape (setec-only) only ISOLATION_MODE_HOSTED_SANDBOX is
 permitted; any other value is rejected fail-closed. Under a customer-operated
@@ -2423,7 +2422,7 @@ ListAgents returns all registered agents from the etcd registry.
 `ListCatalogMissionsRequest` → `ListCatalogMissionsResponse`
 
 ListCatalogMissions returns the mission definitions gibson ships compiled
-into its own binary (ADR-0018), with what each one declares.
+into its own binary (ADR-0118), with what each one declares.
 
 Until this RPC, the catalog had exactly one reader: the agent-facing
 harness callback, which takes catalog_mission + catalog_params. A person
@@ -4915,7 +4914,7 @@ LLM Operations
 
 `ObserveRequest` → `ObserveResponse`
 
-Observe emits a typed observation into the World (ADR-0007). The brain
+Observe emits a typed observation into the World (ADR-0107). The brain
 resolves identity and topology; scope is derived server-side from context.
 
 ##### `OpenJob`
@@ -4929,17 +4928,17 @@ grant. It mirrors gibson.job.v1.JobService.OpenJob.
 
 `PlaceBetRequest` → `PlaceBetResponse`
 
-PlaceBet stakes a calibrated confidence on a Hypothesis (ADR-0022). Betting
+PlaceBet stakes a calibrated confidence on a Hypothesis (ADR-0122). Betting
 is a first-class SDK primitive, parallel to Observe: storage, settlement
-and scoring of the bet are a gibson-side concern (ADR-0023).
+and scoring of the bet are a gibson-side concern (ADR-0123).
 
 ##### `ProposeOntologyExtension`
 
 `ProposeOntologyExtensionRequest` → `ProposeOntologyExtensionResponse`
 
 ProposeOntologyExtension proposes a new Taxonomy node label or
-relationship type discovered by an agent at runtime (ADR-0024 §2,
-ADR-0033 decision 2). The agent proposes; it never promotes — the
+relationship type discovered by an agent at runtime (ADR-0124,
+ADR-0133). The agent proposes; it never promotes — the
 daemon checks the identifier against its safety gate before recording
 it as a per-tenant proposal, and the resulting recurrence only ever
 feeds a later, explicit tenant-owner approval. This call never blocks
@@ -4977,10 +4976,10 @@ that duplication is deliberate: without it here, a dispatched run holding
 only its task-scoped callback grant cannot read the tenant graph, and the
 agent would have to keep a component-scoped grant alive purely to call
 recall — which defeats the point of scoping the dispatch at all.
-See zerocool-plugins ADR-0006 and docs/adr/0001-callback-knowledge-reads.md.
+See ADR-0156 and ADR-0161.
 
 Read-only by construction. The write half is NOT mirrored: the projector
-is the sole graph writer (ADR-0012), and ComponentService no longer
+is the sole graph writer (ADR-0112), and ComponentService no longer
 has a generic graph-write RPC.
 
 ##### `QueryPlugin`
@@ -5029,7 +5028,7 @@ it. A member never reports CLOSED: a scorer closes the job.
 `RequestDestructiveAuthorizationRequest` → `RequestDestructiveAuthorizationResponse`
 
 RequestDestructiveAuthorization asks a human to approve an irreversible
-demonstration BEFORE the agent performs it (ADR-0032). It returns
+demonstration BEFORE the agent performs it (ADR-0132). It returns
 immediately with a pending request id — the fleet keeps working while
 the decision is pending. The agent performs the destructive act only
 after it reads back an approval, then calls SubmitProof.
@@ -5044,7 +5043,7 @@ after it reads back an approval, then calls SubmitProof.
 
 SearchTools returns a small, ranked, authz-filtered set of tools matching
 a query — the meta-tool surface agents use instead of receiving every tool
-(ADR-0047 facet 5). Per-tool authorization is enforced inside the handler;
+(ADR-0065). Per-tool authorization is enforced inside the handler;
 this RPC-level gate only checks that the caller may use the harness.
 
 ##### `SendInput`
@@ -5065,13 +5064,13 @@ Finding Operations
 `SubmitProofRequest` → `SubmitProofResponse`
 
 SubmitProof triggers settlement of a Bet by submitting the raw evidence
-an agent's own tools captured (ADR-0030). The agent never submits a
+an agent's own tools captured (ADR-0131). The agent never submits a
 verdict or an interpretation — only raw evidence — because a
 deterministic, typed predicate on the daemon decides settlement, never
 an LLM and never the bet's own beneficiary. A non-destructive proof
 settles synchronously; a destructive proof settles only after a prior
 RequestDestructiveAuthorization approval, and this call never blocks on
-that decision (ADR-0032).
+that decision (ADR-0132).
 
 ##### `SubscribeInput`
 
@@ -5164,7 +5163,7 @@ returns RESOURCE_EXHAUSTED; a streaming variant is deferred.
 `WorldViewRequest` → `WorldViewResponse`
 
 WorldView returns the caller's server-projected slice of the tenant World
-(ADR-0012). It is the counterpart to Observe: Observe
+(ADR-0112). It is the counterpart to Observe: Observe
 is the agent's only write, WorldView its only read.
 
 The slice is projected by the daemon from the mission record it created —
@@ -5190,11 +5189,11 @@ AnalysisObservation reports a typed analysis artifact (sdk#74): a
 conclusion an agent draws FROM evidence already on the graph, with the
 confidence it holds and the evidence it used — the bridge between raw
 findings and reportable output. Unlike a Hypothesis (an unproven,
-forward-looking claim awaiting settlement, ADR-0021), an Analysis is
+forward-looking claim awaiting settlement, ADR-0121), an Analysis is
 backward-looking: it synthesizes what is already known rather than
 proposing something new to test. Like every Observation, this feeds
 hypotheses and findings as a typed artifact, never as free text, and it is
-an emit: the daemon folds it onto the Timeline (ADR-0007).
+an emit: the daemon folds it onto the Timeline (ADR-0107).
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -5330,7 +5329,7 @@ BasicAuth represents username/password credentials
 #### `Bet`
 
 Bet is an agent's calibrated stake on a Hypothesis: a stake that later
-settles, not a bare confidence number (ADR-0022). Reputation attaches to
+settles, not a bare confidence number (ADR-0122). Reputation attaches to
 technique × environment, never to an agent, so the technique the bet
 exercises rides on the bet itself.
 
@@ -5469,8 +5468,9 @@ CreateMissionRequest creates a new mission from a mission definition.
 | `metadata` | 6 | `map<string, gibson.common.v1.TypedValue>` | — |
 | `tags` | 7 | `repeated string` | — |
 | `canonical_constraints` | 8 | `gibson.mission.v1.MissionConstraints` | canonical_constraints carries the platform-canonical gibson.mission.v1.MissionConstraints type (ADR 0004). Prefer this field over the deprecated constraints (field 5). The daemon merges canonical_constraints with any constraints baked into the mission definition (dispatch wins on conflict). Absent means no dispatch-time constraint overrides. |
-| `catalog_mission` | 9 | `string` | catalog_mission names a mission definition checked into the platform's mission catalog, to be originated instead of a caller-supplied graph (ADR-0018: the checked-in definition is authoritative). This is a second *input* to the one mission-creation route, deliberately not a second RPC. A dedicated RPC would carry its own authorization surface, so the per-tenant gate and the ADR-0063 origination rule ("a component originates only from inside a live parent") would be enforced in two places — which is where two enforcement paths drift apart. Exactly one of mission_definition_json (field 2) or catalog_mission must be set. Both is InvalidArgument; neither is InvalidArgument. |
+| `catalog_mission` | 9 | `string` | catalog_mission names a mission definition checked into the platform's mission catalog, to be originated instead of a caller-supplied graph (ADR-0118: the checked-in definition is authoritative). This is a second *input* to the one mission-creation route, deliberately not a second RPC. A dedicated RPC would carry its own authorization surface, so the per-tenant gate and the ADR-0063 origination rule ("a component originates only from inside a live parent") would be enforced in two places — which is where two enforcement paths drift apart. Exactly one of mission_definition_json (field 2) or catalog_mission must be set. Both is InvalidArgument; neither is InvalidArgument. |
 | `catalog_params` | 10 | `map<string, string>` | catalog_params carries the parameters the named catalog mission declares, keyed by the definition's own parameter names. The map is CLOSED: the daemon refuses an unrecognised key rather than ignoring it. Silently dropping a key a caller sent would let that caller believe a parameter bound when it did not — which is what keeps the runtime target out of this map honest. The target continues to bind from target_id (field 3) alone, so a scan can only ever run against a target the tenant registered. Every missing parameter is reported at once rather than one render at a time. Only meaningful when catalog_mission is set. |
+| `starts_from` | 11 | `OriginationStart` | starts_from selects the state that the new mission starts from (ADR-0169). An agent forks at run time when it originates a child mission with ORIGINATION_START_CALLER_STATE. The origination bounds still apply to a fork: the budget comes from the remainder of the parent, the targets are a subset, and the depth limit holds (ADR-0063). The child gets the network scope of its own nodes, never the scope of the caller. |
 
 #### `CreateMissionResponse`
 
@@ -5971,10 +5971,10 @@ signals and the ports observed open in this sighting.
 #### `HypothesisObservation`
 
 HypothesisObservation reports an agent's own reasoning: a proposed, unproven
-claim, not a sighting (ADR-0021). It is attributed to the proposing agent and
+claim, not a sighting (ADR-0121). It is attributed to the proposing agent and
 carries a confidence; it stays unverified until it settles (the betting /
-settlement slices, ADR-0022 / ADR-0023). This keeps the agent write surface
-emit-only — one more observation kind, never a raw graph write (ADR-0007).
+settlement slices, ADR-0122 / ADR-0123). This keeps the agent write surface
+emit-only — one more observation kind, never a raw graph write (ADR-0107).
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -5982,8 +5982,8 @@ emit-only — one more observation kind, never a raw graph write (ADR-0007).
 | `confidence` | 2 | `double` | confidence is the proposer's calibrated confidence in the claim. |
 | `claim` | 3 | `string` | claim states the hypothesis in a form the brain can later settle, e.g. "port 6443 on this host is unauthenticated". |
 | `references` | 4 | `repeated ReferencedEntity` | references names the entities the claim is about, by label and identity — the emitter does not know node ids, and must not be able to guess them. |
-| `technique` | 5 | `string` | technique names the technique this hypothesis exercises. Reputation keys on technique x environment (ADR-0022, gibson#333/#284), so this must ride on the Hypothesis the same way it already rides on Bet. Optional and additive: empty means the hypothesis carries no technique signal (resolves to the neutral prior), same as before this field existed. |
-| `hypothesis_id` | 6 | `string` | hypothesis_id is the agent-chosen identifier for this claim. The SAME value the agent later names as Bet.hypothesis_id when it stakes on this claim, and that a settlement path (Engine.SettleBetByHITL, gibson#280) records against — the one join key across Hypothesis, Bet and BetSettlement (gibson#339). Optional: empty preserves the pre-existing behavior of a Hypothesis with no bettable identity (it still folds as a claim, ADR-0021, it just cannot be staked on or settled by id). |
+| `technique` | 5 | `string` | technique names the technique this hypothesis exercises. Reputation keys on technique x environment (ADR-0122, gibson#333/#284), so this must ride on the Hypothesis the same way it already rides on Bet. Optional and additive: empty means the hypothesis carries no technique signal (resolves to the neutral prior), same as before this field existed. |
+| `hypothesis_id` | 6 | `string` | hypothesis_id is the agent-chosen identifier for this claim. The SAME value the agent later names as Bet.hypothesis_id when it stakes on this claim, and that a settlement path (Engine.SettleBetByHITL, gibson#280) records against — the one join key across Hypothesis, Bet and BetSettlement (gibson#339). Optional: empty preserves the pre-existing behavior of a Hypothesis with no bettable identity (it still folds as a claim, ADR-0121, it just cannot be staked on or settled by id). |
 
 #### `JSONSchemaNode`
 
@@ -6130,7 +6130,7 @@ MergeRequest, Pipeline or Control, and the edges it was seen to have.
 Admission is the Taxonomy's decision, not this message's. The daemon puts
 label and every edge type to the global Taxonomy; an admitted shape becomes a
 typed node, and one the Taxonomy does not admit is neither rejected nor lost —
-it lands as an Observation with its residue preserved (ADR-0012). So an agent
+it lands as an Observation with its residue preserved (ADR-0112). So an agent
 can always write, and can never invent schema.
 
 This is a SIGHTING, not a graph write. The agent reports what it saw; the
@@ -6375,7 +6375,7 @@ OAuthCredential represents OAuth tokens
 
 #### `ObserveRequest`
 
-ObserveRequest carries a typed observation (ADR-0007). Scope is NOT carried —
+ObserveRequest carries a typed observation (ADR-0107). Scope is NOT carried —
 the daemon derives it from the mission context.
 
 | Field | # | Type | Description |
@@ -6424,7 +6424,7 @@ OpenJobResponse carries the opened job.
 
 #### `PlaceBetRequest`
 
-PlaceBetRequest carries a calibrated stake on a Hypothesis (ADR-0022).
+PlaceBetRequest carries a calibrated stake on a Hypothesis (ADR-0122).
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -6727,8 +6727,8 @@ ReportJobStateResponse acknowledges the state change.
 #### `RequestDestructiveAuthorizationRequest`
 
 RequestDestructiveAuthorizationRequest asks a human to approve an
-irreversible demonstration before the agent performs it (ADR-0032). It
-carries what a human reviewer needs to decide (ADR-0028 decision 3): what
+irreversible demonstration before the agent performs it (ADR-0132). It
+carries what a human reviewer needs to decide (ADR-0132): what
 the action would do, its blast radius, its reversibility, and the
 predicate it would satisfy.
 
@@ -6745,7 +6745,7 @@ predicate it would satisfy.
 #### `RequestDestructiveAuthorizationResponse`
 
 RequestDestructiveAuthorizationResponse returns immediately: the fleet
-keeps working while the human decision is pending (ADR-0028, ADR-0032).
+keeps working while the human decision is pending (ADR-0132).
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -6892,22 +6892,22 @@ SubdomainObservation reports an FQDN, its parent domain, and resolved addresses.
 
 SubmitProofRequest carries the raw evidence an agent captured for a
 Hypothesis it staked a Bet on. The agent supplies raw, uninterpreted tool
-output — never a verdict (ADR-0030 decision 1) — and a deterministic,
+output — never a verdict (ADR-0131) — and a deterministic,
 typed predicate on the daemon decides whether the Bet settles.
 
 | Field | # | Type | Description |
 |---|---|---|---|
 | `context` | 1 | `ContextInfo` | — |
 | `hypothesis_id` | 2 | `string` | hypothesis_id names the Hypothesis this proof settles. The same value the agent named on the HypothesisObservation and on the Bet it staked — the one join key across Hypothesis, Bet and BetSettlement. |
-| `technique` | 3 | `string` | technique names the technique this proof exercises, the same value carried on the Bet (reputation keys on technique x environment, ADR-0022). |
+| `technique` | 3 | `string` | technique names the technique this proof exercises, the same value carried on the Bet (reputation keys on technique x environment, ADR-0122). |
 | `predicate_name` | 4 | `string` | predicate_name names the enabled pack's CEL predicate the daemon evaluates against evidence to decide settlement. The agent names a predicate; it never evaluates one. |
 | `evidence` | 5 | `repeated gibson.types.v1.Evidence` | evidence is the raw tool output the predicate evaluates. It is never a verdict or an interpretation of what the evidence shows. |
-| `destructive` | 6 | `bool` | destructive is true when this proof follows an irreversible demonstration. A destructive proof settles only after a prior RequestDestructiveAuthorization approval for this hypothesis_id (ADR-0032); a non-destructive proof settles synchronously. |
+| `tool_call_ids` | 7 | `repeated string` | tool_call_ids names the tool calls whose recorded results are the evidence of this proof. Each id is the ContextInfo.tool_execution_id of a tool call that the daemon recorded in this mission. The daemon reads the recorded result of each call and evaluates the predicate on it. Evidence in the evidence field that no tool call id backs is typed by the agent, and the daemon sends such a proof to human review. |
 
 #### `SubmitProofResponse`
 
 SubmitProofResponse reports the settlement outcome. SubmitProof never
-blocks on a human decision (ADR-0032 decision 2): a destructive proof
+blocks on a human decision (ADR-0132): a destructive proof
 returns SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION immediately rather than
 waiting for the pending authorization to resolve.
 
@@ -7378,7 +7378,7 @@ WorldEntity is one entity in the slice.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `handle` | 1 | `string` | handle is the ONLY name the agent has for this entity: an opaque, server-minted, non-constructible reference, valid within the slice it was issued to and nowhere else. It carries no brain id an agent could iterate, so enumerating past the slice boundary is unrepresentable (ADR-0012). A handle stays stable across re-projections of the same slice: the entity it names does not change, so refreshing the view never invalidates a reference the agent is holding. |
+| `handle` | 1 | `string` | handle is the ONLY name the agent has for this entity: an opaque, server-minted, non-constructible reference, valid within the slice it was issued to and nowhere else. It carries no brain id an agent could iterate, so enumerating past the slice boundary is unrepresentable (ADR-0112). A handle stays stable across re-projections of the same slice: the entity it names does not change, so refreshing the view never invalidates a reference the agent is holding. |
 | `kind` | 2 | `WorldEntityKind` | — |
 | `label` | 3 | `string` | label is the entity's coordinate as observed — an address, an FQDN, a finding title. Human- and LLM-readable; not a reference (only handle is). |
 | `attributes` | 4 | `map<string, string>` | attributes is the projected detail, level-of-detail summarized for the unfocused slice and complete for a focused one. Keys are server-chosen. |
@@ -7452,10 +7452,10 @@ MissionStatus represents the current state of a mission.
 
 OntologyExtensionKind distinguishes what an agent is proposing: a new
 Taxonomy node label or a new relationship type. These are Taxonomy's own
-two vocabularies (ADR-0024 §2) — the HEAVY safety gate, because a
+two vocabularies (ADR-0124) — the HEAVY safety gate, because a
 promoted label becomes Cypher query structure. This is deliberately not
 the LIGHT gate for ontology triples (classes/equivalences/inverse-
-functional properties, ADR-0024 §1): that is a separate proposal kind
+functional properties, ADR-0124): that is a separate proposal kind
 with no identifier-safety concern, and is not carried by this RPC.
 
 | Value | # | Description |
@@ -7463,6 +7463,15 @@ with no identifier-safety concern, and is not carried by this RPC.
 | `ONTOLOGY_EXTENSION_KIND_UNSPECIFIED` | 0 | — |
 | `ONTOLOGY_EXTENSION_KIND_NODE_LABEL` | 1 | — |
 | `ONTOLOGY_EXTENSION_KIND_RELATIONSHIP_TYPE` | 2 | — |
+
+#### `OriginationStart`
+
+OriginationStart selects the state that an originated mission starts from.
+
+| Value | # | Description |
+|---|---|---|
+| `ORIGINATION_START_UNSPECIFIED` | 0 | ORIGINATION_START_UNSPECIFIED means a fresh sandbox. |
+| `ORIGINATION_START_CALLER_STATE` | 1 | ORIGINATION_START_CALLER_STATE means the state that the caller has at the time of the call. The child mission is a fork of the caller. |
 
 #### `Reversibility`
 
@@ -7494,7 +7503,8 @@ SettlementOutcome reports what SubmitProof did with the submitted proof.
 | `SETTLEMENT_OUTCOME_UNSPECIFIED` | 0 | — |
 | `SETTLEMENT_OUTCOME_SETTLED_TRUE` | 1 | SETTLEMENT_OUTCOME_SETTLED_TRUE means the predicate fired against the submitted evidence and the Bet settled true. |
 | `SETTLEMENT_OUTCOME_NOT_SETTLED` | 2 | SETTLEMENT_OUTCOME_NOT_SETTLED means the predicate did not fire. The Bet stays unsettled. |
-| `SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION` | 3 | SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION means the proof was destructive and settlement is deferred until the daemon reads back an approved authorization decision for this hypothesis_id (ADR-0032). SubmitProof never blocks on that decision. |
+| `SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION` | 3 | SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION means the proof was destructive and settlement is deferred until the daemon reads back an approved authorization decision for this hypothesis_id (ADR-0132). SubmitProof never blocks on that decision. |
+| `SETTLEMENT_OUTCOME_PENDING_REVIEW` | 4 | SETTLEMENT_OUTCOME_PENDING_REVIEW means the proof carried only evidence that the agent typed, with no recorded tool call behind it, so a human decides. SubmitProof never blocks on that decision. |
 
 #### `SpanKind`
 
@@ -7660,7 +7670,7 @@ importing PrincipalKind from this package over time.
 ## Package `gibson.job.v1`
 
 Package gibson.job.v1 declares jobs, the unit of work a bank member holds
-(ADR-0017).
+(ADR-0119).
 
 Every input to a member is a structured job. A chat turn is a job with
 only a goal. A job is one persistent Claude Code session with its own
@@ -8319,9 +8329,9 @@ ConditionNodeConfig contains configuration for condition nodes
 
 DataPolicy defines how data is handled for a node.
 
-Deprecated: superseded by the ECS brain (ADR-0008). Data
+Deprecated: superseded by the ECS brain (ADR-0101). Data
 handling (reuse + scoping) is now implicit in the event-sourced World and
-scope-relative identity (ADR-0002) + ambient projection. Retained
+scope-relative identity (ADR-0102) + ambient projection. Retained
 wire-compatibly; ignored by the engine.
 
 | Field | # | Type | Description |
@@ -8500,12 +8510,14 @@ MissionNode represents a single node in a mission DAG
 | `dependencies` | 10 | `repeated string` | Dependencies lists node IDs that must complete before this node executes |
 | `timeout` | 11 | `google.protobuf.Duration` | Timeout is the maximum execution time for this node |
 | `retry_policy` | 12 | `RetryPolicy` | RetryPolicy defines retry behavior for this node |
-| `data_policy` | 13 | `DataPolicy` | DataPolicy defines data handling policy for this node. Deprecated: data reuse + scoping are no longer node-declared. Under the ECS brain (ADR-0008) reuse is implicit in the event-sourced World and scoping flows from scope-relative identity (ADR-0002) + ambient projection. The field is retained wire-compatibly for old definitions but is ignored by the engine. |
+| `data_policy` | 13 | `DataPolicy` | DataPolicy defines data handling policy for this node. Deprecated: data reuse + scoping are no longer node-declared. Under the ECS brain (ADR-0101) reuse is implicit in the event-sourced World and scoping flows from scope-relative identity (ADR-0102) + ambient projection. The field is retained wire-compatibly for old definitions but is ignored by the engine. |
 | `metadata` | 14 | `map<string, string>` | Metadata contains additional custom metadata for this node |
 | `join_config` | 15 | `JoinNodeConfig` | JoinConfig for join nodes (mission-verb-noun-registry). Field number 15 because 10-14 are sibling MissionNode fields (dependencies, timeout, retry_policy, data_policy, metadata). |
-| `reuse_policy` | 16 | `ReusePolicy` | ReusePolicy declares how this node's I/O is scoped + reused across mission runs. Deprecated: superseded by the ECS brain (ADR-0008). Reuse is implicit in the World; scoping is via scope-relative identity (ADR-0002) + ambient projection. Retained wire-compatibly but ignored by the engine. |
+| `reuse_policy` | 16 | `ReusePolicy` | ReusePolicy declares how this node's I/O is scoped + reused across mission runs. Deprecated: superseded by the ECS brain (ADR-0101). Reuse is implicit in the World; scoping is via scope-relative identity (ADR-0102) + ambient projection. Retained wire-compatibly but ignored by the engine. |
 | `job_config` | 17 | `JobNodeConfig` | JobConfig for job nodes. Field number 17 because 16 is the sibling reuse_policy field. |
 | `for_each_config` | 18 | `ForEachNodeConfig` | ForEachConfig for for_each nodes. Field number 18 as the next free tag; 13 is NOT free despite looking it, because data_policy is `= 13 [deprecated = true]` and a field-number scan that expects a trailing semicolon misses it. |
+| `research` | 19 | `bool` | Research marks a node that gathers information from outside the targets of the mission. A research node has unrestricted egress. Every other node reaches only the targets bound to it. |
+| `starts_from` | 20 | `string` | StartsFrom is the id of an earlier node of the same mission. The node starts from the state that the named node had when it ended, not from a fresh sandbox (ADR-0169). Empty means a fresh sandbox. The template node of a for_each node can carry it: each instance then starts from the same state, so one state becomes N branches. The node gets the network scope of its own node, never the scope of the node that it names. The daemon refuses at submit time an id that names no node, a later node, or the node itself. protovalidate cannot express a rule about a different node of the graph, so the rule here limits the length only. |
 
 **oneof `config`** — one of: `agent_config`, `tool_config`, `plugin_config`, `condition_config`, `parallel_config`, `join_config`, `job_config`, `for_each_config`.
 
@@ -8599,9 +8611,9 @@ directly to the SDK's workspace.RepositoryConfig type.
 ReusePolicy declares how a node's I/O is scoped + reused
 across mission runs.
 
-Deprecated: superseded by the ECS brain (ADR-0008). Reuse is
+Deprecated: superseded by the ECS brain (ADR-0101). Reuse is
 implicit in the event-sourced World and scoping flows from scope-relative
-identity (ADR-0002) + ambient projection, so node-declared reuse/scoping no
+identity (ADR-0102) + ambient projection, so node-declared reuse/scoping no
 longer has meaning. Retained wire-compatibly; ignored by the engine.
 
 | Field | # | Type | Description |
@@ -8933,7 +8945,7 @@ PluginSecretBinding describes one secret binding in a RegisterPlugin request.
 | `manifest_yaml` | 1 | `bytes` | manifest_yaml is the plugin manifest YAML bytes. |
 | `bindings` | 2 | `repeated PluginSecretBinding` | — |
 | `dry_run` | 3 | `bool` | dry_run, when true, validates manifest + bindings without creating any state. |
-| `remote` | 4 | `bool` | remote, when true, registers an MCP connector for execution in the customer's own network instead of a gibson-hosted setec sandbox (ADR-0048 remote-deployment path). The daemon skips the hosted launch and the response carries the one-time bootstrap_token; the customer runs the MCP-bridge themselves and the bridge redeems the token to enroll. Only valid for connector manifests (connector.gibson.zeroroot.ai/v1): plain plugins are always customer-run and already receive the token. |
+| `remote` | 4 | `bool` | remote, when true, registers an MCP connector for execution in the customer's own network instead of a gibson-hosted setec sandbox (ADR-0065 remote-deployment path). The daemon skips the hosted launch and the response carries the one-time bootstrap_token; the customer runs the MCP-bridge themselves and the bridge redeems the token to enroll. Only valid for connector manifests (connector.gibson.zeroroot.ai/v1): plain plugins are always customer-run and already receive the token. |
 
 #### `RegisterPluginResponse`
 
