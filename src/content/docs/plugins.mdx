@@ -222,13 +222,14 @@ enroll once with a short-lived bootstrap token that you mint as yourself:
 
 ```bash
 gibson agent enroll --name my-plugin --kind plugin   # prints a one-time token
-gibson component register --kind plugin --token <T>  # persists a host key
-gibson component run                                  # runs plugin.Serve(ctx)
+export GIBSON_URL=https://<your-platform>
+export GIBSON_BOOTSTRAP_TOKEN=<bootstrap-token>
+gibson component run --kind plugin                   # runs plugin.Serve(ctx)
 ```
 
-`register` exchanges the token for a persistent Ed25519 host key at
-`~/.gibson/plugin/<name>/host_key`. Every start after that is unattended.
-This is the local-dev path only. In-cluster plugins never need it.
+The first start exchanges the token for a persistent Ed25519 host key
+under `~/.gibson/`. Every start after that is unattended. This is the
+local-dev path only. In-cluster plugins never need it.
 
 ## Calling a plugin
 

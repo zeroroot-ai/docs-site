@@ -23,9 +23,9 @@ of work:
 | **Tool** | You have a stateless capability with a fixed input/output contract, for example a port scan, an HTTP probe, or a CVE lookup. Agents call tools. |
 | **Plugin** | You need a long-running, stateful integration, for example a Shodan client, a SIEM connector, or a custom database. Plugins hold credentials. Tools call plugins. |
 
-You write components against the **Gibson SDK** (Go). You register them
-with `gibson component register`. They then connect to your tenant on
-`api.zeroroot.ai`.
+You write components against the **Gibson SDK** (Go). A component enrolls
+on its first start with a one-time token. It then connects to your tenant
+on `api.zeroroot.ai`.
 
 ## What Gibson does for you
 

@@ -61,17 +61,20 @@ gibson agent enroll --name my-first-agent --kind agent
 ```
 
 `enroll` prints the bootstrap token to stdout. **Copy it now.** The CLI
-shows the token once, and the token expires in 24 hours. Exchange the
-token for a persistent runtime credential:
+shows the token once, and the token expires in 24 hours. Set two
+environment variables, then start the agent from its directory:
 
 ```bash
-gibson component register --token <bootstrap-token>
+cd my-first-agent
+export GIBSON_URL=https://<your-platform>
+export GIBSON_BOOTSTRAP_TOKEN=<bootstrap-token>
+make run
 ```
 
-`register` runs the capability-grant handshake. It writes the host key
-and the runtime credential under `~/.gibson/agent/` (mode `0600`). Then
-it verifies the credential against Gibson's identity service. If
-verification fails, see [Component bootstrap & auth → Troubleshooting a 401](/docs/component-bootstrap#troubleshooting-a-401).
+The first start runs the capability-grant handshake. The agent writes
+the host key and the runtime credential under `~/.gibson/` (mode
+`0600`). Later starts do not read the token. If enrollment fails, see
+[Component bootstrap & auth → Troubleshooting a 401](/docs/component-bootstrap#troubleshooting-a-401).
 
 ## 4. Verify with `inspect`
 
