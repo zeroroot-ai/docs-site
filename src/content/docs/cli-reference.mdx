@@ -195,7 +195,7 @@ Examples:
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `-d, --dir` | string | `.` | component directory (containing component.yaml) |
+| `-d, --dir` | string | `.` | component directory |
 
 #### `gibson component init`
 
@@ -206,7 +206,7 @@ init scaffolds a new Gibson component directory from embedded
 templates. The kind selects which template set to render and what file
 shape the new directory has:
 
-  agent:      component.yaml + main.go (sdk.NewAgent + sdk.ServeAgent) +
+  agent:      main.go (sdk.NewAgent + sdk.ServeAgent) +
               go.mod + Makefile + Dockerfile + README + AGENTS.md +
               CLAUDE.md + prompts/ + .claude/settings.json
 
@@ -334,7 +334,7 @@ Manage tenant connectors (ConnectorService)
 
 ```text
 gibson connector — enable and manage connectors via
-ConnectorService on the Gibson daemon (ADR-0014 Slice 4). Pick a connector
+ConnectorService on the Gibson daemon (ADR-0114 Slice 4). Pick a connector
 from the curated catalog and it becomes a running connector the operator
 reconciles onto ToolHive. You do not write YAML. Authenticated as you: run `gibson login` first.
 
@@ -448,7 +448,7 @@ change:
 
 #### `gibson docs schema`
 
-Emit JSON Schema for component.yaml / plugin.yaml
+Emit JSON Schema for plugin.yaml
 
 ```text
 schema emits the JSON Schema (Draft 2020-12) for a Gibson YAML
@@ -457,7 +457,7 @@ supported names, writes the schema to stdout (or --output <dir>).
 
 Editor and AI-coder integration: pipe the output into your project's
 schema config (e.g. yaml-language-server settings, JetBrains schema
-registry) and your editor will validate component.yaml / plugin.yaml
+registry) and your editor will validate plugin.yaml
 inline.
 
 Examples:
@@ -719,7 +719,7 @@ Full CUE/YAML/JSON → define → run submit:
 6. Print the returned mission ID.
 
 A catalog mission is rendered by the daemon from the definition
-compiled into its own binary (ADR-0018), so the graph is the
+compiled into its own binary (ADR-0118), so the graph is the
 checked-in one rather than a copy. Its parameters are a closed set:
 run `gibson mission catalog list` to see what each one
 declares. A catalog mission declares no target, so --target is
