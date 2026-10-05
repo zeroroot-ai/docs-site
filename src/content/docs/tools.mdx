@@ -162,18 +162,19 @@ func main() {
 }
 ```
 
-### 3. Register the tool
+### 3. Enroll the tool
 
-Enroll a machine identity to mint a single-use bootstrap token. Then
-exchange the token for a runtime credential. There is no client secret:
+Mint a single-use bootstrap token for the tool. Then put the token and
+the address of your platform in the environment. There is no client
+secret:
 
 ```bash
 gibson agent enroll --name port-scan --kind tool
-gibson component register --token <bootstrap-token>
+export GIBSON_URL=https://<your-platform>
+export GIBSON_BOOTSTRAP_TOKEN=<bootstrap-token>
 ```
 
-Run `register` from the tool's component directory. It reads the kind
-and name from `component.yaml`. See
+The tool enrolls on its first start. See
 [Install](/docs/install#5-enroll-a-component).
 
 ### 4. Run

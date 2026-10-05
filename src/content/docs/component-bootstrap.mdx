@@ -19,13 +19,12 @@ Enrollment is a single **capability-grant** handshake for every kind:
 | Step | What happens |
 |---|---|
 | **Mint** | `gibson agent enroll --name <name> --kind <kind>` provisions the machine identity and prints a single-use **bootstrap token** (24 h expiry, shown once). |
-| **Register** | `gibson component register --token <T>` exchanges the bootstrap token for a persistent **host key** and a **runtime credential**. The command writes them to `~/.gibson/<kind>/<name>.host_key` and `~/.gibson/<kind>/<name>.runtime.json` (both mode 0600). |
+| **First start** | You set `GIBSON_URL` and `GIBSON_BOOTSTRAP_TOKEN` and start the component. The component exchanges the bootstrap token for a persistent **host key** and a **runtime credential**. It writes them under `~/.gibson/` (both mode 0600). |
 | **Per-call** | The SDK signs a fresh short-lived token per RPC, chained to the host key, and presents it as a Bearer credential. Gibson validates the signature against the host key recorded at enrollment. |
 
-Gibson consumes the bootstrap token exactly once. If you run `register`
-again with the same install, the command succeeds as a no-op. The host
-key lets the component re-authenticate on restart without another
-bootstrap token.
+Gibson consumes the bootstrap token exactly once. A later start does not
+read the token. The host key lets the component re-authenticate on
+restart without another bootstrap token. No register command exists.
 
 ### In-cluster components enroll with their SPIFFE identity
 
@@ -59,8 +58,8 @@ The dashboard at `/dashboard/deploy` guides each kind:
   type/name selection and the **Permissions** step. The Permissions
   step sets per-action grants on components, plus plugin invocation
   grants for tools. A polling step then confirms the component
-  connects. The flow ends with a bootstrap token and a
-  `gibson component register --token <T>` command.
+  connects. The flow ends with a bootstrap token. You set it in
+  `GIBSON_BOOTSTRAP_TOKEN` and start the component.
 - `kind=plugin` is not a dashboard upload. You author a plugin in the
   [`integrations`](https://github.com/zeroroot-ai/integrations) repo.
   CI builds it, GitOps deploys it, and its SVID **auto-enrolls it**.
@@ -82,7 +81,7 @@ context. Gibson sees a fully-authenticated request. You do not write
 any of the token plumbing yourself.
 
 Headless deployments (CI, your container runtime) have no interactive
-`register` step. For these deployments, set `GIBSON_AGENT_KEY` (the
+first start. For these deployments, set `GIBSON_AGENT_KEY` (the
 base64-encoded runtime credential) and `GIBSON_URL` from a secret. Use
 these variables instead of the on-disk files. The SDK reads either
 source.
@@ -91,9 +90,9 @@ source.
 
 | Term | What it is |
 |---|---|
-| **Bootstrap token** | Single-use credential for an off-cluster component's first registration. 24 h expiry. Consumed once by `gibson component register`, then discarded. In-cluster first-party components use a SPIFFE SVID instead and need no token. |
+| **Bootstrap token** | Single-use credential for an off-cluster component's first registration. 24 h expiry. The first start of the component consumes it once. In-cluster first-party components use a SPIFFE SVID instead and need no token. |
 | **SPIFFE SVID** | The attested identity SPIRE issues an in-cluster pod. A first-party plugin presents its JWT-SVID to enroll. There is no bootstrap token and no human step. The SVID is re-presentable on every restart (ADR-0066). |
-| **Host key** | Persistent Ed25519 keypair stored on disk at `~/.gibson/<kind>/<name>.host_key` (mode 0600). Identifies a component install. Its public-key thumbprint is the host_id. |
+| **Host key** | Persistent Ed25519 keypair stored on disk under `~/.gibson/` (mode 0600). Identifies a component install. Its public-key thumbprint is the host_id. |
 | **Runtime credential** | The signing material written alongside the host key at `~/.gibson/<kind>/<name>.runtime.json` (mode 0600), or supplied as `GIBSON_AGENT_KEY` for headless runtimes. |
 | **Capability-grant token (CG-JWT)** | Per-mission task token Gibson mints, scoped to a specific RPC set. Presented alongside the primary credential during mission execution. |
 | **Component grant** | Per-action read / configure / execute permission on a registered component, granted via the dashboard's Permissions tab. This policy makes an agent an agent and a tool a tool. The enrollment mechanism is identical. |
@@ -113,8 +112,8 @@ customer debug surface for this is the **dashboard** plus
    you are and the permissions you hold.
 3. **If `inspect` fails to authenticate**, your enrollment never
    completed or the host key is gone. Issue a new bootstrap token from
-   the deploy wizard in the dashboard. Run
-   `gibson component register --token <T>` again. Bootstrap tokens are
+   the deploy wizard in the dashboard. Set it in
+   `GIBSON_BOOTSTRAP_TOKEN` and start the component again. Bootstrap tokens are
    single-use and expire after 24 h. If you lost a token or it expired,
    issue a fresh one.
 4. **If `inspect` succeeds but Gibson still denies a specific RPC**, you
@@ -130,7 +129,6 @@ enrollment flow misfired. File a bug with the output of
 ## Related
 
 - **SDK packages**: [`capabilitygrant`](https://github.com/zeroroot-ai/sdk/tree/main/capabilitygrant)
-- **CLI commands**: `gibson component register --token <T>` (all kinds),
-  `gibson inspect`
+- **CLI commands**: `gibson agent enroll` (all kinds), `gibson inspect`
 - **In-product surfaces**: the deploy wizard at `/dashboard/deploy`,
   the Permissions tab on each component's detail page

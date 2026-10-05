@@ -98,31 +98,34 @@ identity. Every kind (agent, tool, plugin) enrolls the same way. The
 token is the only credential that the component needs to bootstrap.
 There is no client secret anywhere.
 
+Get the token from the deploy wizard in the dashboard. You can also
+mint one with the CLI:
+
 ```bash
 gibson agent enroll --name my-first-agent --kind agent
 ```
 
-The CLI prints the token once. The token expires in 24 hours. Copy the
-token, then exchange it for a persistent runtime credential. Run
-`register` from the component directory that `gibson component init`
-scaffolded. The command reads the kind and the name from
-`component.yaml`:
+The CLI prints the token once. The token expires in 24 hours. Set two
+environment variables, then start the component:
 
 ```bash
-gibson component register --token <bootstrap-token>
+export GIBSON_URL=https://<your-platform>
+export GIBSON_BOOTSTRAP_TOKEN=<bootstrap-token>
+make run
 ```
 
-You can also pass the token on stdin (`--token -`) or in
-`GIBSON_BOOTSTRAP_TOKEN`. Use `--kind`, `--name`, and `--dir` to override
-the auto-detected kind, name, or directory.
+`GIBSON_URL` is the address of your platform. `make run` starts a
+component that `gibson component init` scaffolded. For any other
+component, start its binary. No register command exists, and the
+component needs no manifest file.
 
-`register` runs the capability-grant handshake and writes two files at
-mode `0600`. The first file is an Ed25519 **host key** at
-`~/.gibson/<kind>/<name>.host_key`. The second file is a **runtime
-credential** at `~/.gibson/<kind>/<name>.runtime.json`. Treat both files
-like private keys. They identify your component to Gibson.
+The first start runs the capability-grant handshake. The component
+consumes the token and writes an Ed25519 **host key** and a **runtime
+credential** under `~/.gibson/` at mode `0600`. Later starts use these
+files and do not read the token. Treat both files like private keys.
+They identify your component to Gibson.
 
-If registration fails, see
+If enrollment fails, see
 [Component bootstrap & auth](/docs/component-bootstrap#troubleshooting-a-401)
 for the layered checks.
 
@@ -150,7 +153,7 @@ continue.
 
 ## Storing credentials safely
 
-Credential files live in `~/.gibson/`. `register` restricts them to mode
+Credential files live in `~/.gibson/`. The component restricts them to mode
 `0600`. Do not commit them. For CI and production deployments:
 
 - **Headless runtimes**: do not write files. Pass the runtime
