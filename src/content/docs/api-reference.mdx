@@ -2418,6 +2418,24 @@ Powers the dashboard CUE editor's hover tooltip.
 
 ListAgents returns all registered agents from the etcd registry.
 
+##### `ListCatalogMissions`
+
+`ListCatalogMissionsRequest` → `ListCatalogMissionsResponse`
+
+ListCatalogMissions returns the mission definitions gibson ships compiled
+into its own binary (ADR-0018), with what each one declares.
+
+Until this RPC, the catalog had exactly one reader: the agent-facing
+harness callback, which takes catalog_mission + catalog_params. A person
+could neither list what the platform ships nor submit one of them, so the
+only way to run a first-party mission by hand was to copy its CUE out of
+the gibson repository and submit the copy — a second definition of one
+mission, which ADR-0027 forbids and which would silently stop tracking the
+checked-in one (gibson#631).
+
+A read. Nothing here is per-tenant: the catalog is the same for every
+tenant, and a mission is not gated — the components it dispatches are.
+
 ##### `ListMissionDefinitions`
 
 `ListMissionDefinitionsRequest` → `ListMissionDefinitionsResponse`
@@ -2486,6 +2504,23 @@ Used for health checks and connection validation.
 
 QueryPlugin executes a method on a plugin and returns the result.
 The plugin must be registered in the etcd registry.
+
+##### `RenderCatalogMission`
+
+`RenderCatalogMissionRequest` → `RenderCatalogMissionResponse`
+
+RenderCatalogMission renders one checked-in mission with the parameters it
+declares, and returns the definition the daemon would run.
+
+Rendered SERVER-SIDE, which is the whole point. The parameter set is
+closed, so an unrecognised key is refused rather than dropped — a caller
+that could send an ignored key would believe a parameter bound when it did
+not. No mission declares a target or a host, so the runtime target still
+binds from the mission's target at submit and from nowhere else.
+
+A caller registers the result with CreateMissionDefinition and runs it the
+way it runs any definition. That is referencing the authoritative
+definition, not rebuilding it: the graph came from the gibson binary.
 
 ##### `RenewCapabilityGrant`
 
@@ -2692,6 +2727,18 @@ Capabilities describes runtime privileges and features available to a tool.
 | `features` | 4 | `map<string, bool>` | features contains tool-specific feature availability flags |
 | `blocked_args` | 5 | `repeated string` | blocked_args lists command-line arguments that cannot be used |
 | `arg_alternatives` | 6 | `map<string, string>` | arg_alternatives maps blocked arguments to their safer alternatives |
+
+#### `CatalogMission`
+
+CatalogMission is one checked-in mission, and what a caller must supply to
+render it.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `name` | 1 | `string` | name is the catalog name, which is also what catalog_mission and RenderCatalogMissionRequest.name take. |
+| `description` | 2 | `string` | description is the one-line description from the mission's own definition. |
+| `version` | 3 | `string` | version is the mission's declared version. |
+| `declared_params` | 4 | `repeated string` | declared_params names every parameter this mission requires, sorted. The set is closed: RenderCatalogMission refuses a key that is not here, and refuses a render that omits one. |
 
 #### `CheckpointMetadata`
 
@@ -3080,6 +3127,21 @@ ListAgentsResponse returns registered agents.
 |---|---|---|---|
 | `agents` | 1 | `repeated AgentInfo` | agents is the list of registered agents |
 
+#### `ListCatalogMissionsRequest`
+
+ListCatalogMissionsRequest takes nothing. The catalog is the same for every
+tenant and is not filtered.
+
+_No fields._
+
+#### `ListCatalogMissionsResponse`
+
+ListCatalogMissionsResponse lists the catalog, sorted by name.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `missions` | 1 | `repeated CatalogMission` | — |
+
 #### `ListMissionDefinitionsRequest`
 
 ListMissionDefinitionsRequest queries installed mission definitions.
@@ -3222,6 +3284,7 @@ Mission represents a complete mission execution instance with full state.
 | `updated_at` | 11 | `int64` | updated_at is when the mission was last updated (Unix timestamp in milliseconds) |
 | `started_at` | 12 | `int64` | started_at is when the mission execution started (Unix timestamp in milliseconds) |
 | `completed_at` | 13 | `int64` | completed_at is when the mission execution completed (Unix timestamp in milliseconds, 0 if not completed) |
+| `created_by` | 14 | `gibson.common.v1.Principal` | created_by is the principal that created the mission. See MissionInfo.created_by. |
 
 #### `MissionCheckpoint`
 
@@ -3333,6 +3396,7 @@ MissionInfo describes a mission.
 | `progress` | 10 | `double` | progress is the mission completion progress from 0.0 to 1.0 |
 | `mission_definition_id` | 11 | `string` | mission_definition_id is the registered mission definition this run used. |
 | `target_id` | 12 | `string` | target_id is the registered target this mission ran against. |
+| `created_by` | 13 | `gibson.common.v1.Principal` | created_by is the principal that created the mission: the person who asked for the run, or the service that scheduled it. A reader resolves the id to a name at read time; a person who has left the tenant resolves to nobody, and the dashboard shows "removed user". Empty on a mission created before the field existed. |
 
 #### `MissionLayout`
 
@@ -3518,6 +3582,25 @@ QueryPluginResponse returns the result of a plugin query.
 | `result` | 1 | `gibson.common.v1.TypedValue` | result is the typed result from the plugin method |
 | `error` | 2 | `string` | error is set if the query failed |
 | `duration_ms` | 3 | `int64` | duration_ms is how long the query took in milliseconds |
+
+#### `RenderCatalogMissionRequest`
+
+RenderCatalogMissionRequest names a checked-in mission and supplies its
+parameters.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `name` | 1 | `string` | name is the catalog name. An unknown name is InvalidArgument and the error names what the catalog does ship. |
+| `params` | 2 | `map<string, string>` | params carries the parameters the named mission declares, keyed by its own parameter names. CLOSED: an unrecognised key is refused rather than ignored, and every missing one is reported at once rather than one render at a time. |
+
+#### `RenderCatalogMissionResponse`
+
+RenderCatalogMissionResponse returns the rendered definition.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `mission` | 1 | `gibson.mission.v1.MissionDefinition` | mission is the definition the daemon would run. Register it with CreateMissionDefinition to run it. |
+| `source` | 2 | `string` | source is the mission's CUE, verbatim, so a person can read what the daemon will run rather than trusting a rendered summary. |
 
 #### `RenewCapabilityGrantRequest`
 
@@ -4321,7 +4404,6 @@ Tools populate this message and Gibson automatically persists to the graph.
 | `evidence` | 10 | `repeated Evidence` | — |
 | `custom_nodes` | 20 | `repeated CustomNode` | Custom extensions |
 | `explicit_relationships` | 21 | `repeated ExplicitRelationship` | — |
-| `compliance_signals` | 22 | `repeated taxonomy.v1.ComplianceSignal` | Compliance signals — daemon-emitted observations of harness calls. Populated exclusively by the daemon ComplianceMiddleware (agents and tools never self-report). Routed through the same DiscoveryResult → processor → loader pipeline as asset discoveries so signals land in Neo4j with the EMITTED_SIGNAL parent relationship to the originating agent_run. |
 
 #### `Domain`
 
@@ -4454,6 +4536,8 @@ GraphQuery represents a query against the knowledge graph using proto-canonical 
 | `filters` | 10 | `map<string, string>` | — |
 | `vector_weight` | 11 | `double` | — |
 | `graph_weight` | 12 | `double` | — |
+| `from_node_id` | 13 | `string` | from_node_id anchors a relationship traversal: with relationship_type, restrict results to nodes reachable from this node by that relationship (sdk#72, the SDK search primitive). Optional; a query with neither this nor relationship_type is a plain type/text/relevance search, unchanged. |
+| `relationship_type` | 14 | `string` | relationship_type names the relationship to traverse from from_node_id, e.g. "RESOLVES_TO" (sdk#72). Optional; requires from_node_id to have any effect. |
 
 #### `HierarchyDef`
 
@@ -4841,6 +4925,26 @@ resolves identity and topology; scope is derived server-side from context.
 OpenJob opens a job on a bank from a dispatched agent, under its
 grant. It mirrors gibson.job.v1.JobService.OpenJob.
 
+##### `PlaceBet`
+
+`PlaceBetRequest` → `PlaceBetResponse`
+
+PlaceBet stakes a calibrated confidence on a Hypothesis (ADR-0022). Betting
+is a first-class SDK primitive, parallel to Observe: storage, settlement
+and scoring of the bet are a gibson-side concern (ADR-0023).
+
+##### `ProposeOntologyExtension`
+
+`ProposeOntologyExtensionRequest` → `ProposeOntologyExtensionResponse`
+
+ProposeOntologyExtension proposes a new Taxonomy node label or
+relationship type discovered by an agent at runtime (ADR-0024 §2,
+ADR-0033 decision 2). The agent proposes; it never promotes — the
+daemon checks the identifier against its safety gate before recording
+it as a per-tenant proposal, and the resulting recurrence only ever
+feeds a later, explicit tenant-owner approval. This call never blocks
+on that approval.
+
 ##### `PullJob`
 
 `PullJobRequest` → `PullJobResponse`
@@ -4920,6 +5024,16 @@ it. A member never reports CLOSED: a scorer closes the job.
 
 `ReportStepHintsRequest` → `ReportStepHintsResponse`
 
+##### `RequestDestructiveAuthorization`
+
+`RequestDestructiveAuthorizationRequest` → `RequestDestructiveAuthorizationResponse`
+
+RequestDestructiveAuthorization asks a human to approve an irreversible
+demonstration BEFORE the agent performs it (ADR-0032). It returns
+immediately with a pending request id — the fleet keeps working while
+the decision is pending. The agent performs the destructive act only
+after it reads back an approval, then calls SubmitProof.
+
 ##### `RunMission`
 
 `RunMissionRequest` → `RunMissionResponse`
@@ -4945,6 +5059,19 @@ agent, under its grant. It mirrors gibson.job.v1.JobService.SendInput.
 `SubmitFindingRequest` → `SubmitFindingResponse`
 
 Finding Operations
+
+##### `SubmitProof`
+
+`SubmitProofRequest` → `SubmitProofResponse`
+
+SubmitProof triggers settlement of a Bet by submitting the raw evidence
+an agent's own tools captured (ADR-0030). The agent never submits a
+verdict or an interpretation — only raw evidence — because a
+deterministic, typed predicate on the daemon decides settlement, never
+an LLM and never the bet's own beneficiary. A non-destructive proof
+settles synchronously; a destructive proof settles only after a prior
+RequestDestructiveAuthorization approval, and this call never blocks on
+that decision (ADR-0032).
 
 ##### `SubscribeInput`
 
@@ -5056,6 +5183,25 @@ AccountObservation reports a discovered account/principal (identity: identifier)
 |---|---|---|---|
 | `identifier` | 1 | `string` | — |
 | `kind` | 2 | `string` | — |
+
+#### `AnalysisObservation`
+
+AnalysisObservation reports a typed analysis artifact (sdk#74): a
+conclusion an agent draws FROM evidence already on the graph, with the
+confidence it holds and the evidence it used — the bridge between raw
+findings and reportable output. Unlike a Hypothesis (an unproven,
+forward-looking claim awaiting settlement, ADR-0021), an Analysis is
+backward-looking: it synthesizes what is already known rather than
+proposing something new to test. Like every Observation, this feeds
+hypotheses and findings as a typed artifact, never as free text, and it is
+an emit: the daemon folds it onto the Timeline (ADR-0007).
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `agent` | 1 | `string` | agent identifies the agent producing the analysis. |
+| `conclusion` | 2 | `string` | conclusion states the typed conclusion in a form the brain can fold into a Finding or a Hypothesis, not free text. |
+| `confidence` | 3 | `double` | confidence is the agent's calibrated confidence in the conclusion. |
+| `evidence` | 4 | `repeated ReferencedEntity` | evidence names the entities on the graph this conclusion is based on, by label and identity (the same scheme HypothesisObservation.references uses) — the link from the conclusion back to the evidence it used. |
 
 #### `AnyValue`
 
@@ -5180,6 +5326,20 @@ BasicAuth represents username/password credentials
 |---|---|---|---|
 | `username` | 1 | `string` | — |
 | `password` | 2 | `string` | — |
+
+#### `Bet`
+
+Bet is an agent's calibrated stake on a Hypothesis: a stake that later
+settles, not a bare confidence number (ADR-0022). Reputation attaches to
+technique × environment, never to an agent, so the technique the bet
+exercises rides on the bet itself.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `hypothesis_id` | 1 | `string` | hypothesis_id names the Hypothesis this bet is on. |
+| `staking_agent` | 2 | `string` | staking_agent identifies the agent placing the bet. |
+| `confidence` | 3 | `double` | confidence is the staked calibrated confidence. |
+| `technique` | 4 | `string` | technique names the technique this bet exercises. The reputation key is technique × environment, so this must ride on the bet. |
 
 #### `CallToolProtoRequest`
 
@@ -5808,6 +5968,23 @@ signals and the ports observed open in this sighting.
 | `cloud_id` | 3 | `string` | — |
 | `ports` | 4 | `repeated PortObservation` | — |
 
+#### `HypothesisObservation`
+
+HypothesisObservation reports an agent's own reasoning: a proposed, unproven
+claim, not a sighting (ADR-0021). It is attributed to the proposing agent and
+carries a confidence; it stays unverified until it settles (the betting /
+settlement slices, ADR-0022 / ADR-0023). This keeps the agent write surface
+emit-only — one more observation kind, never a raw graph write (ADR-0007).
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `proposer` | 1 | `string` | proposer identifies the agent making the claim. |
+| `confidence` | 2 | `double` | confidence is the proposer's calibrated confidence in the claim. |
+| `claim` | 3 | `string` | claim states the hypothesis in a form the brain can later settle, e.g. "port 6443 on this host is unauthenticated". |
+| `references` | 4 | `repeated ReferencedEntity` | references names the entities the claim is about, by label and identity — the emitter does not know node ids, and must not be able to guess them. |
+| `technique` | 5 | `string` | technique names the technique this hypothesis exercises. Reputation keys on technique x environment (ADR-0022, gibson#333/#284), so this must ride on the Hypothesis the same way it already rides on Bet. Optional and additive: empty means the hypothesis carries no technique signal (resolves to the neutral prior), same as before this field existed. |
+| `hypothesis_id` | 6 | `string` | hypothesis_id is the agent-chosen identifier for this claim. The SAME value the agent later names as Bet.hypothesis_id when it stakes on this claim, and that a settlement path (Engine.SettleBetByHITL, gibson#280) records against — the one join key across Hypothesis, Bet and BetSettlement (gibson#339). Optional: empty preserves the pre-existing behavior of a Hypothesis with no bettable identity (it still folds as a claim, ADR-0021, it just cannot be staked on or settled by id). |
+
 #### `JSONSchemaNode`
 
 JSONSchemaNode represents a JSON Schema node with taxonomy support.
@@ -6211,8 +6388,11 @@ the daemon derives it from the mission context.
 | `account` | 6 | `AccountObservation` | — |
 | `memory` | 7 | `MemoryObservation` | — |
 | `lifecycle_entity` | 8 | `LifecycleEntityObservation` | — |
+| `hypothesis` | 9 | `HypothesisObservation` | — |
+| `reasoning_step` | 10 | `ReasoningStepObservation` | — |
+| `analysis` | 11 | `AnalysisObservation` | — |
 
-**oneof `observation`** — one of: `host`, `domain`, `subdomain`, `credential`, `account`, `memory`, `lifecycle_entity`.
+**oneof `observation`** — one of: `host`, `domain`, `subdomain`, `credential`, `account`, `memory`, `lifecycle_entity`, `hypothesis`, `reasoning_step`, `analysis`.
 
 #### `ObserveResponse`
 
@@ -6241,6 +6421,23 @@ OpenJobResponse carries the opened job.
 |---|---|---|---|
 | `job` | 1 | `gibson.job.v1.Job` | job is the job as stored. |
 | `error` | 2 | `HarnessError` | — |
+
+#### `PlaceBetRequest`
+
+PlaceBetRequest carries a calibrated stake on a Hypothesis (ADR-0022).
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `bet` | 2 | `Bet` | — |
+
+#### `PlaceBetResponse`
+
+PlaceBetResponse acknowledges a bet placement.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `error` | 1 | `HarnessError` | — |
 
 #### `PlanContext`
 
@@ -6277,6 +6474,37 @@ PropertyMapping maps a source field to a target property.
 | `target` | 2 | `string` | — |
 | `default_value` | 3 | `string` | — |
 | `transform` | 4 | `string` | — |
+
+#### `ProposeOntologyExtensionRequest`
+
+ProposeOntologyExtensionRequest carries an agent-proposed Taxonomy node
+label or relationship type discovered at runtime. The agent supplies the
+identifier and its rationale; a deterministic safety gate on the daemon
+(taxonomy.ValidIdentifier) decides whether it is even recorded as a
+sighting — an invalid identifier is refused outright and never reaches
+the Timeline.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `kind` | 2 | `OntologyExtensionKind` | kind distinguishes a proposed node label from a proposed relationship type. |
+| `label` | 3 | `string` | label is the proposed identifier — the node label or relationship type name itself. |
+| `proposer` | 4 | `string` | proposer identifies the agent (or agent run) that proposed this extension, carried through for audit/attribution. |
+| `claim` | 5 | `string` | claim is a short, free-text rationale for the proposal, carried through for the tenant owner's eventual review. |
+
+#### `ProposeOntologyExtensionResponse`
+
+ProposeOntologyExtensionResponse acknowledges the proposal. accepted is
+true when the identifier passed the safety gate and the proposal was
+recorded as a sighting; false means it was refused outright (see
+rejection_reason) and never recorded, so it can never accumulate
+recurrence.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `accepted` | 1 | `bool` | — |
+| `rejection_reason` | 2 | `string` | rejection_reason states, in plain words, why an unaccepted proposal was refused — e.g. an invalid identifier. Empty when accepted is true. |
+| `error` | 3 | `HarnessError` | — |
 
 #### `PullJobRequest`
 
@@ -6368,6 +6596,25 @@ QueueToolWorkResponse returns a job ID for tracking the work queue.
 | `job_id` | 1 | `string` | — |
 | `error` | 2 | `HarnessError` | — |
 
+#### `ReasoningStepObservation`
+
+ReasoningStepObservation reports one step of an agent's own structured,
+multi-step reasoning over graph state (sdk#73): what it inferred, and the
+entities its inference is about. It builds on the planning package's step
+model — step_index is typically the mission's current step
+(PlanningContext.CurrentStepIndex) — so a reasoning trace aligns with the
+mission's own plan. Like every Observation, this is an emit: the daemon
+folds it onto the Timeline (flight recorder), so a completed multi-step
+trace is inspectable afterward by plan_id, in step order.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `agent` | 1 | `string` | agent identifies the agent doing the reasoning. |
+| `plan_id` | 2 | `string` | plan_id groups every step of one reasoning trace. Agent-assigned: the SDK does not read node ids back, so a plan does not get one from the daemon. |
+| `step_index` | 3 | `int32` | step_index orders steps within plan_id. |
+| `step` | 4 | `string` | step states what the agent reasoned or decided at this step. |
+| `references` | 5 | `repeated ReferencedEntity` | references names the entities this step's reasoning is about, by label and identity (the same scheme HypothesisObservation.references uses). |
+
 #### `RecordSpanRequest`
 
 | Field | # | Type | Description |
@@ -6393,6 +6640,17 @@ QueueToolWorkResponse returns a job ID for tracking the work queue.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `error` | 1 | `HarnessError` | — |
+
+#### `ReferencedEntity`
+
+ReferencedEntity names an entity a Hypothesis is about, by its Taxonomy label
+and identity properties rather than a node id (same scheme as
+LifecycleEntityEdge's target).
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `label` | 1 | `string` | label is the Taxonomy label, e.g. "Host" / "Package". |
+| `id_properties` | 2 | `map<string, string>` | id_properties identify the entity, folded the same way as LifecycleEntityObservation.id_properties. |
 
 #### `Relationship`
 
@@ -6465,6 +6723,34 @@ ReportJobStateResponse acknowledges the state change.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `error` | 1 | `HarnessError` | — |
+
+#### `RequestDestructiveAuthorizationRequest`
+
+RequestDestructiveAuthorizationRequest asks a human to approve an
+irreversible demonstration before the agent performs it (ADR-0032). It
+carries what a human reviewer needs to decide (ADR-0028 decision 3): what
+the action would do, its blast radius, its reversibility, and the
+predicate it would satisfy.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `hypothesis_id` | 2 | `string` | hypothesis_id names the Hypothesis the destructive demonstration would prove, and the join key a later SubmitProof settles by. |
+| `technique` | 3 | `string` | technique names the technique the demonstration exercises. |
+| `predicate_name` | 4 | `string` | predicate_name names the CEL predicate the demonstration would satisfy — the same value a subsequent SubmitProof names. |
+| `action_description` | 5 | `string` | action_description states, in plain words, what the demonstration would do. Shown to the human reviewer verbatim. |
+| `blast_radius` | 6 | `string` | blast_radius states, in plain words, what the action would reach — one host, one tenant's data, a shared production resource. Empty means the caller has no signal to report; it is not a claim of zero blast radius. |
+| `reversibility` | 7 | `Reversibility` | reversibility states whether the action can be undone after it runs. |
+
+#### `RequestDestructiveAuthorizationResponse`
+
+RequestDestructiveAuthorizationResponse returns immediately: the fleet
+keeps working while the human decision is pending (ADR-0028, ADR-0032).
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `authorization_request_id` | 1 | `string` | authorization_request_id names the pending request. The agent reads the decision back before it performs the destructive act, then names this same hypothesis_id on the eventual SubmitProof. |
+| `error` | 2 | `HarnessError` | — |
 
 #### `RunMissionRequest`
 
@@ -6601,6 +6887,35 @@ SubdomainObservation reports an FQDN, its parent domain, and resolved addresses.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `error` | 1 | `HarnessError` | — |
+
+#### `SubmitProofRequest`
+
+SubmitProofRequest carries the raw evidence an agent captured for a
+Hypothesis it staked a Bet on. The agent supplies raw, uninterpreted tool
+output — never a verdict (ADR-0030 decision 1) — and a deterministic,
+typed predicate on the daemon decides whether the Bet settles.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `hypothesis_id` | 2 | `string` | hypothesis_id names the Hypothesis this proof settles. The same value the agent named on the HypothesisObservation and on the Bet it staked — the one join key across Hypothesis, Bet and BetSettlement. |
+| `technique` | 3 | `string` | technique names the technique this proof exercises, the same value carried on the Bet (reputation keys on technique x environment, ADR-0022). |
+| `predicate_name` | 4 | `string` | predicate_name names the enabled pack's CEL predicate the daemon evaluates against evidence to decide settlement. The agent names a predicate; it never evaluates one. |
+| `evidence` | 5 | `repeated gibson.types.v1.Evidence` | evidence is the raw tool output the predicate evaluates. It is never a verdict or an interpretation of what the evidence shows. |
+| `destructive` | 6 | `bool` | destructive is true when this proof follows an irreversible demonstration. A destructive proof settles only after a prior RequestDestructiveAuthorization approval for this hypothesis_id (ADR-0032); a non-destructive proof settles synchronously. |
+
+#### `SubmitProofResponse`
+
+SubmitProofResponse reports the settlement outcome. SubmitProof never
+blocks on a human decision (ADR-0032 decision 2): a destructive proof
+returns SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION immediately rather than
+waiting for the pending authorization to resolve.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `hypothesis_id` | 1 | `string` | — |
+| `outcome` | 2 | `SettlementOutcome` | — |
+| `error` | 3 | `HarnessError` | — |
 
 #### `SubscribeInputRequest`
 
@@ -7133,6 +7448,33 @@ MissionStatus represents the current state of a mission.
 | `MISSION_STATUS_FAILED` | 5 | — |
 | `MISSION_STATUS_CANCELLED` | 6 | — |
 
+#### `OntologyExtensionKind`
+
+OntologyExtensionKind distinguishes what an agent is proposing: a new
+Taxonomy node label or a new relationship type. These are Taxonomy's own
+two vocabularies (ADR-0024 §2) — the HEAVY safety gate, because a
+promoted label becomes Cypher query structure. This is deliberately not
+the LIGHT gate for ontology triples (classes/equivalences/inverse-
+functional properties, ADR-0024 §1): that is a separate proposal kind
+with no identifier-safety concern, and is not carried by this RPC.
+
+| Value | # | Description |
+|---|---|---|
+| `ONTOLOGY_EXTENSION_KIND_UNSPECIFIED` | 0 | — |
+| `ONTOLOGY_EXTENSION_KIND_NODE_LABEL` | 1 | — |
+| `ONTOLOGY_EXTENSION_KIND_RELATIONSHIP_TYPE` | 2 | — |
+
+#### `Reversibility`
+
+Reversibility states whether a destructive action can be undone once it
+runs.
+
+| Value | # | Description |
+|---|---|---|
+| `REVERSIBILITY_UNSPECIFIED` | 0 | — |
+| `REVERSIBILITY_REVERSIBLE` | 1 | — |
+| `REVERSIBILITY_IRREVERSIBLE` | 2 | — |
+
 #### `RunScope`
 
 RunScope selects which mission runs GetRunFindings reads.
@@ -7142,6 +7484,17 @@ RunScope selects which mission runs GetRunFindings reads.
 | `RUN_SCOPE_UNSPECIFIED` | 0 | — |
 | `RUN_SCOPE_PREVIOUS` | 1 | RUN_SCOPE_PREVIOUS reads the run immediately before the current one. |
 | `RUN_SCOPE_ALL` | 2 | RUN_SCOPE_ALL reads every run of this mission. |
+
+#### `SettlementOutcome`
+
+SettlementOutcome reports what SubmitProof did with the submitted proof.
+
+| Value | # | Description |
+|---|---|---|
+| `SETTLEMENT_OUTCOME_UNSPECIFIED` | 0 | — |
+| `SETTLEMENT_OUTCOME_SETTLED_TRUE` | 1 | SETTLEMENT_OUTCOME_SETTLED_TRUE means the predicate fired against the submitted evidence and the Bet settled true. |
+| `SETTLEMENT_OUTCOME_NOT_SETTLED` | 2 | SETTLEMENT_OUTCOME_NOT_SETTLED means the predicate did not fire. The Bet stays unsettled. |
+| `SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION` | 3 | SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION means the proof was destructive and settlement is deferred until the daemon reads back an approved authorization decision for this hypothesis_id (ADR-0032). SubmitProof never blocks on that decision. |
 
 #### `SpanKind`
 
@@ -7302,6 +7655,7 @@ importing PrincipalKind from this package over time.
 | `PRINCIPAL_KIND_AGENT` | 1 | — |
 | `PRINCIPAL_KIND_TOOL` | 2 | — |
 | `PRINCIPAL_KIND_PLUGIN` | 3 | — |
+| `PRINCIPAL_KIND_USER` | 4 | A person who signed in through OIDC. Not a component principal. |
 
 ## Package `gibson.job.v1`
 
@@ -7978,6 +8332,23 @@ wire-compatibly; ignored by the engine.
 | `encryption` | 4 | `bool` | Encryption determines whether data should be encrypted at rest |
 | `access_control` | 5 | `repeated string` | AccessControl specifies who can access this data |
 
+#### `ForEachNodeConfig`
+
+ForEachNodeConfig configures a for_each node: ONE template node, run once
+per item in a source set.
+
+The distinction from ParallelNodeConfig is the point. Parallel runs N
+DIFFERENT declared sub_nodes concurrently. ForEach runs ONE declared node N
+times, where N is discovered from the source rather than written down. A
+mission that fans a scan across every target in its target set declares the
+scan once.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `template` | 1 | `MissionNode` | template is the node run once per item. It must not itself be a for_each node. That is a submit-time check in the daemon rather than a protovalidate rule, because protovalidate cannot express "this nested MissionNode's config is not this variant". |
+| `source` | 2 | `ForEachNodeConfig.Source` | source is required and must be a named value. Omission is NOT taken to mean the target set: an unset source is a mission that did not say what it iterates, and a future second source would silently change what the omission meant. |
+| `max_concurrency` | 3 | `int32` | max_concurrency limits instances in flight (0 = unlimited), the same semantics as ParallelNodeConfig.max_concurrency. |
+
 #### `JobNodeConfig`
 
 RetryPolicy defines the retry behavior for a mission node
@@ -8083,6 +8454,7 @@ CreateMissionDefinition API and referenced by mission runs.
 | `workspace` | 15 | `WorkspaceConfig` | Workspace configures repository cloning + workspace management for agents that need code access. Optional; missions without code interaction omit this field. Spec: mission-schema-canonicalization (mirror migration). |
 | `constraints` | 16 | `optional MissionConstraints` | Constraints declares mission-level operational limits. When present, these are the authoritative constraints for the mission DAG — they make the mission self-describing so authors do not have to supply limits out-of-band at dispatch time. The daemon merges these with any dispatch-time overrides (dispatch wins on conflict). Optional: absent means no constraints are baked into the definition. Spec: MissionConstraints proto promotion. |
 | `decider_slot` | 17 | `optional LLMSlotConfig` | DeciderSlot names the mission-level LLM the brain's Decider runs on — the orchestration decision-maker, distinct from per-node agent slots. Only the provider+model are used (the slot name is implicitly "decider"). Absent means the brain uses the tenant's dashboard-default provider/model, so missions need not set it. |
+| `secrets` | 18 | `optional MissionSecrets` | Secrets declares which named tenant secrets this mission's components may be handed at dispatch. Names only; a value never appears here. |
 
 #### `MissionDependencies`
 
@@ -8133,8 +8505,42 @@ MissionNode represents a single node in a mission DAG
 | `join_config` | 15 | `JoinNodeConfig` | JoinConfig for join nodes (mission-verb-noun-registry). Field number 15 because 10-14 are sibling MissionNode fields (dependencies, timeout, retry_policy, data_policy, metadata). |
 | `reuse_policy` | 16 | `ReusePolicy` | ReusePolicy declares how this node's I/O is scoped + reused across mission runs. Deprecated: superseded by the ECS brain (ADR-0008). Reuse is implicit in the World; scoping is via scope-relative identity (ADR-0002) + ambient projection. Retained wire-compatibly but ignored by the engine. |
 | `job_config` | 17 | `JobNodeConfig` | JobConfig for job nodes. Field number 17 because 16 is the sibling reuse_policy field. |
+| `for_each_config` | 18 | `ForEachNodeConfig` | ForEachConfig for for_each nodes. Field number 18 as the next free tag; 13 is NOT free despite looking it, because data_policy is `= 13 [deprecated = true]` and a field-number scan that expects a trailing semicolon misses it. |
 
-**oneof `config`** — one of: `agent_config`, `tool_config`, `plugin_config`, `condition_config`, `parallel_config`, `join_config`, `job_config`.
+**oneof `config`** — one of: `agent_config`, `tool_config`, `plugin_config`, `condition_config`, `parallel_config`, `join_config`, `job_config`, `for_each_config`.
+
+#### `MissionSecrets`
+
+MissionSecrets declares which named tenant secrets the components of a
+mission may be handed, and to which of them.
+
+NAMES ONLY. A secret's value is resolved server-side at dispatch by the
+daemon, which holds the KEK and the broker, and is handed to the component as
+environment. A value never appears in a mission definition, which is stored,
+listed, rendered, validated and displayed. A component never names a secret
+itself: the same property ScopeID has, where an agent-supplied value would
+make the decision attacker-influenceable.
+
+This does NOT widen FGA. `secret.can_resolve` admits only plugin_principal,
+and the non-plugin-secret-isolation spec asserts an agent and a tool are each
+denied (gibson tests/e2e/secrets/non_plugin_deny_test.go). That property is
+preserved exactly: a component still cannot ask for a secret. This declares
+what the daemon may hand it, and the daemon resolves as itself.
+
+The wide lists and the per-name maps UNION. A tool named T in a mission whose
+definition sets `mission`, `tools` and `tool[T]` may be handed any name in any
+of the three. An absent block means no component is handed anything, which is
+the behavior before this field existed.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `mission` | 1 | `repeated string` | Mission is handed to every component in the run, whatever its kind. |
+| `agents` | 2 | `repeated string` | Agents, Tools and Plugins are handed to every component of that kind. |
+| `tools` | 3 | `repeated string` | — |
+| `plugins` | 4 | `repeated string` | — |
+| `agent` | 5 | `map<string, SecretNames>` | Agent, Tool and Plugin are handed to one NAMED component. The key is the component name as the catalog and the mission node spell it. Three explicit maps rather than one keyed by a ComponentKind enum: no such enum exists in this module, adding one to express three cases is a permanent API surface for no gain, and a map per kind is what the file already does for nodes (`map&lt;string, MissionNode> nodes = 6`). |
+| `tool` | 6 | `map<string, SecretNames>` | — |
+| `plugin` | 7 | `map<string, SecretNames>` | — |
 
 #### `ParallelNodeConfig`
 
@@ -8204,6 +8610,15 @@ longer has meaning. Retained wire-compatibly; ignored by the engine.
 | `input_scope` | 2 | `string` | InputScope: "mission_run" \| "mission" \| "global". Default: "mission". |
 | `reuse` | 3 | `string` | Reuse: "skip" \| "rerun" \| "merge". Controls behavior when an existing output is found in scope. Default: "rerun". |
 
+#### `SecretNames`
+
+SecretNames is a list of secret names, as the value of a per-component map.
+proto3 has no repeated map value, so the list needs a message.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `names` | 1 | `repeated string` | — |
+
 #### `ToolNodeConfig`
 
 ToolNodeConfig contains configuration for tool nodes.
@@ -8258,6 +8673,15 @@ BackoffStrategy defines the strategy for calculating retry delays
 | `BACKOFF_STRATEGY_LINEAR` | 2 | Linear increases the delay linearly with each retry attempt |
 | `BACKOFF_STRATEGY_EXPONENTIAL` | 3 | Exponential increases the delay exponentially with each retry attempt |
 
+#### `ForEachNodeConfig.Source`
+
+Source selects what is iterated.
+
+| Value | # | Description |
+|---|---|---|
+| `SOURCE_UNSPECIFIED` | 0 | — |
+| `SOURCE_TARGET_SET` | 1 | TARGET_SET is the mission's resolved target set, primary first, in the order TargetSet returns. |
+
 #### `Language`
 
 Language declares the expression language used by mission constructs
@@ -8303,6 +8727,7 @@ NodeType defines the type of mission node
 | `NODE_TYPE_PARALLEL` | 5 | Parallel node executes sub-nodes in parallel |
 | `NODE_TYPE_JOIN` | 6 | Join node waits for multiple branches to complete |
 | `NODE_TYPE_JOB` | 7 | Job node drives a job on a bank of always-on agents. Its executor opens the job, runs the verify loop against the acceptance the spec declares, and closes the job with a verdict. |
+| `NODE_TYPE_FOR_EACH` | 8 | ForEach node runs ONE template node once per item in a source set. It is a CONTAINER, so one graph node remains one execution unit and JoinNodeConfig.wait_for keeps meaning "this node", not "one of its instances". A boolean on MissionNode would have made every consumer of a node 1:N and made wait_for ambiguous between one instance and all. |
 
 ## Package `gibson.plugin.v1`
 
@@ -8545,6 +8970,365 @@ plugin install. The dashboard renders this as a badge on the plugin detail page.
 | `PLUGIN_INSTALL_STATUS_UNREACHABLE` | 2 | PLUGIN_INSTALL_STATUS_UNREACHABLE: install has not heartbeated within 90 seconds; not eligible for dispatch. |
 | `PLUGIN_INSTALL_STATUS_DEGRADED` | 3 | PLUGIN_INSTALL_STATUS_DEGRADED: install heartbeats but reports errors on its method invocations. |
 
+## Package `gibson.secrets.v1`
+
+Package gibson.secrets.v1 — SecretsService: the customer-callable secrets
+management surface.
+
+This service has moved three times, which is worth recording so a fourth move
+is argued rather than assumed:
+
+ ADR-0039 gibson.admin.v1.SecretsAdminService (platform-sdk) -> the OSS SDK
+ ADR-0058 out of the SDK to the gibson platform protos, as tenant admin
+ ADR-0096 back into the SDK, here, as its own wire package
+
+The 2026-10-01 amendment to ADR-0058 is the current authority. ADR-0096
+removed the credential reference from a Target, which left the command line as
+the only surface a developer has for the credential their tool needs, so the
+service that stores it belongs on the developer surface.
+
+WHY ITS OWN WIRE PACKAGE: one proto package may have exactly ONE generated Go
+home linked into a binary, and the daemon links both the SDK and its own
+protos. Two homes for one package is the documented
+`proto: duplicate registration` panic. AgentIdentityService
+(gibson.agentidentity.v1) and PluginAdminService (gibson.pluginadmin.v1) set
+this precedent when ADR-0058's first amendment kept them in the SDK.
+
+The broker-config RPCs (GetBrokerConfig, ProbeBrokerConfig, SetBrokerConfig,
+CountSecrets) come with the service rather than staying behind. Splitting one
+service across the two surfaces would split its wire package and reintroduce
+the panic above for no benefit, and a developer whose tenant has no broker
+configured cannot store a secret at all.
+
+SECURITY: SecretsService NEVER returns a secret's plaintext value. The only
+RPC in Gibson that returns plaintext is HarnessCallbackService.GetCredential,
+which is plugin-only by FGA and not callable from the dashboard or SDK.
+
+Authorization: every RPC carries a (gibson.auth.v1.authz) annotation. The
+annotations are unchanged by the move: every RPC still derives its object via
+tenant_from_identity and still admits USER identities only.
+
+### Services
+
+#### `SecretsService`
+
+SecretsService manages tenant secrets and their lifecycle, including
+broker configuration for the tenant's active secrets backend.
+
+##### `CountSecrets`
+
+`CountSecretsRequest` → `CountSecretsResponse`
+
+CountSecrets returns the number of secrets currently stored in the
+tenant's active broker. No names, values, or per-row metadata — only an
+integer count.
+
+##### `DeleteSecret`
+
+`DeleteSecretRequest` → `DeleteSecretResponse`
+
+DeleteSecret removes the named secret from the broker and emits a
+secret_revoked audit event.
+
+##### `GetBrokerConfig`
+
+`GetBrokerConfigRequest` → `GetBrokerConfigResponse`
+
+GetBrokerConfig returns the redacted current configuration. Sensitive
+fields are NEVER returned.
+
+##### `GetMissionAudit`
+
+`GetMissionAuditRequest` → `GetMissionAuditResponse`
+
+GetMissionAudit returns the per-mission aggregated list of resolved
+secret refs (one row per ref) for the mission detail "Secrets accessed"
+panel. Refs only — never values.
+
+##### `GetSecret`
+
+`GetSecretRequest` → `GetSecretResponse`
+
+GetSecret returns metadata for one named secret. Never carries the
+plaintext value.
+
+##### `ListSecrets`
+
+`ListSecretsRequest` → `ListSecretsResponse`
+
+ListSecrets returns the metadata-only list of secrets owned by the
+tenant resolved from identity. NEVER returns plaintext values.
+
+##### `ProbeBrokerConfig`
+
+`ProbeBrokerConfigRequest` → `ProbeBrokerConfigResponse`
+
+ProbeBrokerConfig validates a candidate config without persisting it.
+
+##### `RotateSecret`
+
+`RotateSecretRequest` → `RotateSecretResponse`
+
+RotateSecret creates a new version of the named secret with a new value.
+Emits a secret_rotated audit event.
+
+##### `SetBrokerConfig`
+
+`SetBrokerConfigRequest` → `SetBrokerConfigResponse`
+
+SetBrokerConfig probes the candidate config and persists it on success.
+Emits a tenant_secrets_backend_configured audit event.
+
+##### `SetSecret`
+
+`SetSecretRequest` → `SetSecretResponse`
+
+SetSecret creates or overwrites the named secret. The value is sent in
+the request bytes (TLS in transit; never logged).
+
+### Messages
+
+#### `CandidateConfig`
+
+CandidateConfig is the submitted config for Probe / Set. It carries the
+full set of fields including sensitive ones.
+
+SECURITY: never log this message.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `provider` | 1 | `BrokerProvider` | — |
+| `address` | 2 | `string` | — |
+| `namespace_or_path` | 3 | `string` | — |
+| `mount` | 4 | `string` | — |
+| `auth_method` | 5 | `string` | — |
+| `region` | 6 | `string` | — |
+| `project` | 7 | `string` | — |
+| `tenant_id_external` | 8 | `string` | — |
+| `client_id` | 9 | `string` | — |
+| `role_arn` | 10 | `string` | — |
+| `vault_token` | 20 | `bytes` | Vault token (token auth method). Sensitive. |
+| `approle_role_id` | 21 | `string` | — |
+| `approle_secret_id` | 22 | `bytes` | — |
+| `aws_access_key_id` | 23 | `bytes` | — |
+| `aws_secret_access_key` | 24 | `bytes` | — |
+| `aws_external_id` | 25 | `bytes` | — |
+| `gcp_service_account_json` | 26 | `bytes` | — |
+| `azure_client_secret` | 27 | `bytes` | — |
+
+#### `CountSecretsRequest`
+
+_No fields._
+
+#### `CountSecretsResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `count` | 1 | `int64` | — |
+
+#### `DeleteSecretRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `name` | 1 | `string` | — |
+
+#### `DeleteSecretResponse`
+
+_No fields._
+
+#### `GetBrokerConfigRequest`
+
+_No fields._
+
+#### `GetBrokerConfigResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `config` | 1 | `RedactedConfig` | — |
+| `configured` | 2 | `bool` | — |
+
+#### `GetMissionAuditRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `mission_id` | 1 | `string` | — |
+
+#### `GetMissionAuditResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `accesses` | 1 | `repeated MissionSecretAccess` | — |
+| `aggregation_lag_seconds` | 2 | `int32` | — |
+
+#### `GetSecretRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `name` | 1 | `string` | — |
+
+#### `GetSecretResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `metadata` | 1 | `SecretMetadata` | — |
+
+#### `ListSecretsRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `category_filter` | 1 | `SecretCategory` | — |
+| `limit` | 2 | `int32` | — |
+| `offset` | 3 | `int32` | — |
+| `name_prefix` | 4 | `string` | — |
+
+#### `ListSecretsResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `secrets` | 1 | `repeated SecretMetadata` | — |
+| `total` | 2 | `int32` | — |
+
+#### `MissionSecretAccess`
+
+MissionSecretAccess describes one ref's access pattern across the
+mission's lifetime.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `ref` | 1 | `string` | — |
+| `category` | 2 | `SecretCategory` | — |
+| `first_access_at_unix` | 3 | `int64` | — |
+| `last_access_at_unix` | 4 | `int64` | — |
+| `count` | 5 | `int32` | — |
+| `plugin_install_ids` | 6 | `repeated string` | — |
+
+#### `ProbeBrokerConfigRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `candidate` | 1 | `CandidateConfig` | — |
+
+#### `ProbeBrokerConfigResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `result` | 1 | `ProbeResult` | — |
+
+#### `ProbeResult`
+
+ProbeResult carries the structured outcome of a broker config probe.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `ok` | 1 | `bool` | — |
+| `error_class` | 2 | `string` | — |
+| `error_message` | 3 | `string` | — |
+| `duration_ms` | 4 | `int64` | — |
+
+#### `RedactedConfig`
+
+RedactedConfig is the dashboard-safe view of a tenant's broker config.
+All fields are non-sensitive; sensitive fields are dropped server-side.
+
+SECURITY: this message MUST NOT carry any sensitive auth field.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `provider` | 1 | `BrokerProvider` | — |
+| `address` | 2 | `string` | — |
+| `namespace_or_path` | 3 | `string` | — |
+| `mount` | 4 | `string` | — |
+| `auth_method` | 5 | `string` | — |
+| `region` | 6 | `string` | — |
+| `project` | 7 | `string` | — |
+| `tenant_id_external` | 8 | `string` | — |
+| `client_id` | 9 | `string` | — |
+| `role_arn` | 10 | `string` | — |
+| `sensitive_fields_set` | 11 | `repeated string` | sensitive_fields_set lists the names of sensitive fields that have a value stored on the server. |
+| `updated_at_unix` | 12 | `int64` | — |
+| `updated_by` | 13 | `string` | — |
+
+#### `RotateSecretRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `name` | 1 | `string` | — |
+| `value` | 2 | `bytes` | — |
+
+#### `RotateSecretResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `metadata` | 1 | `SecretMetadata` | — |
+
+#### `SecretMetadata`
+
+SecretMetadata is the wire-shape returned by GetSecret and ListSecrets.
+SECURITY: this message MUST NOT carry the secret's plaintext value.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `name` | 1 | `string` | — |
+| `category` | 2 | `SecretCategory` | — |
+| `version` | 3 | `int64` | — |
+| `created_at_unix` | 4 | `int64` | — |
+| `created_by` | 5 | `string` | — |
+| `updated_at_unix` | 6 | `int64` | — |
+| `updated_by` | 7 | `string` | — |
+| `last_accessed_at_unix` | 8 | `int64` | — |
+| `plugin_associations` | 9 | `repeated string` | — |
+
+#### `SetBrokerConfigRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `candidate` | 1 | `CandidateConfig` | — |
+
+#### `SetBrokerConfigResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `config` | 1 | `RedactedConfig` | — |
+| `probe_result` | 2 | `ProbeResult` | — |
+
+#### `SetSecretRequest`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `name` | 1 | `string` | — |
+| `category` | 2 | `SecretCategory` | — |
+| `value` | 3 | `bytes` | value is the plaintext bytes to store. TLS in transit; never logged. |
+
+#### `SetSecretResponse`
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `metadata` | 1 | `SecretMetadata` | — |
+
+### Enums
+
+#### `BrokerProvider`
+
+Retired providers — reserved to keep the wire unambiguous:
+ 1 = POSTGRES, 2 = VAULT (old ambiguous single-Vault value),
+ 3 = AWSSM, 4 = GCPSM, 5 = AZUREKV.
+
+| Value | # | Description |
+|---|---|---|
+| `BROKER_PROVIDER_UNSPECIFIED` | 0 | — |
+| `BROKER_PROVIDER_VAULT_HOSTED` | 6 | BROKER_PROVIDER_VAULT_HOSTED is the platform-managed OpenBao broker. Zero configuration; already active for every tenant (namespace mode). |
+| `BROKER_PROVIDER_VAULT_BYO` | 7 | BROKER_PROVIDER_VAULT_BYO is a customer-supplied HashiCorp Vault / OpenBao. Tenant isolation is by path prefix (path-prefix mode) since OSS Vault/OpenBao CE has no namespaces. |
+
+#### `SecretCategory`
+
+SecretCategory classifies what role a secret plays in the system.
+
+| Value | # | Description |
+|---|---|---|
+| `SECRET_CATEGORY_UNSPECIFIED` | 0 | — |
+| `SECRET_CATEGORY_CRED` | 1 | SECRET_CATEGORY_CRED is a generic credential bound to a plugin via FGA can_resolve tuples. |
+| `SECRET_CATEGORY_PROVIDER_CONFIG` | 2 | SECRET_CATEGORY_PROVIDER_CONFIG is an LLM provider configuration. |
+
 ## Package `gibson.target.v1`
 
 gibson.target.v1 is the customer-facing target contract. A Target is a
@@ -8581,8 +9365,6 @@ targets may share a name — only the UUID is unique.
 | `model` | 6 | `string` | model is the model identifier for model targets. |
 | `config` | 7 | `google.protobuf.Struct` | config holds free-form target configuration. |
 | `capabilities` | 8 | `repeated string` | capabilities lists capability tags advertised by the target. |
-| `auth_type` | 9 | `string` | auth_type is the authentication scheme for the target. |
-| `credential_id` | 10 | `string` | credential_id references a stored credential. Empty when none. |
 | `status` | 11 | `string` | status is the target lifecycle status. |
 | `description` | 12 | `string` | description is free-text describing the target. |
 | `tags` | 13 | `repeated string` | tags are user-assigned labels for filtering/organization. |
@@ -9063,55 +9845,6 @@ ComplianceMapping is a nested value-object type.
 | `rationale` | 3 | `optional string` | — |
 | `evidence_ref` | 4 | `optional string` | — |
 
-#### `ComplianceSignal`
-
-ComplianceSignal represents: Daemon-emitted observation of a single harness call. Append-only. Immutable.
-The graph projection of the Redis Streams audit log entry for one platform
-action. Every compliance_signal is an objective observation; evidence,
-violation, and attestation classifications are queries over the stream,
-never stored types. No kind discriminator field exists on this node type.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `signal_id` | 2 | `string` | Properties |
-| `actor_id` | 3 | `string` | — |
-| `actor_tenant_id` | 4 | `string` | — |
-| `api_key_id` | 5 | `optional string` | — |
-| `on_behalf_of` | 6 | `optional string` | — |
-| `roles_snapshot` | 7 | `repeated string` | — |
-| `mission_id` | 8 | `optional string` | — |
-| `mission_run_id` | 9 | `optional string` | — |
-| `agent_run_id` | 10 | `optional string` | — |
-| `parent_agent_run_id` | 11 | `optional string` | — |
-| `delegation_depth` | 12 | `optional int32` | — |
-| `trace_id` | 13 | `optional string` | — |
-| `caller_chain` | 14 | `repeated string` | — |
-| `caller_component` | 15 | `string` | — |
-| `caller_component_version` | 16 | `string` | — |
-| `target_component` | 17 | `string` | — |
-| `target_component_version` | 18 | `string` | — |
-| `system_owned` | 19 | `bool` | — |
-| `action` | 20 | `string` | — |
-| `effect` | 21 | `string` | — |
-| `resource_type` | 22 | `string` | — |
-| `resource_node_id` | 23 | `optional string` | — |
-| `resource_uri` | 24 | `optional string` | — |
-| `decision` | 25 | `string` | — |
-| `policy_id` | 26 | `optional string` | — |
-| `decision_reason` | 27 | `optional string` | — |
-| `success` | 28 | `bool` | — |
-| `error_code` | 29 | `optional string` | — |
-| `latency_ms` | 30 | `int64` | — |
-| `bytes_in` | 31 | `optional int64` | — |
-| `bytes_out` | 32 | `optional int64` | — |
-| `tokens_prompt` | 33 | `optional int32` | — |
-| `tokens_completion` | 34 | `optional int32` | — |
-| `occurred_at` | 35 | `int64` | — |
-| `resource_tags` | 36 | `optional string` | — |
-| `custom` | 37 | `optional string` | — |
-| `control_ids` | 38 | `repeated string` | — |
-
 #### `Credential`
 
 Credential represents: A credential (secret material), identified by the hash of its secret. May work across scopes.
@@ -9426,8 +10159,8 @@ Value represents a dynamic property value.
 
 #### `CoreNodeType`
 
-CoreNodeType enumerates all core (validated) node types.
-Custom types use string directly, not this enum.
+Retired. The number and the name are reserved so neither can be reused:
+a reused number changes the meaning of data already on the wire.
 
 | Value | # | Description |
 |---|---|---|
@@ -9448,22 +10181,19 @@ Custom types use string directly, not this enum.
 | `CORE_NODE_TYPE_FINDING` | 14 | — |
 | `CORE_NODE_TYPE_EVIDENCE` | 15 | — |
 | `CORE_NODE_TYPE_TECHNIQUE` | 16 | — |
-| `CORE_NODE_TYPE_COMPLIANCE_SIGNAL` | 17 | — |
 | `CORE_NODE_TYPE_SCOPE` | 18 | — |
 | `CORE_NODE_TYPE_CREDENTIAL` | 19 | — |
 | `CORE_NODE_TYPE_ACCOUNT` | 20 | — |
 
 #### `CoreRelationType`
 
-CoreRelationType enumerates all core relationship types.
+Retired. See the note in CoreNodeType.
 
 | Value | # | Description |
 |---|---|---|
 | `CORE_RELATION_TYPE_UNSPECIFIED` | 0 | — |
 | `CORE_RELATION_TYPE_USED_TOOL` | 1 | — |
 | `CORE_RELATION_TYPE_DELEGATED_TO` | 2 | — |
-| `CORE_RELATION_TYPE_EMITTED_SIGNAL` | 3 | — |
-| `CORE_RELATION_TYPE_T_R_I_G_G_E_R_E_D` | 4 | — |
 | `CORE_RELATION_TYPE_HAS_SUBDOMAIN` | 5 | — |
 | `CORE_RELATION_TYPE_RESOLVES_TO` | 6 | — |
 | `CORE_RELATION_TYPE_HAS_PORT` | 7 | — |
@@ -9471,7 +10201,7 @@ CoreRelationType enumerates all core relationship types.
 | `CORE_RELATION_TYPE_HAS_ENDPOINT` | 9 | — |
 | `CORE_RELATION_TYPE_USES_TECHNOLOGY` | 10 | — |
 | `CORE_RELATION_TYPE_SERVES_CERTIFICATE` | 11 | — |
-| `CORE_RELATION_TYPE_A_F_F_E_C_T_S` | 12 | — |
+| `CORE_RELATION_TYPE_AFFECTS` | 12 | — |
 | `CORE_RELATION_TYPE_HAS_EVIDENCE` | 13 | — |
 | `CORE_RELATION_TYPE_USES_TECHNIQUE` | 14 | — |
 | `CORE_RELATION_TYPE_LEADS_TO` | 15 | — |
