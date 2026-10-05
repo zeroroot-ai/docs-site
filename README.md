@@ -1,6 +1,6 @@
 # docs-site
 
-The customer documentation site, built with Next.js and served from a container off-cluster (ADR-0009).
+The customer documentation site, built with Next.js and served from a container off-cluster (ADR-0077).
 
 ## License and history
 

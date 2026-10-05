@@ -24,7 +24,7 @@ Ships as a core optional-by-toggle component in the gibson deploy umbrella
 (`helm/gibson-workloads/templates/docs/`). Version-matched to the chart's
 appVersion — a v1.4 platform install serves v1.4 docs by default.
 
-ADR-0006: self-hosted vs SaaS seam model.
+ADR-0074: self-hosted vs SaaS seam model.
 
 ## Writing rules
 
