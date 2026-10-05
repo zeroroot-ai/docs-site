@@ -6,7 +6,7 @@
 # docs.zeroroot.ai.
 #
 # TAG TRIGGER, NOT MAIN. The docs deployable is the static export at a RELEASE
-# TAG (deploy ADR-0009). The nginx container image for self-hosted and
+# TAG (ADR-0077). The nginx container image for self-hosted and
 # air-gapped installs is cut from that same tag, so the two consumers are
 # provably the same bytes — that is what keeps them from being a parallel
 # codepath under ADR-0027. Publishing from `main` would make the public site
