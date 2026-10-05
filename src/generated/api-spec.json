@@ -359,7 +359,7 @@
     },
     {
       "name": "gibson.agentidentity.v1",
-      "comment": "Package gibson.agentidentity.v1 — AgentIdentityService: customer-callable\nmachine-identity provisioning surface and the developer enrollment dev-loop\n(`gibson component register` / `gibson agent`). Re-homed out of\ngibson.tenant.v1 into its own wire package so it can stay in the OSS SDK\nwhile the nine tenant-administration services move to the gibson platform\nprotos under the unchanged gibson.tenant.v1 package — keeping both in one\npackage would link two generated Go homes for gibson.tenant.v1 into the\ndaemon (proto: duplicate registration). See ADR-0058 (amended 2026-06-22).",
+      "comment": "Package gibson.agentidentity.v1 — AgentIdentityService: customer-callable\nmachine-identity provisioning surface and the developer enrollment dev-loop\n(`gibson agent`). Re-homed out of\ngibson.tenant.v1 into its own wire package so it can stay in the OSS SDK\nwhile the nine tenant-administration services move to the gibson platform\nprotos under the unchanged gibson.tenant.v1 package — keeping both in one\npackage would link two generated Go homes for gibson.tenant.v1 into the\ndaemon (proto: duplicate registration). See ADR-0058 (amended 2026-06-22).",
       "services": [
         {
           "name": "AgentIdentityService",
@@ -527,19 +527,13 @@
               "name": "gibson_url",
               "number": 6,
               "type": "string",
-              "comment": "gibson_url is the daemon's public Envoy URL for use in enroll_command."
-            },
-            {
-              "name": "enroll_command",
-              "number": 7,
-              "type": "string",
-              "comment": "enroll_command is a complete copy-pasteable shell invocation for component\nenrollment: `gibson component register --kind <kind> --token -`."
+              "comment": "gibson_url is the public URL of the daemon. The component reads it from\nGIBSON_URL when it starts."
             },
             {
               "name": "bootstrap_token",
               "number": 8,
               "type": "string",
-              "comment": "bootstrap_token is a one-time, daemon-signed Capability-Grant bootstrap\ncredential the component presents to the CG register endpoint to complete\nits FIRST host registration (it carries no Capability Grant yet). Under the\nunified-identity model (ADR-0045) this is the SOLE credential `gibson\ncomponent register` uses for every kind; the enroll_command pipes it via\n`--token -`. Store it immediately; it will not be shown again."
+              "comment": "bootstrap_token is a one-time, daemon-signed Capability-Grant bootstrap\ncredential. The component reads it from GIBSON_BOOTSTRAP_TOKEN when it\nstarts and presents it to the CG register endpoint to complete its FIRST\nhost registration (it carries no Capability Grant yet). Under the\nunified-identity model (ADR-0045) it is the sole enrollment credential for\nevery kind. Store it immediately; it will not be shown again."
             }
           ]
         },
@@ -634,7 +628,7 @@
     },
     {
       "name": "gibson.bank.v1",
-      "comment": "Package gibson.bank.v1 declares banks of always-on coding agents and their\nmembers (ADR-0017).\n\nA bank is a declarative, daemon-reconciled pool of always-on Claude Code\ninstances. The daemon keeps desired_count members running in sandboxes,\nrelaunches a dead member, and holds a member at NEEDS_SIGN_IN until its\nowner completes the in-sandbox sign in. A member signs in once inside its\nsandbox through Anthropic's own flow, or runs on the tenant's API key or\ncloud credentials. Callers with can_send on a bank open jobs on its members\nthrough gibson.job.v1.JobService.",
+      "comment": "Package gibson.bank.v1 declares banks of always-on coding agents and their\nmembers (ADR-0119).\n\nA bank is a declarative, daemon-reconciled pool of always-on Claude Code\ninstances. The daemon keeps desired_count members running in sandboxes,\nrelaunches a dead member, and holds a member at NEEDS_SIGN_IN until its\nowner completes the in-sandbox sign in. A member signs in once inside its\nsandbox through Anthropic's own flow, or runs on the tenant's API key or\ncloud credentials. Callers with can_send on a bank open jobs on its members\nthrough gibson.job.v1.JobService.",
       "services": [
         {
           "name": "BankService",
@@ -1359,7 +1353,7 @@
     },
     {
       "name": "gibson.budget_status.v1",
-      "comment": "Package gibson.budget_status.v1 — public, customer-visible wire shapes\nfor LLM budget status signals.\n\nBudgetScope and BudgetExceeded are the wire-level types that:\n - the daemon attaches to a codes.ResourceExhausted gRPC status as\n a status-detail when an ExecuteLLM call is denied for budget\n reasons (see internal/daemon/api/server_provider_exec.go); and\n - the SDK exposes back to customer agent code through\n llm.BudgetExceededError and llm.IsBudgetExceeded (see\n llm/errors.go).\n\nBoth surfaces share these types — the customer-facing READ side lives\nin the public OSS SDK (this package); the tenant-admin WRITE-side\nservice that mutates budgets (gibson.budget.v1.BudgetService) lives\nin the internal platform-sdk. Customer agent code branching on\nbudget denial parses BudgetExceeded directly out of the gRPC status\ndetail without needing the admin service descriptor.\n\nThis mirrors the pattern that did the same separation for\ngibson.capability.v1.CapabilityGrantInfo (READ side in OSS) vs\ngibson.admin.v1.GrantsAdminService (WRITE side in platform-sdk).\n\nSpec: llm-user-attribution-governance (Requirement 3, READ-side\n wire contract); two-surface platform contract\n (ADR-0025 / ADR-0030).",
+      "comment": "Package gibson.budget_status.v1 — public, customer-visible wire shapes\nfor LLM budget status signals.\n\nBudgetScope and BudgetExceeded are the wire-level types that:\n - the daemon attaches to a codes.ResourceExhausted gRPC status as\n a status-detail when an ExecuteLLM call is denied for budget\n reasons (see internal/daemon/api/server_provider_exec.go); and\n - the SDK exposes back to customer agent code through\n llm.BudgetExceededError and llm.IsBudgetExceeded (see\n llm/errors.go).\n\nBoth surfaces share these types — the customer-facing READ side lives\nin the public OSS SDK (this package); the tenant-admin WRITE-side\nservice that mutates budgets (gibson.budget.v1.BudgetService) lives\nin the internal platform-sdk. Customer agent code branching on\nbudget denial parses BudgetExceeded directly out of the gRPC status\ndetail without needing the admin service descriptor.\n\nThis mirrors the pattern that did the same separation for\ngibson.capability.v1.CapabilityGrantInfo (READ side in OSS) vs\ngibson.admin.v1.GrantsAdminService (WRITE side in platform-sdk).\n\nSpec: llm-user-attribution-governance (Requirement 3, READ-side\n wire contract); two-surface platform contract\n (ADR-0058).",
       "services": [],
       "messages": [
         {
@@ -1436,7 +1430,7 @@
     },
     {
       "name": "gibson.capability.v1",
-      "comment": "Package gibson.capability.v1 — public, customer-visible wire shape\nfor capability grants (CG-JWTs).\n\nCapabilityGrantInfo describes ONE active capability grant minted for\nan agent / tool / plugin install. It is the read-side projection\nreturned by:\n - gibson.identity.v1.IdentityService.WhoAmI\n (a principal listing its own active grants)\n - gibson.admin.v1.GrantsAdminService.ListActiveGrants\n (a tenant_admin inspecting all grants in the tenant)\n\nBoth surfaces share this type — the READ side lives in the public OSS\nSDK (this package); the WRITE/inspector SERVICE that mutates grants\nlives in the internal platform-sdk. Customer code that embeds the\nagent runtime parses CapabilityGrantInfo to render \"what can I do\nright now\" UI without needing the admin service descriptor.\n\nSpec: two-surface platform contract (ADR-0001, forthcoming);\n component-bootstrap-e2e Requirement 10 (read side);\n secrets-tenant-lifecycle Requirement 8.1 (write side, moved\n to platform-sdk).",
+      "comment": "Package gibson.capability.v1 — public, customer-visible wire shape\nfor capability grants (CG-JWTs).\n\nCapabilityGrantInfo describes ONE active capability grant minted for\nan agent / tool / plugin install. It is the read-side projection\nreturned by:\n - gibson.identity.v1.IdentityService.WhoAmI\n (a principal listing its own active grants)\n - gibson.admin.v1.GrantsAdminService.ListActiveGrants\n (a tenant_admin inspecting all grants in the tenant)\n\nBoth surfaces share this type — the READ side lives in the public OSS\nSDK (this package); the WRITE/inspector SERVICE that mutates grants\nlives in the internal platform-sdk. Customer code that embeds the\nagent runtime parses CapabilityGrantInfo to render \"what can I do\nright now\" UI without needing the admin service descriptor.\n\nSpec: two-surface platform contract (ADR-0058);\n component-bootstrap-e2e Requirement 10 (read side);\n secrets-tenant-lifecycle Requirement 8.1 (write side, moved\n to platform-sdk).",
       "services": [],
       "messages": [
         {
@@ -1507,7 +1501,7 @@
               "name": "isolation",
               "number": 11,
               "type": "IsolationMode",
-              "comment": "isolation is where this grant's untrusted-execution boundary lives\n(ADR-0010). UNSPECIFIED is treated as HOSTED_SANDBOX by the daemon's\ndispatch-policy gate. Consumed together with the deployment shape:\nsetec-only permits only HOSTED_SANDBOX (fail-closed otherwise)."
+              "comment": "isolation is where this grant's untrusted-execution boundary lives\n(ADR-0110). UNSPECIFIED is treated as HOSTED_SANDBOX by the daemon's\ndispatch-policy gate. Consumed together with the deployment shape:\nsetec-only permits only HOSTED_SANDBOX (fail-closed otherwise)."
             }
           ]
         }
@@ -1515,7 +1509,7 @@
       "enums": [
         {
           "name": "IsolationMode",
-          "comment": "IsolationMode is where the untrusted-execution isolation boundary lives for\na capability grant (ADR-0010). It is consumed by the daemon's dispatch-policy\ngate together with the deployment shape (GIBSON_UNTRUSTED_EXEC): under the\nhosted SaaS shape (setec-only) only ISOLATION_MODE_HOSTED_SANDBOX is\npermitted; any other value is rejected fail-closed. Under a customer-operated\nshape (customer-isolation) the customer modes are permitted, and\nISOLATION_MODE_ON_PREM_SANDBOX_ENDPOINT resolves the configured (customer-\npointed) setec SandboxService endpoint.\n\nThe enum lives here (public OSS) because callers parsing a\nCapabilityGrantInfo need to render the isolation posture without pulling the\nadmin/mint service descriptor — same rationale as RecipientClass.",
+          "comment": "IsolationMode is where the untrusted-execution isolation boundary lives for\na capability grant (ADR-0110). It is consumed by the daemon's dispatch-policy\ngate together with the deployment shape (GIBSON_UNTRUSTED_EXEC): under the\nhosted SaaS shape (setec-only) only ISOLATION_MODE_HOSTED_SANDBOX is\npermitted; any other value is rejected fail-closed. Under a customer-operated\nshape (customer-isolation) the customer modes are permitted, and\nISOLATION_MODE_ON_PREM_SANDBOX_ENDPOINT resolves the configured (customer-\npointed) setec SandboxService endpoint.\n\nThe enum lives here (public OSS) because callers parsing a\nCapabilityGrantInfo need to render the isolation posture without pulling the\nadmin/mint service descriptor — same rationale as RecipientClass.",
           "values": [
             {
               "name": "ISOLATION_MODE_UNSPECIFIED",
@@ -4661,7 +4655,7 @@
               "output": "ListCatalogMissionsResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "ListCatalogMissions returns the mission definitions gibson ships compiled\ninto its own binary (ADR-0018), with what each one declares.\n\nUntil this RPC, the catalog had exactly one reader: the agent-facing\nharness callback, which takes catalog_mission + catalog_params. A person\ncould neither list what the platform ships nor submit one of them, so the\nonly way to run a first-party mission by hand was to copy its CUE out of\nthe gibson repository and submit the copy — a second definition of one\nmission, which ADR-0027 forbids and which would silently stop tracking the\nchecked-in one (gibson#631).\n\nA read. Nothing here is per-tenant: the catalog is the same for every\ntenant, and a mission is not gated — the components it dispatches are."
+              "comment": "ListCatalogMissions returns the mission definitions gibson ships compiled\ninto its own binary (ADR-0118), with what each one declares.\n\nUntil this RPC, the catalog had exactly one reader: the agent-facing\nharness callback, which takes catalog_mission + catalog_params. A person\ncould neither list what the platform ships nor submit one of them, so the\nonly way to run a first-party mission by hand was to copy its CUE out of\nthe gibson repository and submit the copy — a second definition of one\nmission, which ADR-0027 forbids and which would silently stop tracking the\nchecked-in one (gibson#631).\n\nA read. Nothing here is per-tenant: the catalog is the same for every\ntenant, and a mission is not gated — the components it dispatches are."
             },
             {
               "name": "ListMissionDefinitions",
@@ -10775,7 +10769,7 @@
               "output": "ObserveResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "Observe emits a typed observation into the World (ADR-0007). The brain\nresolves identity and topology; scope is derived server-side from context."
+              "comment": "Observe emits a typed observation into the World (ADR-0107). The brain\nresolves identity and topology; scope is derived server-side from context."
             },
             {
               "name": "OpenJob",
@@ -10791,7 +10785,7 @@
               "output": "PlaceBetResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "PlaceBet stakes a calibrated confidence on a Hypothesis (ADR-0022). Betting\nis a first-class SDK primitive, parallel to Observe: storage, settlement\nand scoring of the bet are a gibson-side concern (ADR-0023)."
+              "comment": "PlaceBet stakes a calibrated confidence on a Hypothesis (ADR-0122). Betting\nis a first-class SDK primitive, parallel to Observe: storage, settlement\nand scoring of the bet are a gibson-side concern (ADR-0123)."
             },
             {
               "name": "ProposeOntologyExtension",
@@ -10799,7 +10793,7 @@
               "output": "ProposeOntologyExtensionResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "ProposeOntologyExtension proposes a new Taxonomy node label or\nrelationship type discovered by an agent at runtime (ADR-0024 §2,\nADR-0033 decision 2). The agent proposes; it never promotes — the\ndaemon checks the identifier against its safety gate before recording\nit as a per-tenant proposal, and the resulting recurrence only ever\nfeeds a later, explicit tenant-owner approval. This call never blocks\non that approval."
+              "comment": "ProposeOntologyExtension proposes a new Taxonomy node label or\nrelationship type discovered by an agent at runtime (ADR-0124,\nADR-0133). The agent proposes; it never promotes — the\ndaemon checks the identifier against its safety gate before recording\nit as a per-tenant proposal, and the resulting recurrence only ever\nfeeds a later, explicit tenant-owner approval. This call never blocks\non that approval."
             },
             {
               "name": "PullJob",
@@ -10823,7 +10817,7 @@
               "output": "QueryNodesResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "Knowledge Operations\n\nThe knowledge-graph READ surface. It exists on ComponentService too, and\nthat duplication is deliberate: without it here, a dispatched run holding\nonly its task-scoped callback grant cannot read the tenant graph, and the\nagent would have to keep a component-scoped grant alive purely to call\nrecall — which defeats the point of scoping the dispatch at all.\nSee zerocool-plugins ADR-0006 and docs/adr/0001-callback-knowledge-reads.md.\n\nRead-only by construction. The write half is NOT mirrored: the projector\nis the sole graph writer (ADR-0012), and ComponentService no longer\nhas a generic graph-write RPC."
+              "comment": "Knowledge Operations\n\nThe knowledge-graph READ surface. It exists on ComponentService too, and\nthat duplication is deliberate: without it here, a dispatched run holding\nonly its task-scoped callback grant cannot read the tenant graph, and the\nagent would have to keep a component-scoped grant alive purely to call\nrecall — which defeats the point of scoping the dispatch at all.\nSee ADR-0156 and ADR-0161.\n\nRead-only by construction. The write half is NOT mirrored: the projector\nis the sole graph writer (ADR-0112), and ComponentService no longer\nhas a generic graph-write RPC."
             },
             {
               "name": "QueryPlugin",
@@ -10887,7 +10881,7 @@
               "output": "RequestDestructiveAuthorizationResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "RequestDestructiveAuthorization asks a human to approve an irreversible\ndemonstration BEFORE the agent performs it (ADR-0032). It returns\nimmediately with a pending request id — the fleet keeps working while\nthe decision is pending. The agent performs the destructive act only\nafter it reads back an approval, then calls SubmitProof."
+              "comment": "RequestDestructiveAuthorization asks a human to approve an irreversible\ndemonstration BEFORE the agent performs it (ADR-0132). It returns\nimmediately with a pending request id — the fleet keeps working while\nthe decision is pending. The agent performs the destructive act only\nafter it reads back an approval, then calls SubmitProof."
             },
             {
               "name": "RunMission",
@@ -10903,7 +10897,7 @@
               "output": "SearchToolsResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "SearchTools returns a small, ranked, authz-filtered set of tools matching\na query — the meta-tool surface agents use instead of receiving every tool\n(ADR-0047 facet 5). Per-tool authorization is enforced inside the handler;\nthis RPC-level gate only checks that the caller may use the harness."
+              "comment": "SearchTools returns a small, ranked, authz-filtered set of tools matching\na query — the meta-tool surface agents use instead of receiving every tool\n(ADR-0065). Per-tool authorization is enforced inside the handler;\nthis RPC-level gate only checks that the caller may use the harness."
             },
             {
               "name": "SendInput",
@@ -10927,7 +10921,7 @@
               "output": "SubmitProofResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "SubmitProof triggers settlement of a Bet by submitting the raw evidence\nan agent's own tools captured (ADR-0030). The agent never submits a\nverdict or an interpretation — only raw evidence — because a\ndeterministic, typed predicate on the daemon decides settlement, never\nan LLM and never the bet's own beneficiary. A non-destructive proof\nsettles synchronously; a destructive proof settles only after a prior\nRequestDestructiveAuthorization approval, and this call never blocks on\nthat decision (ADR-0032)."
+              "comment": "SubmitProof triggers settlement of a Bet by submitting the raw evidence\nan agent's own tools captured (ADR-0131). The agent never submits a\nverdict or an interpretation — only raw evidence — because a\ndeterministic, typed predicate on the daemon decides settlement, never\nan LLM and never the bet's own beneficiary. A non-destructive proof\nsettles synchronously; a destructive proof settles only after a prior\nRequestDestructiveAuthorization approval, and this call never blocks on\nthat decision (ADR-0132)."
             },
             {
               "name": "SubscribeInput",
@@ -11039,7 +11033,7 @@
               "output": "WorldViewResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "WorldView returns the caller's server-projected slice of the tenant World\n(ADR-0012). It is the counterpart to Observe: Observe\nis the agent's only write, WorldView its only read.\n\nThe slice is projected by the daemon from the mission record it created —\nthe tenant that owns the World and the scope that bounds the slice are read\nthere, never from this request. WorldViewRequest carries no tenant field and\nno scope field, so an agent cannot name another tenant's World or a wider\nslice: both are unrepresentable rather than rejected."
+              "comment": "WorldView returns the caller's server-projected slice of the tenant World\n(ADR-0112). It is the counterpart to Observe: Observe\nis the agent's only write, WorldView its only read.\n\nThe slice is projected by the daemon from the mission record it created —\nthe tenant that owns the World and the scope that bounds the slice are read\nthere, never from this request. WorldViewRequest carries no tenant field and\nno scope field, so an agent cannot name another tenant's World or a wider\nslice: both are unrepresentable rather than rejected."
             }
           ]
         }
@@ -11065,7 +11059,7 @@
         },
         {
           "name": "AnalysisObservation",
-          "comment": "AnalysisObservation reports a typed analysis artifact (sdk#74): a\nconclusion an agent draws FROM evidence already on the graph, with the\nconfidence it holds and the evidence it used — the bridge between raw\nfindings and reportable output. Unlike a Hypothesis (an unproven,\nforward-looking claim awaiting settlement, ADR-0021), an Analysis is\nbackward-looking: it synthesizes what is already known rather than\nproposing something new to test. Like every Observation, this feeds\nhypotheses and findings as a typed artifact, never as free text, and it is\nan emit: the daemon folds it onto the Timeline (ADR-0007).",
+          "comment": "AnalysisObservation reports a typed analysis artifact (sdk#74): a\nconclusion an agent draws FROM evidence already on the graph, with the\nconfidence it holds and the evidence it used — the bridge between raw\nfindings and reportable output. Unlike a Hypothesis (an unproven,\nforward-looking claim awaiting settlement, ADR-0121), an Analysis is\nbackward-looking: it synthesizes what is already known rather than\nproposing something new to test. Like every Observation, this feeds\nhypotheses and findings as a typed artifact, never as free text, and it is\nan emit: the daemon folds it onto the Timeline (ADR-0107).",
           "fields": [
             {
               "name": "agent",
@@ -11443,7 +11437,7 @@
         },
         {
           "name": "Bet",
-          "comment": "Bet is an agent's calibrated stake on a Hypothesis: a stake that later\nsettles, not a bare confidence number (ADR-0022). Reputation attaches to\ntechnique × environment, never to an agent, so the technique the bet\nexercises rides on the bet itself.",
+          "comment": "Bet is an agent's calibrated stake on a Hypothesis: a stake that later\nsettles, not a bare confidence number (ADR-0122). Reputation attaches to\ntechnique × environment, never to an agent, so the technique the bet\nexercises rides on the bet itself.",
           "fields": [
             {
               "name": "hypothesis_id",
@@ -11863,13 +11857,19 @@
               "name": "catalog_mission",
               "number": 9,
               "type": "string",
-              "comment": "catalog_mission names a mission definition checked into the platform's\nmission catalog, to be originated instead of a caller-supplied graph\n(ADR-0018: the checked-in definition is authoritative).\n\nThis is a second *input* to the one mission-creation route, deliberately\nnot a second RPC. A dedicated RPC would carry its own authorization\nsurface, so the per-tenant gate and the ADR-0063 origination rule (\"a\ncomponent originates only from inside a live parent\") would be enforced\nin two places — which is where two enforcement paths drift apart.\n\nExactly one of mission_definition_json (field 2) or catalog_mission must\nbe set. Both is InvalidArgument; neither is InvalidArgument."
+              "comment": "catalog_mission names a mission definition checked into the platform's\nmission catalog, to be originated instead of a caller-supplied graph\n(ADR-0118: the checked-in definition is authoritative).\n\nThis is a second *input* to the one mission-creation route, deliberately\nnot a second RPC. A dedicated RPC would carry its own authorization\nsurface, so the per-tenant gate and the ADR-0063 origination rule (\"a\ncomponent originates only from inside a live parent\") would be enforced\nin two places — which is where two enforcement paths drift apart.\n\nExactly one of mission_definition_json (field 2) or catalog_mission must\nbe set. Both is InvalidArgument; neither is InvalidArgument."
             },
             {
               "name": "catalog_params",
               "number": 10,
               "type": "map<string, string>",
               "comment": "catalog_params carries the parameters the named catalog mission declares,\nkeyed by the definition's own parameter names.\n\nThe map is CLOSED: the daemon refuses an unrecognised key rather than\nignoring it. Silently dropping a key a caller sent would let that caller\nbelieve a parameter bound when it did not — which is what keeps the\nruntime target out of this map honest. The target continues to bind from\ntarget_id (field 3) alone, so a scan can only ever run against a target\nthe tenant registered.\n\nEvery missing parameter is reported at once rather than one render at a\ntime. Only meaningful when catalog_mission is set."
+            },
+            {
+              "name": "starts_from",
+              "number": 11,
+              "type": "OriginationStart",
+              "comment": "starts_from selects the state that the new mission starts from\n(ADR-0169). An agent forks at run time when it originates a child\nmission with ORIGINATION_START_CALLER_STATE. The origination bounds\nstill apply to a fork: the budget comes from the remainder of the\nparent, the targets are a subset, and the depth limit holds (ADR-0063).\nThe child gets the network scope of its own nodes, never the scope of\nthe caller."
             }
           ]
         },
@@ -13156,7 +13156,7 @@
         },
         {
           "name": "HypothesisObservation",
-          "comment": "HypothesisObservation reports an agent's own reasoning: a proposed, unproven\nclaim, not a sighting (ADR-0021). It is attributed to the proposing agent and\ncarries a confidence; it stays unverified until it settles (the betting /\nsettlement slices, ADR-0022 / ADR-0023). This keeps the agent write surface\nemit-only — one more observation kind, never a raw graph write (ADR-0007).",
+          "comment": "HypothesisObservation reports an agent's own reasoning: a proposed, unproven\nclaim, not a sighting (ADR-0121). It is attributed to the proposing agent and\ncarries a confidence; it stays unverified until it settles (the betting /\nsettlement slices, ADR-0122 / ADR-0123). This keeps the agent write surface\nemit-only — one more observation kind, never a raw graph write (ADR-0107).",
           "fields": [
             {
               "name": "proposer",
@@ -13186,13 +13186,13 @@
               "name": "technique",
               "number": 5,
               "type": "string",
-              "comment": "technique names the technique this hypothesis exercises. Reputation\nkeys on technique x environment (ADR-0022, gibson#333/#284), so this\nmust ride on the Hypothesis the same way it already rides on Bet.\nOptional and additive: empty means the hypothesis carries no technique\nsignal (resolves to the neutral prior), same as before this field\nexisted."
+              "comment": "technique names the technique this hypothesis exercises. Reputation\nkeys on technique x environment (ADR-0122, gibson#333/#284), so this\nmust ride on the Hypothesis the same way it already rides on Bet.\nOptional and additive: empty means the hypothesis carries no technique\nsignal (resolves to the neutral prior), same as before this field\nexisted."
             },
             {
               "name": "hypothesis_id",
               "number": 6,
               "type": "string",
-              "comment": "hypothesis_id is the agent-chosen identifier for this claim. The SAME\nvalue the agent later names as Bet.hypothesis_id when it stakes on\nthis claim, and that a settlement path (Engine.SettleBetByHITL,\ngibson#280) records against — the one join key across Hypothesis, Bet\nand BetSettlement (gibson#339). Optional: empty preserves the\npre-existing behavior of a Hypothesis with no bettable identity (it\nstill folds as a claim, ADR-0021, it just cannot be staked on or\nsettled by id)."
+              "comment": "hypothesis_id is the agent-chosen identifier for this claim. The SAME\nvalue the agent later names as Bet.hypothesis_id when it stakes on\nthis claim, and that a settlement path (Engine.SettleBetByHITL,\ngibson#280) records against — the one join key across Hypothesis, Bet\nand BetSettlement (gibson#339). Optional: empty preserves the\npre-existing behavior of a Hypothesis with no bettable identity (it\nstill folds as a claim, ADR-0121, it just cannot be staked on or\nsettled by id)."
             }
           ]
         },
@@ -13672,7 +13672,7 @@
         },
         {
           "name": "LifecycleEntityObservation",
-          "comment": "LifecycleEntityObservation reports a sighting of a typed application-lifecycle\nentity: an Application, Repository, Image, Package, Deployment, Vulnerability,\nMergeRequest, Pipeline or Control, and the edges it was seen to have.\n\nAdmission is the Taxonomy's decision, not this message's. The daemon puts\nlabel and every edge type to the global Taxonomy; an admitted shape becomes a\ntyped node, and one the Taxonomy does not admit is neither rejected nor lost —\nit lands as an Observation with its residue preserved (ADR-0012). So an agent\ncan always write, and can never invent schema.\n\nThis is a SIGHTING, not a graph write. The agent reports what it saw; the\nbrain resolves identity and the projector materialises it. An agent naming an\nexisting node's identity enriches that node rather than creating a second one.",
+          "comment": "LifecycleEntityObservation reports a sighting of a typed application-lifecycle\nentity: an Application, Repository, Image, Package, Deployment, Vulnerability,\nMergeRequest, Pipeline or Control, and the edges it was seen to have.\n\nAdmission is the Taxonomy's decision, not this message's. The daemon puts\nlabel and every edge type to the global Taxonomy; an admitted shape becomes a\ntyped node, and one the Taxonomy does not admit is neither rejected nor lost —\nit lands as an Observation with its residue preserved (ADR-0112). So an agent\ncan always write, and can never invent schema.\n\nThis is a SIGHTING, not a graph write. The agent reports what it saw; the\nbrain resolves identity and the projector materialises it. An agent naming an\nexisting node's identity enriches that node rather than creating a second one.",
           "fields": [
             {
               "name": "label",
@@ -14326,7 +14326,7 @@
         },
         {
           "name": "ObserveRequest",
-          "comment": "ObserveRequest carries a typed observation (ADR-0007). Scope is NOT carried —\nthe daemon derives it from the mission context.",
+          "comment": "ObserveRequest carries a typed observation (ADR-0107). Scope is NOT carried —\nthe daemon derives it from the mission context.",
           "fields": [
             {
               "name": "context",
@@ -14475,7 +14475,7 @@
         },
         {
           "name": "PlaceBetRequest",
-          "comment": "PlaceBetRequest carries a calibrated stake on a Hypothesis (ADR-0022).",
+          "comment": "PlaceBetRequest carries a calibrated stake on a Hypothesis (ADR-0122).",
           "fields": [
             {
               "name": "context",
@@ -15195,7 +15195,7 @@
         },
         {
           "name": "RequestDestructiveAuthorizationRequest",
-          "comment": "RequestDestructiveAuthorizationRequest asks a human to approve an\nirreversible demonstration before the agent performs it (ADR-0032). It\ncarries what a human reviewer needs to decide (ADR-0028 decision 3): what\nthe action would do, its blast radius, its reversibility, and the\npredicate it would satisfy.",
+          "comment": "RequestDestructiveAuthorizationRequest asks a human to approve an\nirreversible demonstration before the agent performs it (ADR-0132). It\ncarries what a human reviewer needs to decide (ADR-0132): what\nthe action would do, its blast radius, its reversibility, and the\npredicate it would satisfy.",
           "fields": [
             {
               "name": "context",
@@ -15243,7 +15243,7 @@
         },
         {
           "name": "RequestDestructiveAuthorizationResponse",
-          "comment": "RequestDestructiveAuthorizationResponse returns immediately: the fleet\nkeeps working while the human decision is pending (ADR-0028, ADR-0032).",
+          "comment": "RequestDestructiveAuthorizationResponse returns immediately: the fleet\nkeeps working while the human decision is pending (ADR-0132).",
           "fields": [
             {
               "name": "authorization_request_id",
@@ -15627,7 +15627,7 @@
         },
         {
           "name": "SubmitProofRequest",
-          "comment": "SubmitProofRequest carries the raw evidence an agent captured for a\nHypothesis it staked a Bet on. The agent supplies raw, uninterpreted tool\noutput — never a verdict (ADR-0030 decision 1) — and a deterministic,\ntyped predicate on the daemon decides whether the Bet settles.",
+          "comment": "SubmitProofRequest carries the raw evidence an agent captured for a\nHypothesis it staked a Bet on. The agent supplies raw, uninterpreted tool\noutput — never a verdict (ADR-0131) — and a deterministic,\ntyped predicate on the daemon decides whether the Bet settles.",
           "fields": [
             {
               "name": "context",
@@ -15645,7 +15645,7 @@
               "name": "technique",
               "number": 3,
               "type": "string",
-              "comment": "technique names the technique this proof exercises, the same value\ncarried on the Bet (reputation keys on technique x environment,\nADR-0022)."
+              "comment": "technique names the technique this proof exercises, the same value\ncarried on the Bet (reputation keys on technique x environment,\nADR-0122)."
             },
             {
               "name": "predicate_name",
@@ -15660,16 +15660,16 @@
               "comment": "evidence is the raw tool output the predicate evaluates. It is never a\nverdict or an interpretation of what the evidence shows."
             },
             {
-              "name": "destructive",
-              "number": 6,
-              "type": "bool",
-              "comment": "destructive is true when this proof follows an irreversible\ndemonstration. A destructive proof settles only after a prior\nRequestDestructiveAuthorization approval for this hypothesis_id\n(ADR-0032); a non-destructive proof settles synchronously."
+              "name": "tool_call_ids",
+              "number": 7,
+              "type": "repeated string",
+              "comment": "tool_call_ids names the tool calls whose recorded results are the\nevidence of this proof. Each id is the ContextInfo.tool_execution_id of\na tool call that the daemon recorded in this mission. The daemon reads\nthe recorded result of each call and evaluates the predicate on it.\nEvidence in the evidence field that no tool call id backs is typed by\nthe agent, and the daemon sends such a proof to human review."
             }
           ]
         },
         {
           "name": "SubmitProofResponse",
-          "comment": "SubmitProofResponse reports the settlement outcome. SubmitProof never\nblocks on a human decision (ADR-0032 decision 2): a destructive proof\nreturns SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION immediately rather than\nwaiting for the pending authorization to resolve.",
+          "comment": "SubmitProofResponse reports the settlement outcome. SubmitProof never\nblocks on a human decision (ADR-0132): a destructive proof\nreturns SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION immediately rather than\nwaiting for the pending authorization to resolve.",
           "fields": [
             {
               "name": "hypothesis_id",
@@ -16903,7 +16903,7 @@
               "name": "handle",
               "number": 1,
               "type": "string",
-              "comment": "handle is the ONLY name the agent has for this entity: an opaque,\nserver-minted, non-constructible reference, valid within the slice it was\nissued to and nowhere else. It carries no brain id an agent could iterate,\nso enumerating past the slice boundary is unrepresentable (ADR-0012).\n\nA handle stays stable across re-projections of the same slice: the entity\nit names does not change, so refreshing the view never invalidates a\nreference the agent is holding."
+              "comment": "handle is the ONLY name the agent has for this entity: an opaque,\nserver-minted, non-constructible reference, valid within the slice it was\nissued to and nowhere else. It carries no brain id an agent could iterate,\nso enumerating past the slice boundary is unrepresentable (ADR-0112).\n\nA handle stays stable across re-projections of the same slice: the entity\nit names does not change, so refreshing the view never invalidates a\nreference the agent is holding."
             },
             {
               "name": "kind",
@@ -17074,7 +17074,7 @@
         },
         {
           "name": "OntologyExtensionKind",
-          "comment": "OntologyExtensionKind distinguishes what an agent is proposing: a new\nTaxonomy node label or a new relationship type. These are Taxonomy's own\ntwo vocabularies (ADR-0024 §2) — the HEAVY safety gate, because a\npromoted label becomes Cypher query structure. This is deliberately not\nthe LIGHT gate for ontology triples (classes/equivalences/inverse-\nfunctional properties, ADR-0024 §1): that is a separate proposal kind\nwith no identifier-safety concern, and is not carried by this RPC.",
+          "comment": "OntologyExtensionKind distinguishes what an agent is proposing: a new\nTaxonomy node label or a new relationship type. These are Taxonomy's own\ntwo vocabularies (ADR-0124) — the HEAVY safety gate, because a\npromoted label becomes Cypher query structure. This is deliberately not\nthe LIGHT gate for ontology triples (classes/equivalences/inverse-\nfunctional properties, ADR-0124): that is a separate proposal kind\nwith no identifier-safety concern, and is not carried by this RPC.",
           "values": [
             {
               "name": "ONTOLOGY_EXTENSION_KIND_UNSPECIFIED",
@@ -17090,6 +17090,22 @@
               "name": "ONTOLOGY_EXTENSION_KIND_RELATIONSHIP_TYPE",
               "number": 2,
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "OriginationStart",
+          "comment": "OriginationStart selects the state that an originated mission starts from.",
+          "values": [
+            {
+              "name": "ORIGINATION_START_UNSPECIFIED",
+              "number": 0,
+              "comment": "ORIGINATION_START_UNSPECIFIED means a fresh sandbox."
+            },
+            {
+              "name": "ORIGINATION_START_CALLER_STATE",
+              "number": 1,
+              "comment": "ORIGINATION_START_CALLER_STATE means the state that the caller has at\nthe time of the call. The child mission is a fork of the caller."
             }
           ]
         },
@@ -17157,7 +17173,12 @@
             {
               "name": "SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION",
               "number": 3,
-              "comment": "SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION means the proof was destructive\nand settlement is deferred until the daemon reads back an approved\nauthorization decision for this hypothesis_id (ADR-0032). SubmitProof\nnever blocks on that decision."
+              "comment": "SETTLEMENT_OUTCOME_PENDING_AUTHORIZATION means the proof was destructive\nand settlement is deferred until the daemon reads back an approved\nauthorization decision for this hypothesis_id (ADR-0132). SubmitProof\nnever blocks on that decision."
+            },
+            {
+              "name": "SETTLEMENT_OUTCOME_PENDING_REVIEW",
+              "number": 4,
+              "comment": "SETTLEMENT_OUTCOME_PENDING_REVIEW means the proof carried only evidence\nthat the agent typed, with no recorded tool call behind it, so a human\ndecides. SubmitProof never blocks on that decision."
             }
           ]
         },
@@ -17493,7 +17514,7 @@
     },
     {
       "name": "gibson.job.v1",
-      "comment": "Package gibson.job.v1 declares jobs, the unit of work a bank member holds\n(ADR-0017).\n\nEvery input to a member is a structured job. A chat turn is a job with\nonly a goal. A job is one persistent Claude Code session with its own\nworktrees. It stays open across inputs until a scorer closes it with a\nverdict and a score. The worker never closes its own job.",
+      "comment": "Package gibson.job.v1 declares jobs, the unit of work a bank member holds\n(ADR-0119).\n\nEvery input to a member is a structured job. A chat turn is a job with\nonly a goal. A job is one persistent Claude Code session with its own\nworktrees. It stays open across inputs until a scorer closes it with a\nverdict and a score. The worker never closes its own job.",
       "services": [
         {
           "name": "JobService",
@@ -18914,7 +18935,7 @@
         },
         {
           "name": "DataPolicy",
-          "comment": "DataPolicy defines how data is handled for a node.\n\nDeprecated: superseded by the ECS brain (ADR-0008). Data\nhandling (reuse + scoping) is now implicit in the event-sourced World and\nscope-relative identity (ADR-0002) + ambient projection. Retained\nwire-compatibly; ignored by the engine.",
+          "comment": "DataPolicy defines how data is handled for a node.\n\nDeprecated: superseded by the ECS brain (ADR-0101). Data\nhandling (reuse + scoping) is now implicit in the event-sourced World and\nscope-relative identity (ADR-0102) + ambient projection. Retained\nwire-compatibly; ignored by the engine.",
           "fields": [
             {
               "name": "store_input",
@@ -19370,7 +19391,7 @@
               "name": "data_policy",
               "number": 13,
               "type": "DataPolicy",
-              "comment": "DataPolicy defines data handling policy for this node.\n\nDeprecated: data reuse + scoping are no longer node-declared. Under the\nECS brain (ADR-0008) reuse is implicit in the event-sourced\nWorld and scoping flows from scope-relative identity (ADR-0002) +\nambient projection. The field is retained wire-compatibly for old\ndefinitions but is ignored by the engine."
+              "comment": "DataPolicy defines data handling policy for this node.\n\nDeprecated: data reuse + scoping are no longer node-declared. Under the\nECS brain (ADR-0101) reuse is implicit in the event-sourced\nWorld and scoping flows from scope-relative identity (ADR-0102) +\nambient projection. The field is retained wire-compatibly for old\ndefinitions but is ignored by the engine."
             },
             {
               "name": "metadata",
@@ -19388,7 +19409,7 @@
               "name": "reuse_policy",
               "number": 16,
               "type": "ReusePolicy",
-              "comment": "ReusePolicy declares how this node's I/O is scoped +\nreused across mission runs.\n\nDeprecated: superseded by the ECS brain (ADR-0008). Reuse is\nimplicit in the World; scoping is via scope-relative identity (ADR-0002)\n+ ambient projection. Retained wire-compatibly but ignored by the engine."
+              "comment": "ReusePolicy declares how this node's I/O is scoped +\nreused across mission runs.\n\nDeprecated: superseded by the ECS brain (ADR-0101). Reuse is\nimplicit in the World; scoping is via scope-relative identity (ADR-0102)\n+ ambient projection. Retained wire-compatibly but ignored by the engine."
             },
             {
               "name": "job_config",
@@ -19401,6 +19422,18 @@
               "number": 18,
               "type": "ForEachNodeConfig",
               "comment": "ForEachConfig for for_each nodes. Field number 18 as the next free\ntag; 13 is NOT free despite looking it, because data_policy is\n`= 13 [deprecated = true]` and a field-number scan that expects a\ntrailing semicolon misses it."
+            },
+            {
+              "name": "research",
+              "number": 19,
+              "type": "bool",
+              "comment": "Research marks a node that gathers information from outside the\ntargets of the mission. A research node has unrestricted egress. Every\nother node reaches only the targets bound to it."
+            },
+            {
+              "name": "starts_from",
+              "number": 20,
+              "type": "string",
+              "comment": "StartsFrom is the id of an earlier node of the same mission. The node\nstarts from the state that the named node had when it ended, not from\na fresh sandbox (ADR-0169). Empty means a fresh sandbox.\n\nThe template node of a for_each node can carry it: each instance then\nstarts from the same state, so one state becomes N branches.\n\nThe node gets the network scope of its own node, never the scope of\nthe node that it names.\n\nThe daemon refuses at submit time an id that names no node, a later\nnode, or the node itself. protovalidate cannot express a rule about a\ndifferent node of the graph, so the rule here limits the length only."
             }
           ],
           "oneofs": [
@@ -19595,7 +19628,7 @@
         },
         {
           "name": "ReusePolicy",
-          "comment": "ReusePolicy declares how a node's I/O is scoped + reused\nacross mission runs.\n\nDeprecated: superseded by the ECS brain (ADR-0008). Reuse is\nimplicit in the event-sourced World and scoping flows from scope-relative\nidentity (ADR-0002) + ambient projection, so node-declared reuse/scoping no\nlonger has meaning. Retained wire-compatibly; ignored by the engine.",
+          "comment": "ReusePolicy declares how a node's I/O is scoped + reused\nacross mission runs.\n\nDeprecated: superseded by the ECS brain (ADR-0101). Reuse is\nimplicit in the event-sourced World and scoping flows from scope-relative\nidentity (ADR-0102) + ambient projection, so node-declared reuse/scoping no\nlonger has meaning. Retained wire-compatibly; ignored by the engine.",
           "fields": [
             {
               "name": "output_scope",
@@ -20303,7 +20336,7 @@
               "name": "remote",
               "number": 4,
               "type": "bool",
-              "comment": "remote, when true, registers an MCP connector for execution in the\ncustomer's own network instead of a gibson-hosted setec sandbox\n(ADR-0048 remote-deployment path). The daemon skips the hosted launch\nand the response carries the one-time bootstrap_token; the customer runs\nthe MCP-bridge themselves and the bridge redeems the token to enroll.\nOnly valid for connector manifests (connector.gibson.zeroroot.ai/v1):\nplain plugins are always customer-run and already receive the token."
+              "comment": "remote, when true, registers an MCP connector for execution in the\ncustomer's own network instead of a gibson-hosted setec sandbox\n(ADR-0065 remote-deployment path). The daemon skips the hosted launch\nand the response carries the one-time bootstrap_token; the customer runs\nthe MCP-bridge themselves and the bridge redeems the token to enroll.\nOnly valid for connector manifests (connector.gibson.zeroroot.ai/v1):\nplain plugins are always customer-run and already receive the token."
             }
           ]
         },
