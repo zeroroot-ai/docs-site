@@ -209,6 +209,7 @@ CreateAgentIdentityRequest is the input to AgentIdentityService.CreateAgentIdent
 | `description` | 3 | `string` | description is optional, max 256 chars. |
 | `component_grants` | 4 | `repeated ComponentGrant` | component_grants is an optional list of FGA capability grants to apply at creation. |
 | `capability_ceiling` | 5 | `repeated string` | capability_ceiling names the session capabilities the enrolling admin grants this identity, minted into its bootstrap credential's ceiling (ADR-0045). Only the reserved names are accepted: "mission:originate" (start a mission of its own, the interactive coding-agent case) and "mission:delegate". Empty means neither. |
+| `idempotency_key` | 6 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `CreateAgentIdentityResponse`
 
@@ -399,6 +400,7 @@ CreateBankRequest declares a new bank.
 | `max_jobs_in_flight` | 8 | `int32` | max_jobs_in_flight is the per-member cap on open jobs. Zero means the daemon default. |
 | `stale_limit` | 9 | `google.protobuf.Duration` | stale_limit is how long a job may go without input before it closes with verdict ABANDONED. Unset means the daemon default. |
 | `spill_policy` | 10 | `SpillPolicy` | spill_policy is what the bank does with a job when no member has a free slot. Unspecified means SPILL_POLICY_QUEUE. |
+| `idempotency_key` | 11 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `CreateBankResponse`
 
@@ -514,6 +516,7 @@ StartSignInRequest names the member that must sign in.
 |---|---|---|---|
 | `bank_id` | 1 | `string` | bank_id is the bank the member belongs to. Required. |
 | `member_id` | 2 | `string` | member_id is the member. Required. |
+| `idempotency_key` | 3 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `StartSignInResponse`
 
@@ -552,6 +555,7 @@ SubmitSignInCodeRequest passes the sign-in code to a member.
 | `bank_id` | 1 | `string` | bank_id is the bank the member belongs to. Required. |
 | `member_id` | 2 | `string` | member_id is the member. Required. |
 | `code` | 3 | `string` | code is the code Anthropic gave the person. Required. |
+| `idempotency_key` | 4 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `SubmitSignInCodeResponse`
 
@@ -789,6 +793,28 @@ service descriptor.
 | `message` | 2 | `string` | — |
 | `details` | 3 | `string` | — |
 | `retryable` | 4 | `bool` | — |
+
+#### `ErrorDetail`
+
+ErrorDetail is the one error-detail message of the API (ADR-0028, rule 4).
+The daemon attaches it to the details of each error status. A client reads
+it from the status details and needs no parser for each service.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `code` | 1 | `ErrorCode` | code is the standard error code. |
+| `reason` | 2 | `string` | reason is a stable name for the cause, in upper snake case, for example MISSION_NOT_FOUND. A client can branch on it. The text of the status message can change, and the reason does not. |
+| `field_errors` | 3 | `repeated FieldError` | field_errors holds one entry for each field of the request that broke a rule. A protovalidate failure fills it. It is empty for an error that is not about the request. |
+
+#### `FieldError`
+
+FieldError describes one field of a request that broke one rule.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `field` | 1 | `string` | field is the path of the field in the request, for example definition.nodes["scan"].starts_from. |
+| `rule` | 2 | `string` | rule is the id of the rule that the field broke, for example string.max_len. It is empty when the rule has no id. |
+| `message` | 3 | `string` | message tells a person what is wrong with the field. |
 
 #### `HealthStatus`
 
@@ -1448,6 +1474,7 @@ CreateMissionRequest creates a new sub-mission.
 | `mission_definition_json` | 2 | `bytes` | mission_definition_json is the JSON-encoded mission definition. |
 | `target_id` | 3 | `string` | — |
 | `opts_json` | 4 | `bytes` | opts_json is the JSON-encoded mission.CreateMissionOpts. |
+| `idempotency_key` | 5 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `CreateMissionResponse`
 
@@ -2017,6 +2044,7 @@ RunMissionRequest queues a mission for execution.
 | `work_id` | 1 | `string` | — |
 | `mission_id` | 2 | `string` | — |
 | `opts_json` | 3 | `bytes` | opts_json is the JSON-encoded mission.RunMissionOpts. |
+| `idempotency_key` | 4 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `RunMissionResponse`
 
@@ -2032,6 +2060,7 @@ SubmitFindingRequest is a harness proxy request to record a security finding.
 |---|---|---|---|
 | `work_id` | 1 | `string` | — |
 | `finding` | 2 | `bytes` | finding is the JSON encoding of the SDK `finding.Finding` struct (see finding/finding.go). NOT a proto-encoded message — the daemon reads it with `string(req.Finding)`. This is distinct from the typed HarnessCallbackService.SubmitFinding RPC, which carries a gibson.types.v1.Finding proto message. |
+| `idempotency_key` | 3 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `SubmitFindingResponse`
 
@@ -2050,6 +2079,7 @@ SubmitResultRequest delivers the outcome of a completed work item back to Gibson
 | `work_id` | 1 | `string` | — |
 | `result` | 2 | `bytes` | result is the serialized result payload. |
 | `error` | 3 | `ComponentError` | error is set when the work item failed; leave unset on success. |
+| `idempotency_key` | 4 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `SubmitResultResponse`
 
@@ -2260,13 +2290,6 @@ DaemonService provides the gRPC API for Gibson daemon client communication.
 This service exposes operational daemon functionality including mission execution,
 agent management, and real-time event streaming for the TUI and SDK clients.
 
-##### `BuildComponent`
-
-`BuildComponentRequest` → `BuildComponentResponse`
-
-BuildComponent rebuilds a component (agent, tool, or plugin) from source.
-Useful for rebuilding after manual code changes.
-
 ##### `CompleteMissionCUE`
 
 `CompleteMissionCUERequest` → `CompleteMissionCUEResponse`
@@ -2333,6 +2356,13 @@ and runtime limits apply.
 
 GetComponentLogs streams log entries for a component.
 Supports follow mode for continuous streaming and line limits.
+
+##### `GetMissionCheckpoints`
+
+`GetMissionCheckpointsRequest` → `GetMissionCheckpointsResponse`
+
+GetMissionCheckpoints returns the checkpoints of one mission run. A
+checkpoint is the end of a node in that run (ADR-0170).
 
 ##### `GetMissionDefinition`
 
@@ -2546,6 +2576,15 @@ Spec: unified-identity-and-authorization Requirement 5.8.
 ResumeMission resumes a paused mission from its last checkpoint.
 Returns a stream of mission events as execution continues.
 
+##### `RewindMission`
+
+`RewindMissionRequest` → `RewindMissionResponse`
+
+RewindMission starts a new mission run at a checkpoint of an earlier
+run (ADR-0170). The new run records the earlier run and the checkpoint
+as its parent. The call deletes nothing. It requires the same relation
+as RunMission: whoever may run the mission may rewind it.
+
 ##### `RunMission`
 
 `RunMissionRequest` → `stream RunMissionResponse`
@@ -2563,13 +2602,6 @@ definition, its nodes/edges/configs, or its cue_source. The optional
 expected_version enables optimistic concurrency — a stale write (the layout
 changed underneath) is rejected rather than clobbering. Keyed by
 mission_definition_id. Spec: MissionGraph epic.
-
-##### `ShowComponent`
-
-`ShowComponentRequest` → `ShowComponentResponse`
-
-ShowComponent returns detailed information about a component.
-Includes manifest, status, paths, and lifecycle information.
 
 ##### `StartComponent`
 
@@ -2669,27 +2701,6 @@ AgentInfo describes a registered agent.
 | `capabilities` | 6 | `repeated string` | capabilities lists agent capabilities |
 | `health` | 7 | `string` | health is the agent health status (healthy, unhealthy) |
 | `last_seen` | 8 | `int64` | last_seen is when the agent was last seen (Unix timestamp) |
-
-#### `BuildComponentRequest`
-
-BuildComponentRequest requests rebuilding a component from source.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `kind` | 1 | `string` | kind is the component kind ("agent", "tool", "plugin") |
-| `name` | 2 | `string` | name is the component name to build |
-
-#### `BuildComponentResponse`
-
-BuildComponentResponse returns the result of building a component.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `success` | 1 | `bool` | success indicates if the build was successful |
-| `stdout` | 2 | `string` | stdout contains the build standard output |
-| `stderr` | 3 | `string` | stderr contains the build standard error |
-| `duration_ms` | 4 | `int64` | duration_ms is the build time in milliseconds |
-| `message` | 5 | `string` | message provides additional context or error information |
 
 #### `CUECompletionItem`
 
@@ -2803,6 +2814,7 @@ and written to the definition store.
 |---|---|---|---|
 | `definition` | 1 | `gibson.mission.v1.MissionDefinition` | definition is the fully-formed mission definition to register. |
 | `cue_source` | 2 | `string` | cue_source is the raw CUE source text that compiled to `definition` (maximum 512 KB). Persisted alongside the definition so that GetMissionDefinition can return the author's exact source rather than a reconstruction. Optional for backward compatibility; when empty the definition is stored without a recoverable source. |
+| `idempotency_key` | 3 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `CreateMissionDefinitionResponse`
 
@@ -2831,6 +2843,7 @@ Inline target / inline mission / YAML paths are no longer accepted.
 | `variables` | 7 | `map<string, string>` | variables contains mission variables to override at creation time |
 | `memory_continuity` | 8 | `string` | memory_continuity defines how agent memory is shared across mission runs Valid values: "isolated" (default), "inherit", "shared" |
 | `source_yaml` | 9 | `string` | source_yaml is the original YAML the dashboard used to construct this mission. Optional. When non-empty, the daemon stores it alongside the structured mission state. Empty for programmatic callers that never had a YAML source. Spec: dashboard-neo4j-crud-removal Req 3.5. |
+| `idempotency_key` | 13 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `CreateMissionResponse`
 
@@ -2849,6 +2862,7 @@ CreateTargetRequest carries the metadata for a new target.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `target` | 1 | `gibson.target.v1.Target` | target carries the new target's metadata. Its id field is ignored; the daemon mints the canonical UUID. |
+| `idempotency_key` | 2 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `CreateTargetResponse`
 
@@ -2961,6 +2975,23 @@ GetComponentLogsResponse wraps a LogEntry for the GetComponentLogs streaming RPC
 | `message` | 3 | `string` | message is the log message |
 | `fields` | 4 | `gibson.common.v1.TypedMap` | fields contains additional structured log fields (typed map) |
 
+#### `GetMissionCheckpointsRequest`
+
+GetMissionCheckpointsRequest asks for the checkpoints of one mission run.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `mission_id` | 1 | `string` | mission_id is the id of the mission run. |
+
+#### `GetMissionCheckpointsResponse`
+
+GetMissionCheckpointsResponse returns the checkpoints of one mission run,
+in the order in which the nodes ended.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `checkpoints` | 1 | `repeated NodeCheckpoint` | checkpoints holds one entry for each node that ended in the run. |
+
 #### `GetMissionDefinitionRequest`
 
 GetMissionDefinitionRequest fetches a single mission definition by name.
@@ -3004,8 +3035,8 @@ GetMissionHistoryRequest queries mission execution history by name.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `name` | 1 | `string` | name is the mission name to query history for |
-| `limit` | 2 | `int32` | limit restricts the number of results (default: 100) |
-| `offset` | 3 | `int32` | offset is the pagination offset (default: 0) |
+| `page_size` | 4 | `int32` | page_size is the most items for one page. 0 means the default of the server. The server can return fewer items. |
+| `page_token` | 5 | `string` | page_token is the next_page_token of the previous response. Empty means the first page. |
 
 #### `GetMissionHistoryResponse`
 
@@ -3015,6 +3046,7 @@ GetMissionHistoryResponse returns mission execution history.
 |---|---|---|---|
 | `runs` | 1 | `repeated MissionRun` | runs contains all mission runs for the requested name |
 | `total` | 2 | `int32` | total is the total count of runs (for pagination) |
+| `next_page_token` | 3 | `string` | next_page_token is the page_token of the next page. Empty means that this page is the last one. |
 
 #### `GetMissionLayoutRequest`
 
@@ -3147,8 +3179,8 @@ ListMissionDefinitionsRequest queries installed mission definitions.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `limit` | 1 | `int32` | limit restricts the number of results (0 = all) |
-| `offset` | 2 | `int32` | offset is the pagination offset |
+| `page_size` | 3 | `int32` | page_size is the most items for one page. 0 means the default of the server. The server can return fewer items. |
+| `page_token` | 4 | `string` | page_token is the next_page_token of the previous response. Empty means the first page. |
 
 #### `ListMissionDefinitionsResponse`
 
@@ -3158,6 +3190,7 @@ ListMissionDefinitionsResponse returns installed mission definitions.
 |---|---|---|---|
 | `missions` | 1 | `repeated MissionDefinitionInfo` | missions is the list of installed mission definitions |
 | `total` | 2 | `int32` | total is the total count of mission definitions (for pagination) |
+| `next_page_token` | 3 | `string` | next_page_token is the page_token of the next page. Empty means that this page is the last one. |
 
 #### `ListMissionsRequest`
 
@@ -3166,10 +3199,10 @@ ListMissionsRequest queries mission list.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `active_only` | 1 | `bool` | active_only filters to only running missions |
-| `limit` | 2 | `int32` | limit restricts the number of results |
-| `offset` | 3 | `int32` | offset is the pagination offset |
 | `status_filter` | 4 | `string` | status_filter filters missions by status (`running`, `completed`, `failed`, `cancelled`) |
 | `name_pattern` | 5 | `string` | name_pattern filters missions by name using glob pattern matching |
+| `page_size` | 6 | `int32` | page_size is the most items for one page. 0 means the default of the server. The server can return fewer items. |
+| `page_token` | 7 | `string` | page_token is the next_page_token of the previous response. Empty means the first page. |
 
 #### `ListMissionsResponse`
 
@@ -3179,6 +3212,7 @@ ListMissionsResponse returns mission list.
 |---|---|---|---|
 | `missions` | 1 | `repeated MissionInfo` | missions is the list of missions |
 | `total` | 2 | `int32` | total is the total count of missions (for pagination) |
+| `next_page_token` | 3 | `string` | next_page_token is the page_token of the next page. Empty means that this page is the last one. |
 
 #### `ListMyMembershipsRequest`
 
@@ -3219,6 +3253,8 @@ ListTargetsRequest narrows the tenant's targets.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `filter` | 1 | `gibson.target.v1.TargetFilter` | filter narrows the result set. Omit for the tenant's full target list. |
+| `page_size` | 2 | `int32` | page_size is the most items for one page. 0 means the default of the server. The server can return fewer items. |
+| `page_token` | 3 | `string` | page_token is the next_page_token of the previous response. Empty means the first page. |
 
 #### `ListTargetsResponse`
 
@@ -3227,6 +3263,7 @@ ListTargetsResponse returns the matching targets.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `targets` | 1 | `repeated gibson.target.v1.Target` | — |
+| `next_page_token` | 2 | `string` | next_page_token is the page_token of the next page. Empty means that this page is the last one. |
 
 #### `ListToolsRequest`
 
@@ -3396,6 +3433,8 @@ MissionInfo describes a mission.
 | `mission_definition_id` | 11 | `string` | mission_definition_id is the registered mission definition this run used. |
 | `target_id` | 12 | `string` | target_id is the registered target this mission ran against. |
 | `created_by` | 13 | `gibson.common.v1.Principal` | created_by is the principal that created the mission: the person who asked for the run, or the service that scheduled it. A reader resolves the id to a name at read time; a person who has left the tenant resolves to nobody, and the dashboard shows "removed user". Empty on a mission created before the field existed. |
+| `parent_mission_id` | 14 | `string` | parent_mission_id is the id of the run that this run was rewound from (ADR-0170). Empty on a run that is not the result of a rewind. |
+| `parent_checkpoint_id` | 15 | `string` | parent_checkpoint_id is the id of the checkpoint of the parent run at which this run started. Empty when parent_mission_id is empty. |
 
 #### `MissionLayout`
 
@@ -3440,6 +3479,22 @@ MissionRun represents a single execution instance of a mission.
 | `findings_count` | 6 | `int32` | findings_count is the number of findings discovered in this run |
 | `previous_run_id` | 7 | `string` | previous_run_id is the ID of the previous run (if any) |
 | `trace_id` | 8 | `string` | trace_id is the OTel trace ID for Langfuse lookup |
+| `parent_mission_id` | 9 | `string` | parent_mission_id is the id of the run that this run was rewound from (ADR-0170). Empty on a run that is not the result of a rewind. A client follows this field to show the runs as a chain. |
+| `parent_checkpoint_id` | 10 | `string` | parent_checkpoint_id is the id of the checkpoint of the parent run at which this run started. Empty when parent_mission_id is empty. |
+
+#### `NodeCheckpoint`
+
+NodeCheckpoint is the end of one node in a mission run (ADR-0170). It is
+the point at which a rewind can start a new run. It is not the older
+MissionCheckpoint, which describes a saved state blob.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `checkpoint_id` | 1 | `string` | checkpoint_id identifies the checkpoint inside its mission run. Pass it to RewindMission. |
+| `node_id` | 2 | `string` | node_id is the id of the node that ended. |
+| `timeline_position` | 3 | `uint64` | timeline_position is the position in the Timeline of the event that ended the node. |
+| `snapshot_id` | 4 | `optional string` | snapshot_id is the id of the sandbox snapshot taken at the end of the node. It is set only when the mission ran with CHECKPOINT_MODE_SANDBOX and the snapshot still exists. |
+| `ended_at` | 5 | `google.protobuf.Timestamp` | ended_at is the time at which the node ended. |
 
 #### `NodePosition`
 
@@ -3653,6 +3708,26 @@ ResumeMissionResponse wraps a MissionEvent for the ResumeMission streaming RPC.
 | `result` | 8 | `OperationResult` | result contains typed operation metrics (for mission.completed events) |
 | `checkpoint_metadata` | 9 | `CheckpointMetadata` | checkpoint_metadata surfaces the source checkpoint metadata at the start of a resumed stream so the dashboard can render the "Resumed from checkpoint X" affordance. Populated on the first event of a resume stream; nil/empty on subsequent events. Spec: mission-checkpointing R9. |
 
+#### `RewindMissionRequest`
+
+RewindMissionRequest asks for a new mission run that starts at a
+checkpoint of an earlier run.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `mission_id` | 1 | `string` | mission_id is the id of the mission run to rewind. |
+| `checkpoint_id` | 2 | `string` | checkpoint_id is the id of a checkpoint of that run, as GetMissionCheckpoints returns it. The new run starts at the node of this checkpoint. |
+| `instruction` | 3 | `optional string` | instruction replaces the instruction of the node that the run rewinds to. The caller can change this node and no other node. When the field is not set, the node keeps the instruction of the definition. |
+| `idempotency_key` | 4 | `string` | idempotency_key makes a retry safe. A second request with the same key returns the result of the first request and starts no second run. An empty key turns the protection off for the call. |
+
+#### `RewindMissionResponse`
+
+RewindMissionResponse returns the new mission run.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `mission_id` | 1 | `string` | mission_id is the id of the new run. Its parent is the run that the request named. |
+
 #### `RunMissionRequest`
 
 RunMissionRequest starts a mission execution.
@@ -3664,6 +3739,7 @@ API-only: missions are invoked by reference — no YAML, no file paths.
 | `target_id` | 2 | `string` | target_id is the ID of a registered target the mission runs against. |
 | `variables` | 3 | `map<string, string>` | variables contains mission variables to override |
 | `memory_continuity` | 4 | `string` | memory_continuity defines how agent memory is shared across mission runs Valid values: "isolated" (default), "inherit", "shared" |
+| `idempotency_key` | 6 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `RunMissionResponse`
 
@@ -3698,38 +3774,6 @@ save. Pass it as expected_version on the subsequent save.
 |---|---|---|---|
 | `version` | 1 | `string` | — |
 
-#### `ShowComponentRequest`
-
-ShowComponentRequest requests detailed information about a component.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `kind` | 1 | `string` | kind is the component kind ("agent", "tool", "plugin") |
-| `name` | 2 | `string` | name is the component name to show |
-
-#### `ShowComponentResponse`
-
-ShowComponentResponse returns detailed component information.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `success` | 1 | `bool` | success indicates if the component was found |
-| `name` | 2 | `string` | name is the component name |
-| `version` | 3 | `string` | version is the component version |
-| `kind` | 4 | `string` | kind is the component kind |
-| `status` | 5 | `string` | status is the component status (installed, running, stopped) |
-| `source` | 6 | `string` | source is the Git repository URL |
-| `repo_path` | 7 | `string` | repo_path is the local repository path |
-| `bin_path` | 8 | `string` | bin_path is the path to the binary |
-| `port` | 9 | `int32` | port is the listening port (if running) |
-| `pid` | 10 | `int32` | pid is the process ID (if running) |
-| `created_at` | 11 | `int64` | created_at is when the component was installed (Unix timestamp) |
-| `updated_at` | 12 | `int64` | updated_at is when the component was last updated (Unix timestamp) |
-| `started_at` | 13 | `int64` | started_at is when the component was started (Unix timestamp, 0 if not running) |
-| `stopped_at` | 14 | `int64` | stopped_at is when the component was stopped (Unix timestamp, 0 if never stopped) |
-| `manifest_info` | 15 | `string` | manifest_info contains manifest details (JSON-encoded) |
-| `message` | 16 | `string` | message provides additional context or error information |
-
 #### `StartComponentRequest`
 
 StartComponentRequest requests starting a component.
@@ -3738,6 +3782,7 @@ StartComponentRequest requests starting a component.
 |---|---|---|---|
 | `kind` | 1 | `string` | kind is the component kind ("agent", "tool", "plugin") |
 | `name` | 2 | `string` | name is the component name |
+| `idempotency_key` | 3 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `StartComponentResponse`
 
@@ -4113,8 +4158,8 @@ knowledge graph, shaped for dashboard list/detail views.
 | `category_filter` | 2 | `string` | Exact match on the type / category. Empty string = no filter. |
 | `mission_id` | 3 | `string` | When non-empty, only findings reachable from this mission node within the same tenant (within 3 hops) are returned. |
 | `search` | 4 | `string` | Substring match on name OR description (case-insensitive). Empty = no filter. |
-| `limit` | 5 | `uint32` | Default 100, max 500 (server-clamped). |
-| `offset` | 6 | `uint32` | — |
+| `page_size` | 7 | `int32` | page_size is the most items for one page. 0 means the default of the server. The server can return fewer items. |
+| `page_token` | 8 | `string` | page_token is the next_page_token of the previous response. Empty means the first page. |
 
 #### `GetFindingsResponse`
 
@@ -4122,7 +4167,8 @@ knowledge graph, shaped for dashboard list/detail views.
 |---|---|---|---|
 | `findings` | 1 | `repeated Finding` | — |
 | `total` | 2 | `uint64` | Count of matching findings without limit/offset, for pagination UI. |
-| `truncated` | 3 | `bool` | True when total > offset + len(findings). |
+| `truncated` | 3 | `bool` | True when the server holds more findings than this page. |
+| `next_page_token` | 4 | `string` | next_page_token is the page_token of the next page. Empty means that this page is the last one. |
 
 #### `GetGraphContextRequest`
 
@@ -5471,6 +5517,7 @@ CreateMissionRequest creates a new mission from a mission definition.
 | `catalog_mission` | 9 | `string` | catalog_mission names a mission definition checked into the platform's mission catalog, to be originated instead of a caller-supplied graph (ADR-0118: the checked-in definition is authoritative). This is a second *input* to the one mission-creation route, deliberately not a second RPC. A dedicated RPC would carry its own authorization surface, so the per-tenant gate and the ADR-0063 origination rule ("a component originates only from inside a live parent") would be enforced in two places — which is where two enforcement paths drift apart. Exactly one of mission_definition_json (field 2) or catalog_mission must be set. Both is InvalidArgument; neither is InvalidArgument. |
 | `catalog_params` | 10 | `map<string, string>` | catalog_params carries the parameters the named catalog mission declares, keyed by the definition's own parameter names. The map is CLOSED: the daemon refuses an unrecognised key rather than ignoring it. Silently dropping a key a caller sent would let that caller believe a parameter bound when it did not — which is what keeps the runtime target out of this map honest. The target continues to bind from target_id (field 3) alone, so a scan can only ever run against a target the tenant registered. Every missing parameter is reported at once rather than one render at a time. Only meaningful when catalog_mission is set. |
 | `starts_from` | 11 | `OriginationStart` | starts_from selects the state that the new mission starts from (ADR-0169). An agent forks at run time when it originates a child mission with ORIGINATION_START_CALLER_STATE. The origination bounds still apply to a fork: the budget comes from the remainder of the parent, the targets are a subset, and the depth limit holds (ADR-0063). The child gets the network scope of its own nodes, never the scope of the caller. |
+| `idempotency_key` | 12 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `CreateMissionResponse`
 
@@ -6165,6 +6212,8 @@ ListMissionsRequest queries missions matching filter criteria.
 |---|---|---|---|
 | `context` | 1 | `ContextInfo` | — |
 | `filter` | 2 | `MissionFilter` | — |
+| `page_size` | 3 | `int32` | page_size is the most items for one page. 0 means the default of the server. The server can return fewer items. |
+| `page_token` | 4 | `string` | page_token is the next_page_token of the previous response. Empty means the first page. |
 
 #### `ListMissionsResponse`
 
@@ -6174,6 +6223,7 @@ ListMissionsResponse returns matching missions.
 |---|---|---|---|
 | `missions` | 1 | `repeated MissionInfo` | — |
 | `error` | 2 | `HarnessError` | — |
+| `next_page_token` | 3 | `string` | next_page_token is the page_token of the next page. Empty means that this page is the last one. |
 
 #### `ListPluginsRequest`
 
@@ -6257,8 +6307,6 @@ MissionFilter specifies criteria for listing missions.
 | `created_after` | 4 | `int64` | — |
 | `created_before` | 5 | `int64` | — |
 | `tags` | 6 | `repeated string` | — |
-| `limit` | 7 | `int32` | — |
-| `offset` | 8 | `int32` | — |
 
 #### `MissionInfo`
 
@@ -6762,6 +6810,7 @@ RunMissionRequest queues a mission for execution.
 | `mission_id` | 2 | `string` | — |
 | `wait` | 3 | `bool` | — |
 | `timeout_ms` | 4 | `int64` | — |
+| `idempotency_key` | 5 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `RunMissionResponse`
 
@@ -6881,6 +6930,7 @@ SubdomainObservation reports an FQDN, its parent domain, and resolved addresses.
 |---|---|---|---|
 | `context` | 1 | `ContextInfo` | — |
 | `finding` | 2 | `gibson.types.v1.Finding` | — |
+| `idempotency_key` | 3 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `SubmitFindingResponse`
 
@@ -6903,6 +6953,7 @@ typed predicate on the daemon decides whether the Bet settles.
 | `predicate_name` | 4 | `string` | predicate_name names the enabled pack's CEL predicate the daemon evaluates against evidence to decide settlement. The agent names a predicate; it never evaluates one. |
 | `evidence` | 5 | `repeated gibson.types.v1.Evidence` | evidence is the raw tool output the predicate evaluates. It is never a verdict or an interpretation of what the evidence shows. |
 | `tool_call_ids` | 7 | `repeated string` | tool_call_ids names the tool calls whose recorded results are the evidence of this proof. Each id is the ContextInfo.tool_execution_id of a tool call that the daemon recorded in this mission. The daemon reads the recorded result of each call and evaluates the predicate on it. Evidence in the evidence field that no tool call id backs is typed by the agent, and the daemon sends such a proof to human review. |
+| `idempotency_key` | 8 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `SubmitProofResponse`
 
@@ -8465,6 +8516,7 @@ CreateMissionDefinition API and referenced by mission runs.
 | `constraints` | 16 | `optional MissionConstraints` | Constraints declares mission-level operational limits. When present, these are the authoritative constraints for the mission DAG — they make the mission self-describing so authors do not have to supply limits out-of-band at dispatch time. The daemon merges these with any dispatch-time overrides (dispatch wins on conflict). Optional: absent means no constraints are baked into the definition. Spec: MissionConstraints proto promotion. |
 | `decider_slot` | 17 | `optional LLMSlotConfig` | DeciderSlot names the mission-level LLM the brain's Decider runs on — the orchestration decision-maker, distinct from per-node agent slots. Only the provider+model are used (the slot name is implicitly "decider"). Absent means the brain uses the tenant's dashboard-default provider/model, so missions need not set it. |
 | `secrets` | 18 | `optional MissionSecrets` | Secrets declares which named tenant secrets this mission's components may be handed at dispatch. Names only; a value never appears here. |
+| `checkpoints` | 19 | `CheckpointMode` | Checkpoints selects what the end of a node keeps (ADR-0170). A checkpoint is the end of a node in a mission run, and a rewind starts a new run at a checkpoint. CHECKPOINT_MODE_UNSPECIFIED means CHECKPOINT_MODE_STATE, so a mission that does not set the field keeps no sandbox snapshot. |
 
 #### `MissionDependencies`
 
@@ -8685,6 +8737,17 @@ BackoffStrategy defines the strategy for calculating retry delays
 | `BACKOFF_STRATEGY_LINEAR` | 2 | Linear increases the delay linearly with each retry attempt |
 | `BACKOFF_STRATEGY_EXPONENTIAL` | 3 | Exponential increases the delay exponentially with each retry attempt |
 
+#### `CheckpointMode`
+
+CheckpointMode states what the end of a node keeps for a later rewind
+(ADR-0170).
+
+| Value | # | Description |
+|---|---|---|
+| `CHECKPOINT_MODE_UNSPECIFIED` | 0 | Sentinel value. The daemon treats it as CHECKPOINT_MODE_STATE. |
+| `CHECKPOINT_MODE_STATE` | 1 | State keeps the mission state at the end of each node and no sandbox snapshot. A rewind starts the node in a fresh sandbox with the files of the workspace. The default. |
+| `CHECKPOINT_MODE_SANDBOX` | 2 | Sandbox also keeps a diff snapshot of the sandbox at the end of each agent node. A rewind starts the node from that snapshot. A sandbox snapshot lives 7 days after the run ends. |
+
 #### `ForEachNodeConfig.Source`
 
 Source selects what is iterated.
@@ -8886,8 +8949,8 @@ _No fields._
 |---|---|---|---|
 | `name_filter` | 1 | `string` | — |
 | `status_filter` | 2 | `PluginInstallStatus` | — |
-| `limit` | 3 | `int32` | — |
-| `offset` | 4 | `int32` | — |
+| `page_size` | 5 | `int32` | page_size is the most items for one page. 0 means the default of the server. The server can return fewer items. |
+| `page_token` | 6 | `string` | page_token is the next_page_token of the previous response. Empty means the first page. |
 
 #### `ListPluginInstallsResponse`
 
@@ -8895,6 +8958,7 @@ _No fields._
 |---|---|---|---|
 | `installs` | 1 | `repeated PluginInstallSummary` | — |
 | `total` | 2 | `int32` | — |
+| `next_page_token` | 3 | `string` | next_page_token is the page_token of the next page. Empty means that this page is the last one. |
 
 #### `PluginInstallSummary`
 
@@ -8945,7 +9009,6 @@ PluginSecretBinding describes one secret binding in a RegisterPlugin request.
 | `manifest_yaml` | 1 | `bytes` | manifest_yaml is the plugin manifest YAML bytes. |
 | `bindings` | 2 | `repeated PluginSecretBinding` | — |
 | `dry_run` | 3 | `bool` | dry_run, when true, validates manifest + bindings without creating any state. |
-| `remote` | 4 | `bool` | remote, when true, registers an MCP connector for execution in the customer's own network instead of a gibson-hosted setec sandbox (ADR-0065 remote-deployment path). The daemon skips the hosted launch and the response carries the one-time bootstrap_token; the customer runs the MCP-bridge themselves and the bridge redeems the token to enroll. Only valid for connector manifests (connector.gibson.zeroroot.ai/v1): plain plugins are always customer-run and already receive the token. |
 
 #### `RegisterPluginResponse`
 
@@ -8990,9 +9053,10 @@ management surface.
 This service has moved three times, which is worth recording so a fourth move
 is argued rather than assumed:
 
- ADR-0039 gibson.admin.v1.SecretsAdminService (platform-sdk) -> the OSS SDK
- ADR-0058 out of the SDK to the gibson platform protos, as tenant admin
- ADR-0096 back into the SDK, here, as its own wire package
+ 1. gibson.admin.v1.SecretsAdminService (platform-sdk) -> the OSS SDK
+ (a retired ADR that ADR-0058 replaced)
+ 2. ADR-0058: out of the SDK to the gibson platform protos, as tenant admin
+ 3. ADR-0096: back into the SDK, here, as its own wire package
 
 The 2026-10-01 amendment to ADR-0058 is the current authority. ADR-0096
 removed the credential reference from a Target, which left the command line as
@@ -9116,17 +9180,10 @@ SECURITY: never log this message.
 | `auth_method` | 5 | `string` | — |
 | `region` | 6 | `string` | — |
 | `project` | 7 | `string` | — |
-| `tenant_id_external` | 8 | `string` | — |
 | `client_id` | 9 | `string` | — |
-| `role_arn` | 10 | `string` | — |
 | `vault_token` | 20 | `bytes` | Vault token (token auth method). Sensitive. |
 | `approle_role_id` | 21 | `string` | — |
 | `approle_secret_id` | 22 | `bytes` | — |
-| `aws_access_key_id` | 23 | `bytes` | — |
-| `aws_secret_access_key` | 24 | `bytes` | — |
-| `aws_external_id` | 25 | `bytes` | — |
-| `gcp_service_account_json` | 26 | `bytes` | — |
-| `azure_client_secret` | 27 | `bytes` | — |
 
 #### `CountSecretsRequest`
 
@@ -9189,9 +9246,9 @@ _No fields._
 | Field | # | Type | Description |
 |---|---|---|---|
 | `category_filter` | 1 | `SecretCategory` | — |
-| `limit` | 2 | `int32` | — |
-| `offset` | 3 | `int32` | — |
 | `name_prefix` | 4 | `string` | — |
+| `page_size` | 5 | `int32` | page_size is the most items for one page. 0 means the default of the server. The server can return fewer items. |
+| `page_token` | 6 | `string` | page_token is the next_page_token of the previous response. Empty means the first page. |
 
 #### `ListSecretsResponse`
 
@@ -9199,6 +9256,7 @@ _No fields._
 |---|---|---|---|
 | `secrets` | 1 | `repeated SecretMetadata` | — |
 | `total` | 2 | `int32` | — |
+| `next_page_token` | 3 | `string` | next_page_token is the page_token of the next page. Empty means that this page is the last one. |
 
 #### `MissionSecretAccess`
 
@@ -9253,9 +9311,7 @@ SECURITY: this message MUST NOT carry any sensitive auth field.
 | `auth_method` | 5 | `string` | — |
 | `region` | 6 | `string` | — |
 | `project` | 7 | `string` | — |
-| `tenant_id_external` | 8 | `string` | — |
 | `client_id` | 9 | `string` | — |
-| `role_arn` | 10 | `string` | — |
 | `sensitive_fields_set` | 11 | `repeated string` | sensitive_fields_set lists the names of sensitive fields that have a value stored on the server. |
 | `updated_at_unix` | 12 | `int64` | — |
 | `updated_by` | 13 | `string` | — |
@@ -9397,8 +9453,6 @@ All fields are optional; an empty filter returns the tenant's targets.
 | `type` | 2 | `string` | type filters by schema-based target type. |
 | `status` | 3 | `string` | status filters by lifecycle status. |
 | `tags` | 4 | `repeated string` | tags filters to targets carrying all of the given tags. |
-| `limit` | 5 | `int32` | limit caps the number of results. Zero means the server default. |
-| `offset` | 6 | `int32` | offset skips the first N results for pagination. |
 
 ## Package `gibson.tool.v1`
 
