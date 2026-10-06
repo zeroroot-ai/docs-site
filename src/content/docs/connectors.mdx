@@ -69,22 +69,21 @@ The flow is **enable → authorize → live**:
 
 ## Author a new connector
 
-First-party connectors live in the
-[`integrations`](https://github.com/zeroroot-ai/integrations) monorepo under
-`connectors/<vendor>/`. Each connector is a single `connector.yaml`. A
-`Remote` connector has no Go module and no image. **Self-hosted customers
-fork the repo** and add their own. Then they point their install's GitOps at
-the fork. The product catalog derives from these manifests, so a new
-connector never rebuilds Gibson.
+First-party connectors are entries of the component catalog in `gibson`,
+under
+[`internal/platform/componentcatalog/manifests/`](https://github.com/zeroroot-ai/gibson/tree/main/internal/platform/componentcatalog/manifests).
+Each connector is one YAML manifest. A `Remote` connector has no Go module and
+no image. The daemon embeds the catalog. So a new first-party connector ships
+with a Gibson release.
 
 The authoring work is deliberately small:
 
-1. Copy `connectors/gitlab/` (or `connectors/github/`) as a template.
+1. Copy `gitlab.yaml` (or `github.yaml`) of that directory as a template.
+   `gibson component init <name> --kind connector` also writes a manifest.
 2. Set `id`, `vendor`, `displayName`, `endpoint` (Remote) or the image
    (Hosted), the `transport`, the `egressAllow` list, and the `auth` block.
-3. Open a pull request. CI validates the manifest. For a Hosted connector, CI
-   also boots the vendor image to assert its `tools/list`.
-4. Reconcile the fork through GitOps. The connector appears in the catalog.
+3. Open a pull request in `gibson`. The catalog tests check the manifest.
+4. After the next Gibson release, the connector appears in the catalog.
 
 ## How a connector runs
 

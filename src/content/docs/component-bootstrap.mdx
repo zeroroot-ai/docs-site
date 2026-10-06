@@ -60,8 +60,8 @@ The dashboard at `/dashboard/deploy` guides each kind:
   grants for tools. A polling step then confirms the component
   connects. The flow ends with a bootstrap token. You set it in
   `GIBSON_BOOTSTRAP_TOKEN` and start the component.
-- `kind=plugin` is not a dashboard upload. You author a plugin in the
-  [`integrations`](https://github.com/zeroroot-ai/integrations) repo.
+- `kind=plugin` is not a dashboard upload. You author a plugin as one
+  Go module, and `gibson component init --kind plugin` writes its first files.
   CI builds it, GitOps deploys it, and its SVID **auto-enrolls it**.
   The dashboard shows the steps and links to the
   [plugin guide](/docs/plugins). The plugin appears on the Plugins page
