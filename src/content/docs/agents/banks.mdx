@@ -7,7 +7,7 @@ description: A bank is a pool of always-on Claude Code instances that Gibson kee
 build follows. Field names and screens can change before the release.
 
 A **bank** is a pool of always-on Claude Code instances. You declare how many
-you want. The daemon keeps that many running, each in its own gVisor sandbox.
+you want. The daemon keeps that many running, each in its own setec sandbox.
 One instance in a bank is a **member**. Anyone with `can_send` on the bank
 gives a member work as a [job](/docs/agents/jobs).
 
@@ -16,6 +16,12 @@ daemon does the rest. It launches members until the desired count runs. It
 relaunches a member that dies. It holds a member at `needs sign-in` until the
 owner signs in. Members stay up until the bank scales down, so the reaper
 leaves them alone.
+
+An idle member does not hold a machine. After 10 minutes with no job, the
+daemon suspends the member, and the member keeps its state. When jobs
+wait, the daemon resumes a suspended member. A member that stays
+suspended for 7 days is recycled. See
+[Suspend and resume](/docs/sandbox-runtime#suspend-and-resume).
 
 ## Who owns a bank
 

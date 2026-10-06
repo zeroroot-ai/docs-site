@@ -1,0 +1,107 @@
+---
+title: Signup
+description: How self-serve signup creates a workspace, how an install adds one external step to it, and the onboarding email that the owner gets when the workspace is ready.
+---
+
+Self-serve signup creates a workspace and its owner. Nothing that lasts is
+created before the person proves that they control the email address.
+
+## The flow
+
+1. Type your email address and a workspace name on the signup page.
+2. Open the link in the verification email. The link works one time.
+3. Set your password. The daemon creates your account and queues the
+   workspace.
+4. If the install has an external step, complete it. See
+   [The external step](#the-external-step).
+5. Wait while the platform makes the workspace. The page then sends you
+   to the sign-in page.
+
+The verification email does not say whether an account exists to the
+person who typed the address. Only the mailbox that owns the address
+learns it. A used, expired or unknown link always gets the same error.
+
+## The external step
+
+An install can add one step to signup, for example an account check. The
+platform does not know what the step does. A service outside the platform
+runs it.
+
+With a step configured, signup works like this:
+
+1. The daemon holds the new workspace as waiting. It returns a step URL
+   and an opaque step token.
+2. The dashboard sends the browser to the step URL. It adds the token as
+   the query parameter `token`.
+3. The service of the step does its work.
+4. The service reports the outcome to the daemon with `CompleteSignupStep`.
+   The outcome is `DONE` or `FAILED`.
+5. The browser returns to the dashboard. The dashboard asks the daemon for
+   the state of the step every 3 seconds.
+
+On `DONE`, the daemon releases the workspace for provisioning. On
+`FAILED`, the workspace stays waiting. The page shows the failure text and
+a retry button that opens the same step link again. A later `DONE` with
+the same token is still accepted. A step token expires after 24 hours.
+
+With no step configured, signup never waits.
+
+### Configure the step
+
+The step needs settings on the daemon and on the dashboard.
+
+| Variable | Component | Meaning |
+|---|---|---|
+| `GIBSON_SIGNUP_STEP_URL` | Daemon | The URL of the step. Empty means no step. |
+| `GIBSON_SIGNUP_STEP_COMPLETER_SVID` | Daemon | The SPIFFE ID of the one service that may report the outcome. |
+| `DASHBOARD_SIGNUP_STEP_TITLE` | Dashboard | The title of the step page. |
+| `DASHBOARD_SIGNUP_STEP_TEXT` | Dashboard | The text under the title. |
+| `DASHBOARD_SIGNUP_STEP_BUTTON_LABEL` | Dashboard | The label of the button that opens the step. |
+| `DASHBOARD_SIGNUP_STEP_WAITING_TEXT` | Dashboard | The text while the outcome is not in. |
+| `DASHBOARD_SIGNUP_STEP_FAILURE_TEXT` | Dashboard | The text when the step failed. |
+| `DASHBOARD_SIGNUP_STEP_RETRY_LABEL` | Dashboard | The label of the retry button. |
+
+Set all six dashboard texts, or none. The dashboard does not start with
+only some of them. The source holds no default text.
+
+### Report the outcome
+
+The service of the step calls `ConnectionPointService` of the daemon.
+
+- `CompleteSignupStep` takes the step token and the outcome.
+- `DescribeSignupStep` takes the step token. It returns the workspace slug,
+  the plan ID and the email address of the owner.
+
+The daemon reads the SPIFFE ID of the caller from the TLS peer of the
+call. It accepts only the ID in `GIBSON_SIGNUP_STEP_COMPLETER_SVID`. A call
+through the public edge carries the identity of the edge, so the daemon
+refuses it. An unknown or expired token gets `NOT_FOUND`.
+
+## The onboarding email
+
+When the workspace is ready, the daemon sends the owner one onboarding
+email. Ready means that the operator reports the workspace ready and its
+data plane ready. The email has the subject "Welcome to ZeroRoot AI".
+
+The email holds these steps:
+
+1. Sign in to your workspace with the password that you set at signup.
+2. Clone the ADK. Do not install the binary alone.
+3. Sign the CLI in.
+4. Run your first mission.
+5. Watch the run in the dashboard.
+6. Scaffold a component of your own.
+
+The daemon sends the email one time. A retry or a restart does not send
+it again. If the send fails, the daemon tries again on the next report of
+the operator. With no mail transport, the daemon logs the skipped send,
+and the signup does not fail.
+
+Only signup sends this email. A person that an Owner invites gets the
+invitation email, which holds the same steps.
+
+## Related
+
+- [Install](/docs/install) connects your workstation after signup.
+- [Getting Started](/docs/getting-started) is the fast path to a first
+  mission.

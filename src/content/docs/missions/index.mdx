@@ -661,29 +661,48 @@ definition but not across definitions.
 
 A node usually starts in a fresh sandbox. Set `starts_from` to the ID of
 an earlier node, and the node starts from the state that the earlier
-node had when it ended. The brain keeps a snapshot at the end of that
-node. Use a fork to try two ways forward from one point, with no new
-recon.
+node had when it ended. Use a fork to try two ways forward from one
+point, with no new recon.
 
 ```yaml
 nodes:
   recon:
     id: recon
     type: NODE_TYPE_AGENT
-    agent_config: { agent_name: recon-agent }
+    agent_config:
+      agent_name: pentest-agent
+      task: { goal: "Map the web and SSH surfaces of the target." }
   exploit_web:
     id: exploit_web
     type: NODE_TYPE_AGENT
-    agent_config: { agent_name: web-agent }
+    agent_config:
+      agent_name: pentest-agent
+      task: { goal: "Try the web surface that recon found." }
     dependencies: ["recon"]
     starts_from: recon
   exploit_ssh:
     id: exploit_ssh
     type: NODE_TYPE_AGENT
-    agent_config: { agent_name: ssh-agent }
+    agent_config:
+      agent_name: pentest-agent
+      task: { goal: "Try the SSH surface that recon found." }
     dependencies: ["recon"]
     starts_from: recon
 ```
+
+How a fork runs:
+
+1. The daemon launches the earlier node with `GIBSON_FORKABLE=1`.
+2. After its result line, the agent process parks. Its sandbox stays up.
+3. When a later node starts, the daemon forks the parked sandbox. See
+   [Fork](/docs/sandbox-runtime#fork).
+4. The fork continues the process of the earlier node. It claims the task
+   of its own node and runs it.
+
+The fork continues the code of the earlier node. So the agent of the
+earlier node runs the task of the later node. Name the same agent in both
+nodes. An agent that may be forked must follow the
+[fork contract](/docs/fork-contract).
 
 The rules:
 
@@ -698,6 +717,32 @@ The rules:
 - A fork gets the network scope of its own node. It never gets the
   scope of the node that it names. A fork of a `research` node that is
   not itself a `research` node reaches only its targets.
+- A source parks for 10 minutes by default. If no parked sandbox of the
+  named node exists when the node starts, the node fails.
+
+### Fork at run time
+
+An agent can also fork while it runs. It creates a child mission that
+starts from its own current state. In the Go SDK, set
+`StartsFromCallerState` in the options of `CreateMission`. The
+[fork contract](/docs/fork-contract#fork-at-run-time) shows the code.
+
+The bounds of a child mission apply to a fork:
+
+- The budget of the child comes from the budget that the parent has left.
+- The targets of the child are a subset of the targets of the parent.
+- A chain of child missions is at most 3 deep.
+- The child must start at exactly one agent node, and that node must run
+  the same agent as the caller.
+- The fork gets the network scope of the first node of the child, not the
+  scope of the caller.
+
+If the fork fails, the daemon cancels the child mission.
+
+### Rewind a run
+
+A rewind starts a new run of a mission at the end of a node in an earlier
+run. See [Rewind a mission run](/docs/missions/rewind).
 
 ## Authoring loop
 

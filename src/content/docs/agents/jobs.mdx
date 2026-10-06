@@ -136,7 +136,7 @@ limit closes with the verdict `abandoned`, and the same cleanup runs.
 ## Deliverables
 
 A deliverable is an outward side effect. Claude Code runs with
-`--dangerously-skip-permissions` inside the gVisor sandbox. The sandbox and
+`--dangerously-skip-permissions` inside the setec sandbox. The sandbox and
 the per-turn grant are the controls. Outward effects go through the member
 driver, at wrap-up, under the job's declared deliverable and the connector
 token.

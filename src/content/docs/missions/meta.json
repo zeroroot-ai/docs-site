@@ -2,6 +2,7 @@
   "title": "Missions",
   "pages": [
     "index",
-    "job-node"
+    "job-node",
+    "rewind"
   ]
 }

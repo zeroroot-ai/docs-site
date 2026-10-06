@@ -1,0 +1,100 @@
+---
+title: Compliance evidence
+description: The NIST SP 800-53 rev 5 domain pack maps audit events to controls. One dashboard page shows the evidence for each control. It never states a verdict.
+---
+
+Gibson can show which events of your audit log are evidence for a control
+of a framework. The first framework is NIST SP 800-53 revision 5. The
+page shows evidence only. It does not state that you meet a control. An
+assessor makes that decision.
+
+## The framework pack
+
+A framework is a catalog [domain pack](/docs/domain-packs). The NIST pack
+has the name `nist-800-53-r5`. Its control list comes from the OSCAL
+catalog that NIST publishes.
+
+The pack has two parts:
+
+- **The control list.** Each control has an ID, a title and a family, for
+  example `ac-2`, "Account Management", in the family "Access Control".
+  The pack lists 300 controls.
+- **The mapping rules.** A rule is a control ID and one
+  [CEL](https://cel.dev) expression over an audit event. An event that the
+  expression matches is evidence for the control.
+
+Seven controls have a rule today:
+
+| Control | Audit actions that match |
+|---|---|
+| `ac-2` | An agent identity is created or revoked, an agent is registered or revoked, the MFA of a user is reset. |
+| `ac-3` | A capability runs, a model is resolved. |
+| `ac-6` | An agent grant is added or removed, an access tuple changes. |
+| `cm-3` | A plugin is enabled, disabled or configured. A model provider is created, updated, deleted or made the default. |
+| `ia-4` | An agent identity is created or revoked. |
+| `ia-5` | The MFA of a user is reset, a secret is rotated. |
+| `sc-12` | A secret is rotated or revoked, the secrets backend of the tenant is configured. |
+
+A tenant cannot change a rule of the catalog pack. The rules run when you
+read the page. No write path stamps a control ID on an event.
+
+## Enable the pack
+
+An Owner or an Admin enables the pack for the tenant on the domain-packs
+page of the dashboard. The compliance page reads only a pack that the
+tenant enabled.
+
+## The compliance page
+
+The sidebar shows **Compliance** when two things are true:
+
+- Your role is Owner or Admin.
+- The tenant enabled a compliance pack.
+
+The page has the title "Compliance evidence". Select a framework and a
+time range. The default range is the last 90 days.
+
+The page shows the coverage of the pack. An example is "7 of 300
+controls have an automated rule." The page then shows one row for each control, grouped
+by family. Each row shows the control ID, the title, the number of
+evidence events and the time of the last one.
+
+A row can also show one of these texts:
+
+| Text | Meaning |
+|---|---|
+| No automated evidence | The pack has no rule for the control. |
+| No events in this period | The control has a rule, and no event in the range matched it. |
+
+Open a row to see its events. Each event links to its audit record.
+
+The page has no color for good or bad, no percentage and no score.
+
+## Export
+
+Select **Export CSV** or **Export JSON** to download the evidence of the
+current framework and range.
+
+## The API
+
+The page reads `ListComplianceEvidence` of `ComplianceService`. The call
+takes the pack name, a start time, an end time and a page size. The tenant
+comes from the identity of the caller. Owner and Admin may call it.
+
+The response holds the coverage counts, one entry for each control and a
+page of evidence events. Each control entry has a state: no rule, no
+events or has evidence. Each event has the ID of its audit record, the
+time, the action, the actor, the resource and the controls that it is
+evidence for. The default page size is 100, and the largest is 500.
+
+The call refuses these packs:
+
+- A pack that is not in the catalog.
+- A pack with no control list.
+- A pack that the tenant did not enable.
+
+## Related
+
+- [Audit](/docs/security/audit) describes the audit log that the page
+  reads.
+- [Domain packs](/docs/domain-packs) describes catalog packs.

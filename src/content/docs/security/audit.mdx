@@ -45,6 +45,67 @@ OpenTelemetry traces and Prometheus metrics ship with the platform for the
 operational picture: latency, errors, and throughput across services. They carry
 operational telemetry, not prompt content.
 
+## The audit log
+
+The daemon writes each audit record to the `audit_log` table of the
+platform Postgres. That table is the durable copy. A Redis stream carries
+a live copy for the console.
+
+Some actions write their record before they run. A request to rewind a
+mission is one example. If the daemon cannot write the record, the action
+does not run.
+
+Each tenant has a hash chain over its records. Each record holds its
+position in the chain, the hash of the record before it, and its own
+hash. An edit of a stored field, or a deleted record, then shows as a
+break in the chain. The chain has no key. An actor who can write the whole
+table can compute the chain again, and the chain does not show a cut of
+the newest records. Do not describe this table as tamper-proof.
+
+## Retention
+
+The daemon removes audit records that are older than the retention
+period. The default period is 13 months. Set a longer period with
+`GIBSON_AUDIT_RETENTION_MONTHS`. A value under 13 is an error, and the
+daemon does not start.
+
+Retention removes only the oldest records of a chain, and only records
+that the export already wrote to the durable bucket. In the same step it
+records where the chain now starts, so the chain still verifies.
+
+## Export to the durable bucket
+
+The daemon exports each audit record to the durable bucket of the install.
+On premises, the bucket is your S3-compatible store. Each object holds
+one range of the chain of one tenant:
+
+```text
+audit/<tenant>/<first position>-<last position>.ndjson
+```
+
+Each line is one record with its chain values, so a reader can verify the
+chain from the object alone. Each object carries an object lock. The
+export runs each minute. If the daemon restarts during a write, it writes
+the same range again under the same name. A record is never lost and is
+never in the bucket under two names.
+
+The daemon reads these variables:
+
+| Variable | Meaning |
+|---|---|
+| `GIBSON_AUDIT_EXPORT_BUCKET` | The bucket name. |
+| `GIBSON_AUDIT_EXPORT_ENDPOINT` | The URL of the store, `http` or `https`. |
+| `GIBSON_AUDIT_EXPORT_REGION` | The region of the bucket. Empty means `us-east-1`. |
+| `GIBSON_AUDIT_EXPORT_ACCESS_KEY_ID` | The access key of the store. |
+| `GIBSON_AUDIT_EXPORT_SECRET_ACCESS_KEY` | The secret key of the store. |
+| `GIBSON_AUDIT_EXPORT_LOCK_MODE` | `GOVERNANCE` or `COMPLIANCE`. It must match the bucket policy. |
+| `GIBSON_AUDIT_EXPORT_LOCK_DAYS` | The lock period in days, at least 1. Use at least the period that the bucket policy requires. |
+
+A bad value stops the daemon at start. With no bucket set, the daemon
+starts and logs an error. It then exports nothing, and retention removes
+nothing. The metric `gibson_audit_export_lag_seconds` shows the age of
+the oldest record that is not in the bucket.
+
 ## Attribution
 
 Every component authenticates as itself (see
@@ -60,3 +121,5 @@ resolves to a component. That component resolves to a person.
    the path.
 4. Every recorded action attributes to a component, and every component to an
    owner.
+5. Retention keeps 13 months at least, and removes only exported records.
+6. Each exported object carries an object lock.

@@ -1,0 +1,107 @@
+---
+title: Rewind a mission run
+description: A rewind starts a new run of a mission at the end of a node in an earlier run. It deletes nothing, and the dashboard shows the runs as a chain.
+---
+
+A **checkpoint** is the end of a node in a mission run. A **rewind**
+starts a new run at a checkpoint. The new run starts at the node of the
+checkpoint and runs that node and each node after it.
+
+A rewind deletes nothing. The earlier run stays as it was. Its knowledge
+stays in the knowledge graph, and the new run can read it. The new run
+records the earlier run and the checkpoint as its parent.
+
+## The checkpoints of a run
+
+Each node that ended in a run, with success or with failure, is a
+checkpoint. The daemon reads the checkpoints from the event timeline of
+the tenant. Nothing else stores them. For each checkpoint, the daemon
+returns these values:
+
+| Field | Meaning |
+|---|---|
+| `checkpoint_id` | The ID of the checkpoint inside its run. Pass it to `RewindMission`. |
+| `node_id` | The node that ended. |
+| `timeline_position` | The position of the event that ended the node in the timeline of the run. |
+| `snapshot_id` | The sandbox snapshot taken at the end of the node, when one exists. |
+
+The checkpoints come in the order in which the nodes ended. When a node
+ran more than one time, its last end is its checkpoint.
+
+The daemon keeps no sandbox snapshot at a checkpoint today. A rewind
+starts the node in a fresh sandbox with the files of the workspace.
+
+## What the new run gets
+
+- The definition of the new run holds the node of the checkpoint and each
+  node after it. A node before the checkpoint ended in the earlier run, so
+  the new run does not hold it.
+- The new run keeps the targets, the scope and the constraints of the
+  definition. It gets the budget that the definition gives.
+- You can change the instruction of the node that you rewind to. You
+  cannot change any other node.
+
+The daemon refuses a rewind in these cases:
+
+- The checkpoint is inside a `for_each` or a parallel group. Rewind to the
+  group node instead.
+- A join node after the checkpoint waits only for nodes before the
+  checkpoint. Rewind to a node that the join waits for.
+- You give an instruction, and the node of the checkpoint is not an agent
+  node with a task.
+
+## Who can rewind
+
+Each user who may run a mission may rewind it. `RewindMission` needs the
+same tenant relation as `RunMission`.
+
+The daemon writes an audit record of the request before the new run
+starts. If the daemon cannot write that record, no run starts. A second
+audit record names the new run after it starts. See
+[Audit](/docs/security/audit).
+
+## Rewind from the dashboard
+
+Open a mission run and select the **Runs** tab. The tab has two parts.
+
+**Runs** lists the run chain of the mission. A run from a rewind names its
+parent run and its checkpoint, for example `Run 2, from Run 1 at
+checkpoint "scan"`. Select a run to open it. A mission with no rewind
+shows "This mission has one run."
+
+**Checkpoints** lists the checkpoints of the open run. Each one shows the
+node and the time it ended. It also shows whether the sandbox state was
+saved. "Sandbox state not saved. A rewind starts this node with a clean
+sandbox." means that the node starts in a fresh sandbox.
+
+To start a rewind:
+
+1. Select **Rewind to here** on a checkpoint.
+2. Optional: type a new instruction for that node.
+3. Select **Start new run**.
+
+The dialog states that the rewind starts a new run and deletes nothing. A
+user who may not run the mission does not see **Rewind to here**.
+
+## Rewind from the API
+
+Two calls of `DaemonService` serve a rewind:
+
+- `GetMissionCheckpoints` takes a `mission_id` and returns the checkpoints
+  of that run.
+- `RewindMission` takes a `mission_id`, a `checkpoint_id`, an optional
+  `instruction` and an optional `idempotency_key`. It returns the ID of the
+  new run.
+
+Send an idempotency key to make a retry safe. A second request with the
+same key returns the result of the first request and starts no second
+run. The dashboard sends one key for each opening of the dialog.
+
+The run history of a mission returns `parent_mission_id` and
+`parent_checkpoint_id` for each run from a rewind. See the
+[API reference](/docs/api-reference).
+
+## Rewind is not resume
+
+A resume continues the same run. It takes no checkpoint. A rewind always
+starts a new run.
