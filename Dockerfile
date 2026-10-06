@@ -64,12 +64,13 @@ RUN pnpm build
 # The slim image ships the same nginx, the same entrypoint scripts (envsubst
 # on templates, /docker-entrypoint.d) and no libpng at all.
 FROM nginxinc/nginx-unprivileged:alpine-slim@sha256:c81a27f28bc2d9c2da8998444e653c7b85b9bbbaa92e44ef18d8920784e06507 AS runner
-# Recreate the html tree owned by the runtime uid: the base image ships
-# /usr/share/nginx/html owned by root (with a stock 50x.html), and
-# 40-substitute-origins.sh sed-edits in place as uid 101 — sed's temp file
-# needs WRITE ON THE DIRECTORY, which COPY --chown alone does not grant
-# (it chowns the copied entries, not the pre-existing dir). Without this the
-# container fails startup on-cluster with EACCES (#23, same as www#17).
+# The built site ships read-only at /opt/docs-site/html. At start,
+# 40-substitute-origins.sh copies it into /usr/share/nginx/html and writes the
+# origins of this environment into the copy. So the image writes nothing under
+# its own files, and it runs with a read-only root filesystem (ADR-0165 rule 2,
+# docs-site#79). With a read-only root, the pod mounts an emptyDir at each
+# path that the README lists. Without one, the paths below are writable by
+# uid 101, so a bare `docker run` also works.
 USER root
 # APT_CACHE_BUST makes `apk upgrade` run on every build. The base is digest
 # pinned, which fixes where the build starts and says nothing about currency:
@@ -85,12 +86,12 @@ RUN echo "apk refresh ${APT_CACHE_BUST}" >/dev/null \
  && apk upgrade --no-cache
 RUN rm -rf /usr/share/nginx/html && install -d -o 101 -g 101 /usr/share/nginx/html
 USER 101
-COPY --from=builder --chown=101:101 /app/out /usr/share/nginx/html
-# Runs before nginx starts (stock entrypoint executes /docker-entrypoint.d/*.sh
-# in lexical order): substitutes the __APP_ORIGIN__/__WWW_ORIGIN__ sentinels
-# that the rehype pass baked into functional cross-surface links
-# (scripts/rehype-env-origin-links.mjs) with this environment's origins,
-# defaulting to prod (docs-site#19).
+COPY --from=builder /app/out /opt/docs-site/html
+# The stock entrypoint runs /docker-entrypoint.d/*.sh in lexical order before
+# nginx starts. This script fills /usr/share/nginx/html from /opt/docs-site/html
+# and substitutes the __APP_ORIGIN__/__WWW_ORIGIN__ sentinels that the rehype
+# pass baked into functional cross-surface links
+# (scripts/rehype-env-origin-links.mjs), with prod as the default (docs-site#19).
 COPY --chmod=755 docker/40-substitute-origins.sh /docker-entrypoint.d/40-substitute-origins.sh
 # templates/ (not conf.d/): the entrypoint runs envsubst over
 # /etc/nginx/templates/*.template, which is what substitutes ${NGINX_PORT}
