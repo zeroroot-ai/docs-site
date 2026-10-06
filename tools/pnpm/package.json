@@ -3,6 +3,6 @@
   "private": true,
   "description": "pnpm for the image build stage, hash pinned. Node 25 and later ship no corepack, so the Dockerfile installs pnpm with npm ci from this lockfile. Keep the version equal to packageManager in the root package.json: the Dockerfile asserts they are equal, so pnpm never self-switches at build time.",
   "dependencies": {
-    "pnpm": "12.3.4"
+    "pnpm": "12.9.0"
   }
 }

@@ -18,25 +18,25 @@
     "check:docs": "node scripts/check-ste-prose.mjs && node scripts/check-ste-prose.mjs --selftest && node scripts/check-docs-links.mjs && node scripts/check-docs-cli-name.mjs && node scripts/check-cli-reference-fresh.mjs && node scripts/check-api-reference-fresh.mjs && node scripts/check-licensing-fresh.mjs && node scripts/check-licensing-fresh.mjs --selftest && node scripts/check-static-export-standalone.mjs --selftest && node scripts/check-no-british-spellings.mjs && node scripts/check-no-british-spellings.mjs --selftest"
   },
   "dependencies": {
-    "@zeroroot-ai/brand": "^0.4.0",
-    "fumadocs-core": "^16.7.16",
+    "@zeroroot-ai/brand": "^0.4.2",
+    "fumadocs-core": "^16.15.18",
     "fumadocs-mdx": "^14.3.0",
-    "fumadocs-ui": "^16.7.16",
-    "next": "16.3.6",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
+    "fumadocs-ui": "^16.15.18",
+    "next": "16.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "remark-gfm": "^4.0.1",
     "unist-util-visit": "^5.1.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.18",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/mdx": "^2.0.14",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "postcss": "^8.5.23",
-    "tailwindcss": "^4.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.0.0"
   },
   "publishConfig": {
