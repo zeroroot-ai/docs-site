@@ -8,6 +8,11 @@ updates:
     directories:
       - "/"
       - "/tools/pnpm"
+    ignore:
+      # tools/pnpm installs the pnpm of the Docker build, and the build fails
+      # when it differs from packageManager in package.json. A person moves
+      # both in one commit.
+      - dependency-name: "pnpm"
     schedule:
       interval: "weekly"
       day: "monday"
