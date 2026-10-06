@@ -84,6 +84,7 @@ Each of these labels has the value `"true"`.
 |---|---|
 | `gibson.zeroroot.ai/kube-api` | Egress to the Kubernetes API server. |
 | `gibson.zeroroot.ai/egress-internet` | Egress to each host outside the cluster (the Cilium `world` entity), on each port. |
+| `gibson.zeroroot.ai/egress-fqdn` | Egress to the host names of one group only (Cilium `toFQDNs`), on each port. The value is the name of the group. |
 | `gibson.zeroroot.ai/egress-namespaces` | Egress to pods in other namespaces, for example setec and the tenant plugins. The policies of those namespaces still apply. |
 | `gibson.zeroroot.ai/ingress-edge` | Ingress from each source on the edge listener, TCP port 10000. |
 | `gibson.zeroroot.ai/ingress-control-plane` | Ingress from the API server, the nodes and the `platform` pods on TCP ports 8081, 9443 and 10250. Admission webhooks and the SPIRE server use it. |
@@ -95,24 +96,38 @@ these CIDRs on TCP ports 443 and 6443.
 
 ## Components that reach the internet
 
-These components have the `gibson.zeroroot.ai/egress-internet` label:
+A component gets the `egress-internet` label only when its hosts are not
+known when the chart renders. These components have the label:
 
-| Component | Why |
-|---|---|
-| ZITADEL | It sends mail over SMTP. |
-| cert-manager | It gets certificates from an ACME issuer. |
-| external-dns | It writes records at the DNS provider. |
-| Velero and the Velero node agent | They write backups to the object store. |
-| Postgres instances and CloudNativePG Jobs | They write to the archive bucket. |
-| The Redis backup CronJob | It uploads the Redis snapshot. |
-| The connector operator | It runs the connector runtime. |
-| Each plugin | It reaches the API of its vendor. |
+| Component | External hosts | Why the host list is open |
+|---|---|---|
+| The daemon | The LLM and embedding provider APIs, the OAuth token endpoints of connector vendors, and the SMTP relay. | A tenant sets the base URL of each provider. |
+| Each plugin | The API of its vendor, for example `api.github.com` or `gitlab.com`. | The hosts differ for each plugin and include self-hosted vendor instances. The plugin manifest lists them, and the SDK enforces that list in the plugin process. |
+| Velero and the Velero node agent | The S3 bucket of the backups. | The Velero release names the bucket endpoint, and the umbrella chart cannot read it. |
 
-These components also have the label: the daemon, the tenant operator and
-the SPIRE server.
+A component with a known host list gets the `egress-fqdn` label. The chart
+makes the list from your values. One `CiliumNetworkPolicy` allows the host
+names of each group. If a group has no host, the chart renders no policy for
+it, and the component reaches no host outside the cluster.
 
-The ZITADEL init, setup and cleanup Jobs and the ZITADEL login UI do not
-have this label. The cert-manager webhook and cainjector do not have it.
+| Group | Components | External hosts |
+|---|---|---|
+| `zitadel` | ZITADEL and its login UI | The SMTP relay in `platformBootstrap.zitadel.smtp.host`. External identity providers are off. |
+| `tenant-operator` | The tenant operator | The SMTP relay of the welcome mail. AWS KMS and STS when `kms.keyARN` is set. An external Vault, JWKS URL or tenant Postgres host. |
+| `cert-manager` | The cert-manager controller | The Let's Encrypt ACME directory. For `http01`, the public host names of the edge certificate. For `dns01-route53`, Route53, STS and the Route53 name servers. Nothing when the Let's Encrypt issuers are off. |
+| `external-dns` | external-dns | Route53 and STS for the `aws` provider. Nothing for `inmemory`. |
+| `object-store` | Postgres instances, CloudNativePG Jobs and the Redis backup CronJob | AWS S3 in any region and STS, or the host of `platformPostgres.backup.endpointURL`. |
+
+A host in the cluster is never in a group. A `toFQDNs` rule names a host.
+Thus a value that gives an IPv4 address gets a `/32` CIDR rule instead.
+
+These components have no egress label:
+
+- The SPIRE server. It uses the disk key manager, no upstream authority and
+  no federation.
+- The connector operator. It calls only the API server and the daemon.
+- The ZITADEL init, setup and cleanup Jobs.
+- The cert-manager webhook and cainjector.
 
 ## Add labels to your own workload
 
@@ -123,7 +138,9 @@ it. Give it the labels for the flows it needs.
 2. Add `gibson.zeroroot.ai/net-role` to the pod template.
 3. For each data store that the workload reads, add its client label.
 4. If the workload calls the Kubernetes API, add the `kube-api` label.
-5. If the workload reaches hosts outside the cluster, add the
+5. If the workload reaches known hosts outside the cluster, add the
+   `egress-fqdn` label with the name of its group.
+6. If the hosts are not known when the chart renders, add the
    `egress-internet` label.
 
 This example is a worker that reads Redis and calls the Kubernetes API:
@@ -139,7 +156,7 @@ spec:
 ```
 
 Inside the chart, the `gibson.netLabels` helper writes these labels. It
-fails the render for an unknown role or an unknown data store name.
+fails the render for an unknown role, data store name or egress group.
 
 ## Check the rules
 
@@ -157,6 +174,7 @@ kubectl -n gibson get ciliumnetworkpolicies
 kubectl -n gibson get pods \
   -L gibson.zeroroot.ai/net-role \
   -L gibson.zeroroot.ai/egress-internet \
+  -L gibson.zeroroot.ai/egress-fqdn \
   -L gibson.zeroroot.ai/kube-api
 
 # The policy that Cilium enforces on each endpoint.
