@@ -1,0 +1,187 @@
+---
+title: Network policy
+description: How the chart restricts the traffic between the platform pods. All traffic is denied by default, and pod labels allow each flow.
+---
+
+The chart restricts the traffic between the platform pods with Cilium
+policies. All traffic is denied by default. A pod label allows each flow.
+A new workload gets labels, not a new policy. No policy lists each internal
+peer.
+
+Cilium must run on the cluster. The chart renders `CiliumNetworkPolicy` and
+`CiliumClusterwideNetworkPolicy` objects, and Cilium enforces them. The chart
+renders no Kubernetes `NetworkPolicy`.
+
+## The default: deny all, allow DNS
+
+One `CiliumClusterwideNetworkPolicy` selects each pod in the release
+namespace. It denies all ingress and all egress for these pods. It allows one
+flow: DNS to `kube-dns` in `kube-system`, on port 53 over UDP and TCP.
+
+A pod that has no label from this page can only resolve names. It cannot
+reach another pod, a data store, the API server or the internet.
+
+Cilium allows a flow only when the egress side and the ingress side both
+allow it. Thus a pod with no client label cannot reach a data store, even
+when it has the internet label.
+
+Each policy has the Argo CD sync wave `-20`. Argo CD applies the policies
+before each hook Job of the release.
+
+## The labels
+
+All labels use the `gibson.zeroroot.ai/` prefix.
+
+### The role label
+
+Each platform pod has the label `gibson.zeroroot.ai/net-role`. The label has
+one of three values:
+
+| Value | What it allows |
+|---|---|
+| `platform` | The pod reaches each other pod with the role `platform`, on each port. These pods reach it too. |
+| `datastore` | The pod is a data store. Only the pods with its client label reach it. It also needs the `gibson.zeroroot.ai/datastore` label. |
+| `system` | A cluster operator or a plugin. The pod is in no shared group. It gets only what its other labels allow. |
+
+Each pod with a role label, of any value, gets two more flows:
+
+- It reaches the edge listener on TCP port 10000.
+- The cluster scrapers reach its metrics ports. A scraper is a pod with the
+  label `app.kubernetes.io/name: prometheus` or `app: grafana-agent`, in any
+  namespace.
+
+### The data store labels
+
+Four data stores have an allow list. A data store pod has the label
+`gibson.zeroroot.ai/datastore` with the name of the store. A client pod has
+the client label of the store, with the value `"true"`.
+
+| Data store | Client label | Ports (TCP) |
+|---|---|---|
+| Postgres | `gibson.zeroroot.ai/client-postgres` | 5432, 8000 |
+| Redis | `gibson.zeroroot.ai/client-redis` | 6379 |
+| OpenBao | `gibson.zeroroot.ai/client-openbao` | 8200 |
+| Neo4j | `gibson.zeroroot.ai/client-neo4j` | 7687, 7474 |
+
+A client label allows egress from the client to these ports only. The data
+store accepts ingress on these ports only from pods with the client label.
+
+The policies have three more rules for the data stores:
+
+- The OpenBao replicas reach each other on TCP port 8201.
+- OpenBao reaches the SPIRE OIDC provider on TCP ports 8443 and 443. OpenBao
+  reads the public keys of the provider when it writes its JWT auth
+  configuration.
+- On a cluster where the CloudNativePG operator and External Secrets run in
+  their own namespaces, these operators reach Postgres on port 8000 and
+  OpenBao on port 8200.
+
+### The other labels
+
+Each of these labels has the value `"true"`.
+
+| Label | What it allows |
+|---|---|
+| `gibson.zeroroot.ai/kube-api` | Egress to the Kubernetes API server. |
+| `gibson.zeroroot.ai/egress-internet` | Egress to each host outside the cluster (the Cilium `world` entity), on each port. |
+| `gibson.zeroroot.ai/egress-namespaces` | Egress to pods in other namespaces, for example setec and the tenant plugins. The policies of those namespaces still apply. |
+| `gibson.zeroroot.ai/ingress-edge` | Ingress from each source on the edge listener, TCP port 10000. |
+| `gibson.zeroroot.ai/ingress-control-plane` | Ingress from the API server, the nodes and the `platform` pods on TCP ports 8081, 9443 and 10250. Admission webhooks and the SPIRE server use it. |
+
+Cilium knows the addresses of the API server on each cluster. If your API
+server answers from other addresses, add them to
+`global.networkPolicy.apiServerCIDRs`. The `kube-api` policy then also allows
+these CIDRs on TCP ports 443 and 6443.
+
+## Components that reach the internet
+
+These components have the `gibson.zeroroot.ai/egress-internet` label:
+
+| Component | Why |
+|---|---|
+| ZITADEL | It sends mail over SMTP. |
+| cert-manager | It gets certificates from an ACME issuer. |
+| external-dns | It writes records at the DNS provider. |
+| Velero and the Velero node agent | They write backups to the object store. |
+| Postgres instances and CloudNativePG Jobs | They write to the archive bucket. |
+| The Redis backup CronJob | It uploads the Redis snapshot. |
+| The connector operator | It runs the connector runtime. |
+| Each plugin | It reaches the API of its vendor. |
+
+These components also have the label: the daemon, the tenant operator and
+the SPIRE server.
+
+The ZITADEL init, setup and cleanup Jobs and the ZITADEL login UI do not
+have this label. The cert-manager webhook and cainjector do not have it.
+
+## Add labels to your own workload
+
+If you add a workload to the release namespace, the default deny selects
+it. Give it the labels for the flows it needs.
+
+1. Find the flows that the workload needs.
+2. Add `gibson.zeroroot.ai/net-role` to the pod template.
+3. For each data store that the workload reads, add its client label.
+4. If the workload calls the Kubernetes API, add the `kube-api` label.
+5. If the workload reaches hosts outside the cluster, add the
+   `egress-internet` label.
+
+This example is a worker that reads Redis and calls the Kubernetes API:
+
+```yaml
+spec:
+  template:
+    metadata:
+      labels:
+        gibson.zeroroot.ai/net-role: platform
+        gibson.zeroroot.ai/client-redis: "true"
+        gibson.zeroroot.ai/kube-api: "true"
+```
+
+Inside the chart, the `gibson.netLabels` helper writes these labels. It
+fails the render for an unknown role or an unknown data store name.
+
+## Check the rules
+
+Use these commands to read the policies and the labels. Replace `gibson`
+with your release namespace.
+
+```bash
+# The default deny policy.
+kubectl get ciliumclusterwidenetworkpolicies
+
+# The label policies of the release.
+kubectl -n gibson get ciliumnetworkpolicies
+
+# The network labels of each pod.
+kubectl -n gibson get pods \
+  -L gibson.zeroroot.ai/net-role \
+  -L gibson.zeroroot.ai/egress-internet \
+  -L gibson.zeroroot.ai/kube-api
+
+# The policy that Cilium enforces on each endpoint.
+kubectl -n kube-system exec ds/cilium -- cilium-dbg endpoint list
+```
+
+Use Hubble to read the flows. These commands need the Hubble relay and the
+`hubble` CLI.
+
+```bash
+# Forward the Hubble relay port to your workstation.
+cilium hubble port-forward &
+
+# The flows that a policy denied in the release namespace.
+hubble observe --namespace gibson --verdict DROPPED
+
+# The flows of one pod.
+hubble observe --pod gibson/<pod-name>
+```
+
+If a pod cannot reach a peer, look for a `DROPPED` flow from that pod. Then
+compare the labels of the two pods with the tables on this page.
+
+## Mission traffic
+
+The traffic of a mission is controlled separately, for each mission node.
+Each node reaches only its targets. A node with `research: true` has open
+egress. See the node fields in [Missions](/docs/missions#top-level-fields-reference).
