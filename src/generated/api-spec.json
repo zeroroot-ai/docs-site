@@ -498,6 +498,12 @@
               "number": 5,
               "type": "repeated string",
               "comment": "capability_ceiling names the session capabilities the enrolling admin\ngrants this identity, minted into its bootstrap credential's ceiling\n(ADR-0045). Only the reserved names are accepted: \"mission:originate\"\n(start a mission of its own, the interactive coding-agent case) and\n\"mission:delegate\". Empty means neither."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 6,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -863,6 +869,12 @@
               "number": 10,
               "type": "SpillPolicy",
               "comment": "spill_policy is what the bank does with a job when no member has a\nfree slot. Unspecified means SPILL_POLICY_QUEUE."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 11,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -1102,6 +1114,12 @@
               "number": 2,
               "type": "string",
               "comment": "member_id is the member. Required."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 3,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -1186,6 +1204,12 @@
               "number": 3,
               "type": "string",
               "comment": "code is the code Anthropic gave the person. Required."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 4,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -1597,6 +1621,54 @@
               "number": 4,
               "type": "bool",
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ErrorDetail",
+          "comment": "ErrorDetail is the one error-detail message of the API (ADR-0028, rule 4).\nThe daemon attaches it to the details of each error status. A client reads\nit from the status details and needs no parser for each service.",
+          "fields": [
+            {
+              "name": "code",
+              "number": 1,
+              "type": "ErrorCode",
+              "comment": "code is the standard error code."
+            },
+            {
+              "name": "reason",
+              "number": 2,
+              "type": "string",
+              "comment": "reason is a stable name for the cause, in upper snake case, for example\nMISSION_NOT_FOUND. A client can branch on it. The text of the status\nmessage can change, and the reason does not."
+            },
+            {
+              "name": "field_errors",
+              "number": 3,
+              "type": "repeated FieldError",
+              "comment": "field_errors holds one entry for each field of the request that broke a\nrule. A protovalidate failure fills it. It is empty for an error that\nis not about the request."
+            }
+          ]
+        },
+        {
+          "name": "FieldError",
+          "comment": "FieldError describes one field of a request that broke one rule.",
+          "fields": [
+            {
+              "name": "field",
+              "number": 1,
+              "type": "string",
+              "comment": "field is the path of the field in the request, for example\ndefinition.nodes[\"scan\"].starts_from."
+            },
+            {
+              "name": "rule",
+              "number": 2,
+              "type": "string",
+              "comment": "rule is the id of the rule that the field broke, for example\nstring.max_len. It is empty when the rule has no id."
+            },
+            {
+              "name": "message",
+              "number": 3,
+              "type": "string",
+              "comment": "message tells a person what is wrong with the field."
             }
           ]
         },
@@ -2930,6 +3002,12 @@
               "number": 4,
               "type": "bytes",
               "comment": "opts_json is the JSON-encoded mission.CreateMissionOpts."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 5,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -4073,6 +4151,12 @@
               "number": 3,
               "type": "bytes",
               "comment": "opts_json is the JSON-encoded mission.RunMissionOpts."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 4,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -4096,6 +4180,12 @@
               "number": 2,
               "type": "bytes",
               "comment": "finding is the JSON encoding of the SDK `finding.Finding` struct\n(see finding/finding.go). NOT a proto-encoded message — the daemon\nreads it with `string(req.Finding)`. This is distinct from the typed\nHarnessCallbackService.SubmitFinding RPC, which carries a\ngibson.types.v1.Finding proto message."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 3,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -4132,6 +4222,12 @@
               "number": 3,
               "type": "ComponentError",
               "comment": "error is set when the work item failed; leave unset on success."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 4,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -4506,14 +4602,6 @@
           "comment": "DaemonService provides the gRPC API for Gibson daemon client communication.\n\nThis service exposes operational daemon functionality including mission execution,\nagent management, and real-time event streaming for the TUI and SDK clients.",
           "methods": [
             {
-              "name": "BuildComponent",
-              "input": "BuildComponentRequest",
-              "output": "BuildComponentResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "BuildComponent rebuilds a component (agent, tool, or plugin) from source.\nUseful for rebuilding after manual code changes."
-            },
-            {
               "name": "CompleteMissionCUE",
               "input": "CompleteMissionCUERequest",
               "output": "CompleteMissionCUEResponse",
@@ -4584,6 +4672,14 @@
               "clientStreaming": false,
               "serverStreaming": true,
               "comment": "GetComponentLogs streams log entries for a component.\nSupports follow mode for continuous streaming and line limits."
+            },
+            {
+              "name": "GetMissionCheckpoints",
+              "input": "GetMissionCheckpointsRequest",
+              "output": "GetMissionCheckpointsResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "GetMissionCheckpoints returns the checkpoints of one mission run. A\ncheckpoint is the end of a node in that run (ADR-0170)."
             },
             {
               "name": "GetMissionDefinition",
@@ -4754,6 +4850,14 @@
               "comment": "ResumeMission resumes a paused mission from its last checkpoint.\nReturns a stream of mission events as execution continues."
             },
             {
+              "name": "RewindMission",
+              "input": "RewindMissionRequest",
+              "output": "RewindMissionResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "RewindMission starts a new mission run at a checkpoint of an earlier\nrun (ADR-0170). The new run records the earlier run and the checkpoint\nas its parent. The call deletes nothing. It requires the same relation\nas RunMission: whoever may run the mission may rewind it."
+            },
+            {
               "name": "RunMission",
               "input": "RunMissionRequest",
               "output": "RunMissionResponse",
@@ -4768,14 +4872,6 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "SaveMissionLayout persists a hand-arranged diagram layout for a mission\ndefinition into the layout store. Layout-only: it never mutates the mission\ndefinition, its nodes/edges/configs, or its cue_source. The optional\nexpected_version enables optimistic concurrency — a stale write (the layout\nchanged underneath) is rejected rather than clobbering. Keyed by\nmission_definition_id. Spec: MissionGraph epic."
-            },
-            {
-              "name": "ShowComponent",
-              "input": "ShowComponentRequest",
-              "output": "ShowComponentResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "ShowComponent returns detailed information about a component.\nIncludes manifest, status, paths, and lifecycle information."
             },
             {
               "name": "StartComponent",
@@ -4946,60 +5042,6 @@
               "number": 8,
               "type": "int64",
               "comment": "last_seen is when the agent was last seen (Unix timestamp)"
-            }
-          ]
-        },
-        {
-          "name": "BuildComponentRequest",
-          "comment": "BuildComponentRequest requests rebuilding a component from source.",
-          "fields": [
-            {
-              "name": "kind",
-              "number": 1,
-              "type": "string",
-              "comment": "kind is the component kind (\"agent\", \"tool\", \"plugin\")"
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": "name is the component name to build"
-            }
-          ]
-        },
-        {
-          "name": "BuildComponentResponse",
-          "comment": "BuildComponentResponse returns the result of building a component.",
-          "fields": [
-            {
-              "name": "success",
-              "number": 1,
-              "type": "bool",
-              "comment": "success indicates if the build was successful"
-            },
-            {
-              "name": "stdout",
-              "number": 2,
-              "type": "string",
-              "comment": "stdout contains the build standard output"
-            },
-            {
-              "name": "stderr",
-              "number": 3,
-              "type": "string",
-              "comment": "stderr contains the build standard error"
-            },
-            {
-              "name": "duration_ms",
-              "number": 4,
-              "type": "int64",
-              "comment": "duration_ms is the build time in milliseconds"
-            },
-            {
-              "name": "message",
-              "number": 5,
-              "type": "string",
-              "comment": "message provides additional context or error information"
             }
           ]
         },
@@ -5264,6 +5306,12 @@
               "number": 2,
               "type": "string",
               "comment": "cue_source is the raw CUE source text that compiled to `definition`\n(maximum 512 KB). Persisted alongside the definition so that\nGetMissionDefinition can return the author's exact source rather than a\nreconstruction. Optional for backward compatibility; when empty the\ndefinition is stored without a recoverable source."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 3,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -5342,6 +5390,12 @@
               "number": 9,
               "type": "string",
               "comment": "source_yaml is the original YAML the dashboard used to construct this\nmission. Optional. When non-empty, the daemon stores it alongside the\nstructured mission state. Empty for programmatic callers that never had\na YAML source.\nSpec: dashboard-neo4j-crud-removal Req 3.5."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 13,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -5378,6 +5432,12 @@
               "number": 1,
               "type": "gibson.target.v1.Target",
               "comment": "target carries the new target's metadata. Its id field is ignored; the\ndaemon mints the canonical UUID."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 2,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -5689,6 +5749,30 @@
           ]
         },
         {
+          "name": "GetMissionCheckpointsRequest",
+          "comment": "GetMissionCheckpointsRequest asks for the checkpoints of one mission run.",
+          "fields": [
+            {
+              "name": "mission_id",
+              "number": 1,
+              "type": "string",
+              "comment": "mission_id is the id of the mission run."
+            }
+          ]
+        },
+        {
+          "name": "GetMissionCheckpointsResponse",
+          "comment": "GetMissionCheckpointsResponse returns the checkpoints of one mission run,\nin the order in which the nodes ended.",
+          "fields": [
+            {
+              "name": "checkpoints",
+              "number": 1,
+              "type": "repeated NodeCheckpoint",
+              "comment": "checkpoints holds one entry for each node that ended in the run."
+            }
+          ]
+        },
+        {
           "name": "GetMissionDefinitionRequest",
           "comment": "GetMissionDefinitionRequest fetches a single mission definition by name.",
           "fields": [
@@ -5759,16 +5843,16 @@
               "comment": "name is the mission name to query history for"
             },
             {
-              "name": "limit",
-              "number": 2,
+              "name": "page_size",
+              "number": 4,
               "type": "int32",
-              "comment": "limit restricts the number of results (default: 100)"
+              "comment": "page_size is the most items for one page. 0 means the default of the\nserver. The server can return fewer items."
             },
             {
-              "name": "offset",
-              "number": 3,
-              "type": "int32",
-              "comment": "offset is the pagination offset (default: 0)"
+              "name": "page_token",
+              "number": 5,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous response. Empty means\nthe first page."
             }
           ]
         },
@@ -5787,6 +5871,12 @@
               "number": 2,
               "type": "int32",
               "comment": "total is the total count of runs (for pagination)"
+            },
+            {
+              "name": "next_page_token",
+              "number": 3,
+              "type": "string",
+              "comment": "next_page_token is the page_token of the next page. Empty means that\nthis page is the last one."
             }
           ]
         },
@@ -6064,16 +6154,16 @@
           "comment": "ListMissionDefinitionsRequest queries installed mission definitions.",
           "fields": [
             {
-              "name": "limit",
-              "number": 1,
+              "name": "page_size",
+              "number": 3,
               "type": "int32",
-              "comment": "limit restricts the number of results (0 = all)"
+              "comment": "page_size is the most items for one page. 0 means the default of the\nserver. The server can return fewer items."
             },
             {
-              "name": "offset",
-              "number": 2,
-              "type": "int32",
-              "comment": "offset is the pagination offset"
+              "name": "page_token",
+              "number": 4,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous response. Empty means\nthe first page."
             }
           ]
         },
@@ -6092,6 +6182,12 @@
               "number": 2,
               "type": "int32",
               "comment": "total is the total count of mission definitions (for pagination)"
+            },
+            {
+              "name": "next_page_token",
+              "number": 3,
+              "type": "string",
+              "comment": "next_page_token is the page_token of the next page. Empty means that\nthis page is the last one."
             }
           ]
         },
@@ -6106,18 +6202,6 @@
               "comment": "active_only filters to only running missions"
             },
             {
-              "name": "limit",
-              "number": 2,
-              "type": "int32",
-              "comment": "limit restricts the number of results"
-            },
-            {
-              "name": "offset",
-              "number": 3,
-              "type": "int32",
-              "comment": "offset is the pagination offset"
-            },
-            {
               "name": "status_filter",
               "number": 4,
               "type": "string",
@@ -6128,6 +6212,18 @@
               "number": 5,
               "type": "string",
               "comment": "name_pattern filters missions by name using glob pattern matching"
+            },
+            {
+              "name": "page_size",
+              "number": 6,
+              "type": "int32",
+              "comment": "page_size is the most items for one page. 0 means the default of the\nserver. The server can return fewer items."
+            },
+            {
+              "name": "page_token",
+              "number": 7,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous response. Empty means\nthe first page."
             }
           ]
         },
@@ -6146,6 +6242,12 @@
               "number": 2,
               "type": "int32",
               "comment": "total is the total count of missions (for pagination)"
+            },
+            {
+              "name": "next_page_token",
+              "number": 3,
+              "type": "string",
+              "comment": "next_page_token is the page_token of the next page. Empty means that\nthis page is the last one."
             }
           ]
         },
@@ -6192,6 +6294,18 @@
               "number": 1,
               "type": "gibson.target.v1.TargetFilter",
               "comment": "filter narrows the result set. Omit for the tenant's full target list."
+            },
+            {
+              "name": "page_size",
+              "number": 2,
+              "type": "int32",
+              "comment": "page_size is the most items for one page. 0 means the default of the\nserver. The server can return fewer items."
+            },
+            {
+              "name": "page_token",
+              "number": 3,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous response. Empty means\nthe first page."
             }
           ]
         },
@@ -6204,6 +6318,12 @@
               "number": 1,
               "type": "repeated gibson.target.v1.Target",
               "comment": ""
+            },
+            {
+              "name": "next_page_token",
+              "number": 2,
+              "type": "string",
+              "comment": "next_page_token is the page_token of the next page. Empty means that\nthis page is the last one."
             }
           ]
         },
@@ -6743,6 +6863,18 @@
               "number": 13,
               "type": "gibson.common.v1.Principal",
               "comment": "created_by is the principal that created the mission: the person who\nasked for the run, or the service that scheduled it. A reader resolves\nthe id to a name at read time; a person who has left the tenant resolves\nto nobody, and the dashboard shows \"removed user\". Empty on a mission\ncreated before the field existed."
+            },
+            {
+              "name": "parent_mission_id",
+              "number": 14,
+              "type": "string",
+              "comment": "parent_mission_id is the id of the run that this run was rewound from\n(ADR-0170). Empty on a run that is not the result of a rewind."
+            },
+            {
+              "name": "parent_checkpoint_id",
+              "number": 15,
+              "type": "string",
+              "comment": "parent_checkpoint_id is the id of the checkpoint of the parent run at\nwhich this run started. Empty when parent_mission_id is empty."
             }
           ]
         },
@@ -6887,6 +7019,54 @@
               "number": 8,
               "type": "string",
               "comment": "trace_id is the OTel trace ID for Langfuse lookup"
+            },
+            {
+              "name": "parent_mission_id",
+              "number": 9,
+              "type": "string",
+              "comment": "parent_mission_id is the id of the run that this run was rewound from\n(ADR-0170). Empty on a run that is not the result of a rewind. A client\nfollows this field to show the runs as a chain."
+            },
+            {
+              "name": "parent_checkpoint_id",
+              "number": 10,
+              "type": "string",
+              "comment": "parent_checkpoint_id is the id of the checkpoint of the parent run at\nwhich this run started. Empty when parent_mission_id is empty."
+            }
+          ]
+        },
+        {
+          "name": "NodeCheckpoint",
+          "comment": "NodeCheckpoint is the end of one node in a mission run (ADR-0170). It is\nthe point at which a rewind can start a new run. It is not the older\nMissionCheckpoint, which describes a saved state blob.",
+          "fields": [
+            {
+              "name": "checkpoint_id",
+              "number": 1,
+              "type": "string",
+              "comment": "checkpoint_id identifies the checkpoint inside its mission run. Pass it\nto RewindMission."
+            },
+            {
+              "name": "node_id",
+              "number": 2,
+              "type": "string",
+              "comment": "node_id is the id of the node that ended."
+            },
+            {
+              "name": "timeline_position",
+              "number": 3,
+              "type": "uint64",
+              "comment": "timeline_position is the position in the Timeline of the event that\nended the node."
+            },
+            {
+              "name": "snapshot_id",
+              "number": 4,
+              "type": "optional string",
+              "comment": "snapshot_id is the id of the sandbox snapshot taken at the end of the\nnode. It is set only when the mission ran with CHECKPOINT_MODE_SANDBOX\nand the snapshot still exists."
+            },
+            {
+              "name": "ended_at",
+              "number": 5,
+              "type": "google.protobuf.Timestamp",
+              "comment": "ended_at is the time at which the node ended."
             }
           ]
         },
@@ -7466,6 +7646,48 @@
           ]
         },
         {
+          "name": "RewindMissionRequest",
+          "comment": "RewindMissionRequest asks for a new mission run that starts at a\ncheckpoint of an earlier run.",
+          "fields": [
+            {
+              "name": "mission_id",
+              "number": 1,
+              "type": "string",
+              "comment": "mission_id is the id of the mission run to rewind."
+            },
+            {
+              "name": "checkpoint_id",
+              "number": 2,
+              "type": "string",
+              "comment": "checkpoint_id is the id of a checkpoint of that run, as\nGetMissionCheckpoints returns it. The new run starts at the node of\nthis checkpoint."
+            },
+            {
+              "name": "instruction",
+              "number": 3,
+              "type": "optional string",
+              "comment": "instruction replaces the instruction of the node that the run rewinds\nto. The caller can change this node and no other node. When the field\nis not set, the node keeps the instruction of the definition."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 4,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe. A second request with the same key\nreturns the result of the first request and starts no second run. An\nempty key turns the protection off for the call."
+            }
+          ]
+        },
+        {
+          "name": "RewindMissionResponse",
+          "comment": "RewindMissionResponse returns the new mission run.",
+          "fields": [
+            {
+              "name": "mission_id",
+              "number": 1,
+              "type": "string",
+              "comment": "mission_id is the id of the new run. Its parent is the run that the\nrequest named."
+            }
+          ]
+        },
+        {
           "name": "RunMissionRequest",
           "comment": "RunMissionRequest starts a mission execution.\nAPI-only: missions are invoked by reference — no YAML, no file paths.",
           "fields": [
@@ -7492,6 +7714,12 @@
               "number": 4,
               "type": "string",
               "comment": "memory_continuity defines how agent memory is shared across mission runs\nValid values: \"isolated\" (default), \"inherit\", \"shared\""
+            },
+            {
+              "name": "idempotency_key",
+              "number": 6,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -7580,126 +7808,6 @@
           ]
         },
         {
-          "name": "ShowComponentRequest",
-          "comment": "ShowComponentRequest requests detailed information about a component.",
-          "fields": [
-            {
-              "name": "kind",
-              "number": 1,
-              "type": "string",
-              "comment": "kind is the component kind (\"agent\", \"tool\", \"plugin\")"
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": "name is the component name to show"
-            }
-          ]
-        },
-        {
-          "name": "ShowComponentResponse",
-          "comment": "ShowComponentResponse returns detailed component information.",
-          "fields": [
-            {
-              "name": "success",
-              "number": 1,
-              "type": "bool",
-              "comment": "success indicates if the component was found"
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": "name is the component name"
-            },
-            {
-              "name": "version",
-              "number": 3,
-              "type": "string",
-              "comment": "version is the component version"
-            },
-            {
-              "name": "kind",
-              "number": 4,
-              "type": "string",
-              "comment": "kind is the component kind"
-            },
-            {
-              "name": "status",
-              "number": 5,
-              "type": "string",
-              "comment": "status is the component status (installed, running, stopped)"
-            },
-            {
-              "name": "source",
-              "number": 6,
-              "type": "string",
-              "comment": "source is the Git repository URL"
-            },
-            {
-              "name": "repo_path",
-              "number": 7,
-              "type": "string",
-              "comment": "repo_path is the local repository path"
-            },
-            {
-              "name": "bin_path",
-              "number": 8,
-              "type": "string",
-              "comment": "bin_path is the path to the binary"
-            },
-            {
-              "name": "port",
-              "number": 9,
-              "type": "int32",
-              "comment": "port is the listening port (if running)"
-            },
-            {
-              "name": "pid",
-              "number": 10,
-              "type": "int32",
-              "comment": "pid is the process ID (if running)"
-            },
-            {
-              "name": "created_at",
-              "number": 11,
-              "type": "int64",
-              "comment": "created_at is when the component was installed (Unix timestamp)"
-            },
-            {
-              "name": "updated_at",
-              "number": 12,
-              "type": "int64",
-              "comment": "updated_at is when the component was last updated (Unix timestamp)"
-            },
-            {
-              "name": "started_at",
-              "number": 13,
-              "type": "int64",
-              "comment": "started_at is when the component was started (Unix timestamp, 0 if not running)"
-            },
-            {
-              "name": "stopped_at",
-              "number": 14,
-              "type": "int64",
-              "comment": "stopped_at is when the component was stopped (Unix timestamp, 0 if never stopped)"
-            },
-            {
-              "name": "manifest_info",
-              "number": 15,
-              "type": "string",
-              "comment": "manifest_info contains manifest details (JSON-encoded)"
-            },
-            {
-              "name": "message",
-              "number": 16,
-              "type": "string",
-              "comment": "message provides additional context or error information"
-            }
-          ]
-        },
-        {
           "name": "StartComponentRequest",
           "comment": "StartComponentRequest requests starting a component.",
           "fields": [
@@ -7714,6 +7822,12 @@
               "number": 2,
               "type": "string",
               "comment": "name is the component name"
+            },
+            {
+              "name": "idempotency_key",
+              "number": 3,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -8578,16 +8692,16 @@
               "comment": "Substring match on name OR description (case-insensitive). Empty = no\nfilter."
             },
             {
-              "name": "limit",
-              "number": 5,
-              "type": "uint32",
-              "comment": "Default 100, max 500 (server-clamped)."
+              "name": "page_size",
+              "number": 7,
+              "type": "int32",
+              "comment": "page_size is the most items for one page. 0 means the default of the\nserver. The server can return fewer items."
             },
             {
-              "name": "offset",
-              "number": 6,
-              "type": "uint32",
-              "comment": ""
+              "name": "page_token",
+              "number": 8,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous response. Empty means\nthe first page."
             }
           ]
         },
@@ -8611,7 +8725,13 @@
               "name": "truncated",
               "number": 3,
               "type": "bool",
-              "comment": "True when total > offset + len(findings)."
+              "comment": "True when the server holds more findings than this page."
+            },
+            {
+              "name": "next_page_token",
+              "number": 4,
+              "type": "string",
+              "comment": "next_page_token is the page_token of the next page. Empty means that\nthis page is the last one."
             }
           ]
         },
@@ -11870,6 +11990,12 @@
               "number": 11,
               "type": "OriginationStart",
               "comment": "starts_from selects the state that the new mission starts from\n(ADR-0169). An agent forks at run time when it originates a child\nmission with ORIGINATION_START_CALLER_STATE. The origination bounds\nstill apply to a fork: the budget comes from the remainder of the\nparent, the targets are a subset, and the depth limit holds (ADR-0063).\nThe child gets the network scope of its own nodes, never the scope of\nthe caller."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 12,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -13745,6 +13871,18 @@
               "number": 2,
               "type": "MissionFilter",
               "comment": ""
+            },
+            {
+              "name": "page_size",
+              "number": 3,
+              "type": "int32",
+              "comment": "page_size is the most items for one page. 0 means the default of the\nserver. The server can return fewer items."
+            },
+            {
+              "name": "page_token",
+              "number": 4,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous response. Empty means\nthe first page."
             }
           ]
         },
@@ -13763,6 +13901,12 @@
               "number": 2,
               "type": "HarnessError",
               "comment": ""
+            },
+            {
+              "name": "next_page_token",
+              "number": 3,
+              "type": "string",
+              "comment": "next_page_token is the page_token of the next page. Empty means that\nthis page is the last one."
             }
           ]
         },
@@ -13960,18 +14104,6 @@
               "name": "tags",
               "number": 6,
               "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "limit",
-              "number": 7,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "offset",
-              "number": 8,
-              "type": "int32",
               "comment": ""
             }
           ]
@@ -15286,6 +15418,12 @@
               "number": 4,
               "type": "int64",
               "comment": ""
+            },
+            {
+              "name": "idempotency_key",
+              "number": 5,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -15610,6 +15748,12 @@
               "number": 2,
               "type": "gibson.types.v1.Finding",
               "comment": ""
+            },
+            {
+              "name": "idempotency_key",
+              "number": 3,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -15664,6 +15808,12 @@
               "number": 7,
               "type": "repeated string",
               "comment": "tool_call_ids names the tool calls whose recorded results are the\nevidence of this proof. Each id is the ContextInfo.tool_execution_id of\na tool call that the daemon recorded in this mission. The daemon reads\nthe recorded result of each call and evaluates the predicate on it.\nEvidence in the evidence field that no tool call id backs is typed by\nthe agent, and the daemon sends such a proof to human review."
+            },
+            {
+              "name": "idempotency_key",
+              "number": 8,
+              "type": "string",
+              "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
             }
           ]
         },
@@ -19254,6 +19404,12 @@
               "number": 18,
               "type": "optional MissionSecrets",
               "comment": "Secrets declares which named tenant secrets this mission's components may\nbe handed at dispatch. Names only; a value never appears here."
+            },
+            {
+              "name": "checkpoints",
+              "number": 19,
+              "type": "CheckpointMode",
+              "comment": "Checkpoints selects what the end of a node keeps (ADR-0170). A\ncheckpoint is the end of a node in a mission run, and a rewind starts\na new run at a checkpoint.\n\nCHECKPOINT_MODE_UNSPECIFIED means CHECKPOINT_MODE_STATE, so a mission\nthat does not set the field keeps no sandbox snapshot."
             }
           ]
         },
@@ -19769,6 +19925,27 @@
           ]
         },
         {
+          "name": "CheckpointMode",
+          "comment": "CheckpointMode states what the end of a node keeps for a later rewind\n(ADR-0170).",
+          "values": [
+            {
+              "name": "CHECKPOINT_MODE_UNSPECIFIED",
+              "number": 0,
+              "comment": "Sentinel value. The daemon treats it as CHECKPOINT_MODE_STATE."
+            },
+            {
+              "name": "CHECKPOINT_MODE_STATE",
+              "number": 1,
+              "comment": "State keeps the mission state at the end of each node and no sandbox\nsnapshot. A rewind starts the node in a fresh sandbox with the files\nof the workspace. The default."
+            },
+            {
+              "name": "CHECKPOINT_MODE_SANDBOX",
+              "number": 2,
+              "comment": "Sandbox also keeps a diff snapshot of the sandbox at the end of each\nagent node. A rewind starts the node from that snapshot. A sandbox\nsnapshot lives 7 days after the run ends."
+            }
+          ]
+        },
+        {
           "name": "ForEachNodeConfig.Source",
           "comment": "Source selects what is iterated.",
           "values": [
@@ -20141,16 +20318,16 @@
               "comment": ""
             },
             {
-              "name": "limit",
-              "number": 3,
+              "name": "page_size",
+              "number": 5,
               "type": "int32",
-              "comment": ""
+              "comment": "page_size is the most items for one page. 0 means the default of the\nserver. The server can return fewer items."
             },
             {
-              "name": "offset",
-              "number": 4,
-              "type": "int32",
-              "comment": ""
+              "name": "page_token",
+              "number": 6,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous response. Empty means\nthe first page."
             }
           ]
         },
@@ -20169,6 +20346,12 @@
               "number": 2,
               "type": "int32",
               "comment": ""
+            },
+            {
+              "name": "next_page_token",
+              "number": 3,
+              "type": "string",
+              "comment": "next_page_token is the page_token of the next page. Empty means that\nthis page is the last one."
             }
           ]
         },
@@ -20331,12 +20514,6 @@
               "number": 3,
               "type": "bool",
               "comment": "dry_run, when true, validates manifest + bindings without creating any state."
-            },
-            {
-              "name": "remote",
-              "number": 4,
-              "type": "bool",
-              "comment": "remote, when true, registers an MCP connector for execution in the\ncustomer's own network instead of a gibson-hosted setec sandbox\n(ADR-0065 remote-deployment path). The daemon skips the hosted launch\nand the response carries the one-time bootstrap_token; the customer runs\nthe MCP-bridge themselves and the bridge redeems the token to enroll.\nOnly valid for connector manifests (connector.gibson.zeroroot.ai/v1):\nplain plugins are always customer-run and already receive the token."
             }
           ]
         },
@@ -20431,7 +20608,7 @@
     },
     {
       "name": "gibson.secrets.v1",
-      "comment": "Package gibson.secrets.v1 — SecretsService: the customer-callable secrets\nmanagement surface.\n\nThis service has moved three times, which is worth recording so a fourth move\nis argued rather than assumed:\n\n ADR-0039 gibson.admin.v1.SecretsAdminService (platform-sdk) -> the OSS SDK\n ADR-0058 out of the SDK to the gibson platform protos, as tenant admin\n ADR-0096 back into the SDK, here, as its own wire package\n\nThe 2026-10-01 amendment to ADR-0058 is the current authority. ADR-0096\nremoved the credential reference from a Target, which left the command line as\nthe only surface a developer has for the credential their tool needs, so the\nservice that stores it belongs on the developer surface.\n\nWHY ITS OWN WIRE PACKAGE: one proto package may have exactly ONE generated Go\nhome linked into a binary, and the daemon links both the SDK and its own\nprotos. Two homes for one package is the documented\n`proto: duplicate registration` panic. AgentIdentityService\n(gibson.agentidentity.v1) and PluginAdminService (gibson.pluginadmin.v1) set\nthis precedent when ADR-0058's first amendment kept them in the SDK.\n\nThe broker-config RPCs (GetBrokerConfig, ProbeBrokerConfig, SetBrokerConfig,\nCountSecrets) come with the service rather than staying behind. Splitting one\nservice across the two surfaces would split its wire package and reintroduce\nthe panic above for no benefit, and a developer whose tenant has no broker\nconfigured cannot store a secret at all.\n\nSECURITY: SecretsService NEVER returns a secret's plaintext value. The only\nRPC in Gibson that returns plaintext is HarnessCallbackService.GetCredential,\nwhich is plugin-only by FGA and not callable from the dashboard or SDK.\n\nAuthorization: every RPC carries a (gibson.auth.v1.authz) annotation. The\nannotations are unchanged by the move: every RPC still derives its object via\ntenant_from_identity and still admits USER identities only.",
+      "comment": "Package gibson.secrets.v1 — SecretsService: the customer-callable secrets\nmanagement surface.\n\nThis service has moved three times, which is worth recording so a fourth move\nis argued rather than assumed:\n\n 1. gibson.admin.v1.SecretsAdminService (platform-sdk) -> the OSS SDK\n (a retired ADR that ADR-0058 replaced)\n 2. ADR-0058: out of the SDK to the gibson platform protos, as tenant admin\n 3. ADR-0096: back into the SDK, here, as its own wire package\n\nThe 2026-10-01 amendment to ADR-0058 is the current authority. ADR-0096\nremoved the credential reference from a Target, which left the command line as\nthe only surface a developer has for the credential their tool needs, so the\nservice that stores it belongs on the developer surface.\n\nWHY ITS OWN WIRE PACKAGE: one proto package may have exactly ONE generated Go\nhome linked into a binary, and the daemon links both the SDK and its own\nprotos. Two homes for one package is the documented\n`proto: duplicate registration` panic. AgentIdentityService\n(gibson.agentidentity.v1) and PluginAdminService (gibson.pluginadmin.v1) set\nthis precedent when ADR-0058's first amendment kept them in the SDK.\n\nThe broker-config RPCs (GetBrokerConfig, ProbeBrokerConfig, SetBrokerConfig,\nCountSecrets) come with the service rather than staying behind. Splitting one\nservice across the two surfaces would split its wire package and reintroduce\nthe panic above for no benefit, and a developer whose tenant has no broker\nconfigured cannot store a secret at all.\n\nSECURITY: SecretsService NEVER returns a secret's plaintext value. The only\nRPC in Gibson that returns plaintext is HarnessCallbackService.GetCredential,\nwhich is plugin-only by FGA and not callable from the dashboard or SDK.\n\nAuthorization: every RPC carries a (gibson.auth.v1.authz) annotation. The\nannotations are unchanged by the move: every RPC still derives its object via\ntenant_from_identity and still admits USER identities only.",
       "services": [
         {
           "name": "SecretsService",
@@ -20568,20 +20745,8 @@
               "comment": ""
             },
             {
-              "name": "tenant_id_external",
-              "number": 8,
-              "type": "string",
-              "comment": ""
-            },
-            {
               "name": "client_id",
               "number": 9,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "role_arn",
-              "number": 10,
               "type": "string",
               "comment": ""
             },
@@ -20600,36 +20765,6 @@
             {
               "name": "approle_secret_id",
               "number": 22,
-              "type": "bytes",
-              "comment": ""
-            },
-            {
-              "name": "aws_access_key_id",
-              "number": 23,
-              "type": "bytes",
-              "comment": ""
-            },
-            {
-              "name": "aws_secret_access_key",
-              "number": 24,
-              "type": "bytes",
-              "comment": ""
-            },
-            {
-              "name": "aws_external_id",
-              "number": 25,
-              "type": "bytes",
-              "comment": ""
-            },
-            {
-              "name": "gcp_service_account_json",
-              "number": 26,
-              "type": "bytes",
-              "comment": ""
-            },
-            {
-              "name": "azure_client_secret",
-              "number": 27,
               "type": "bytes",
               "comment": ""
             }
@@ -20757,22 +20892,22 @@
               "comment": ""
             },
             {
-              "name": "limit",
-              "number": 2,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "offset",
-              "number": 3,
-              "type": "int32",
-              "comment": ""
-            },
-            {
               "name": "name_prefix",
               "number": 4,
               "type": "string",
               "comment": ""
+            },
+            {
+              "name": "page_size",
+              "number": 5,
+              "type": "int32",
+              "comment": "page_size is the most items for one page. 0 means the default of the\nserver. The server can return fewer items."
+            },
+            {
+              "name": "page_token",
+              "number": 6,
+              "type": "string",
+              "comment": "page_token is the next_page_token of the previous response. Empty means\nthe first page."
             }
           ]
         },
@@ -20791,6 +20926,12 @@
               "number": 2,
               "type": "int32",
               "comment": ""
+            },
+            {
+              "name": "next_page_token",
+              "number": 3,
+              "type": "string",
+              "comment": "next_page_token is the page_token of the next page. Empty means that\nthis page is the last one."
             }
           ]
         },
@@ -20937,20 +21078,8 @@
               "comment": ""
             },
             {
-              "name": "tenant_id_external",
-              "number": 8,
-              "type": "string",
-              "comment": ""
-            },
-            {
               "name": "client_id",
               "number": 9,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "role_arn",
-              "number": 10,
               "type": "string",
               "comment": ""
             },
@@ -21310,18 +21439,6 @@
               "number": 4,
               "type": "repeated string",
               "comment": "tags filters to targets carrying all of the given tags."
-            },
-            {
-              "name": "limit",
-              "number": 5,
-              "type": "int32",
-              "comment": "limit caps the number of results. Zero means the server default."
-            },
-            {
-              "name": "offset",
-              "number": 6,
-              "type": "int32",
-              "comment": "offset skips the first N results for pagination."
             }
           ]
         }
