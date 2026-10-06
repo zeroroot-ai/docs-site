@@ -92,7 +92,7 @@ func main() {
 `plugin.Serve` runs the whole lifecycle. It loads the manifest, enrolls the
 plugin's identity, and resolves startup secrets. Then it polls for work,
 dispatches each call to the matching handler, and submits the result. The
-[GitHub plugin](https://github.com/zeroroot-ai/integrations/tree/main/plugins/github)
+[GitHub plugin](https://github.com/zeroroot-ai/gibson/tree/main/plugins/github)
 is a complete worked example.
 
 ### `plugin.yaml`
@@ -166,22 +166,21 @@ it with the per-plugin NetworkPolicy.
 The plugin lifecycle is **author → build → deploy → enroll**. None of it
 is a dashboard upload.
 
-### 1. Author it in the integrations repo
+### 1. Author it as one Go module
 
-First-party plugins live in the
-[`integrations`](https://github.com/zeroroot-ai/integrations) monorepo,
-under `plugins/<vendor>/`. Each plugin is one Go module, so each plugin
-has an isolated dependency graph. **Self-hosted customers fork this repo.**
-They add their own plugins in the same layout. Then they point their
-install's GitOps at their fork. Copy an existing plugin (`plugins/github`)
-as your starting point. Then replace the handlers.
+Each plugin is one Go module, so each plugin has an isolated dependency
+graph. Run `gibson component init <name> --kind plugin` in your own repo.
+It writes the manifest, the handler, a test, the `Dockerfile` and the
+Helm values. Then replace the handlers. The first-party plugins live in
+[`gibson/plugins/<vendor>/`](https://github.com/zeroroot-ai/gibson/tree/main/plugins)
+in the same layout.
 
-### 2. Open a pull request so CI builds the image
+### 2. Build the image in your CI
 
-The repo's CI builds each changed plugin module into a container image in
-your registry (`ghcr.io/<org>/integrations/<vendor>`). There is no
-in-cluster build. There is no artifact you upload to us. You own the
-source and the image.
+Your CI builds the plugin module into a container image in your registry,
+for example `ghcr.io/<org>/<plugin>`. There is no in-cluster build. There
+is no artifact you upload to us. You own the source and the image. The
+first-party plugin images are `ghcr.io/zeroroot-ai/gibson-plugin-<vendor>`.
 
 ### 3. Enable it in your GitOps values
 
@@ -193,7 +192,7 @@ plugins:
   github:
     enabled: true
     image:
-      repository: ghcr.io/your-org/integrations/github
+      repository: ghcr.io/your-org/github-plugin
       tag: v0.1.0
     runtime: pod          # pod (default) | setec
 ```
