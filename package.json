@@ -1,6 +1,6 @@
 {
   "name": "@zeroroot/docs-site",
-  "packageManager": "pnpm@12.3.4",
+  "packageManager": "pnpm@12.9.0",
   "version": "0.6.13",
   "private": true,
   "license": "Elastic-2.0",
