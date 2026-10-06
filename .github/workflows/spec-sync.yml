@@ -153,13 +153,13 @@ jobs:
           echo "Building ${{ matrix.spec }}-spec from ${SOURCE_REPO}@${ref}"
 
       - name: Checkout docs-site
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # PAT (not GITHUB_TOKEN) so the branch push + PR trigger ci.yml.
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
       - name: Checkout source repo
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ steps.cfg.outputs.source_repo }}
           ref: ${{ steps.ref.outputs.ref }}
