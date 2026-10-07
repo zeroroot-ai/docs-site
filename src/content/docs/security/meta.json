@@ -5,6 +5,7 @@
     "identity",
     "authorization",
     "isolation",
+    "network-policy",
     "tenancy",
     "runtime",
     "audit",

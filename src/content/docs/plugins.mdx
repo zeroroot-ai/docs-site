@@ -26,12 +26,11 @@ declaration. A vendor can offer both.
 
 ## The shape of a plugin
 
-A plugin is one small Go module with two files that matter:
-
-- **`handler.go`** holds the typed Go request and response structs and
-  their handler functions. You register them with `plugin.Serve`.
-- **`plugin.yaml`** is a manifest that names the plugin, its methods, and
-  the secrets it needs.
+A plugin is one small Go module. The file that matters is **`handler.go`**.
+It holds the typed Go request and response structs and their handler
+functions. It also declares the plugin: its name, its version and each
+method with its description are arguments to `plugin.Serve`. No manifest
+file exists (ADR-0097).
 
 There is **no `.proto` and no generated code**. The Go type *is* the method
 contract. The SDK derives each method's JSON-Schema input and output from
@@ -45,9 +44,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/go-github/v90/github"
 	"github.com/zeroroot-ai/sdk/plugin"
+	"github.com/zeroroot-ai/sdk/plugin/lifecycle"
 )
 
 // A typed method contract. The SDK derives the method's JSON-Schema from
@@ -63,8 +64,8 @@ type GetRepositoryResponse struct {
 }
 
 func handleGetRepository(ctx context.Context, req GetRepositoryRequest) (GetRepositoryResponse, error) {
-	// The credential you declared in plugin.yaml is resolved by the broker —
-	// never an env var. ResolveSecret returns the plaintext for this call only.
+	// The broker resolves the credential that a tenant admin granted this
+	// plugin — never an env var. ResolveSecret returns the plaintext.
 	token, err := plugin.ResolveSecret(ctx, "cred:github_token")
 	if err != nil {
 		return GetRepositoryResponse{}, err
@@ -80,86 +81,56 @@ func handleGetRepository(ctx context.Context, req GetRepositoryRequest) (GetRepo
 	return GetRepositoryResponse{Repository: curate(repo)}, nil
 }
 
+// requireToken fails the start when the plugin cannot read its token, so a
+// missing grant shows at boot with the secret named.
+func requireToken(ctx context.Context) error {
+	if _, err := plugin.ResolveSecret(ctx, "cred:github_token"); err != nil {
+		return fmt.Errorf("resolve startup secret cred:github_token: %w", err)
+	}
+	return nil
+}
+
 func main() {
-	_ = plugin.Serve(
-		plugin.WithManifest(manifestPath()),
-		plugin.WithHandler("GetRepository", handleGetRepository),
-		// ...one WithHandler per method declared in plugin.yaml
+	_ = plugin.Serve(context.Background(),
+		plugin.WithName("github"),
+		plugin.WithVersion("0.1.0"),
+		plugin.WithHandler("GetRepository", "Fetch a repository by owner and name.", handleGetRepository),
+		// ...one WithHandler per method, each with its description
+		plugin.WithLifecycle(lifecycle.LifecycleHooks{OnStart: requireToken}),
 	)
 }
 ```
 
-`plugin.Serve` runs the whole lifecycle. It loads the manifest, enrolls the
-plugin's identity, and resolves startup secrets. Then it polls for work,
+`plugin.Serve` runs the whole lifecycle. It enrolls the plugin's identity,
+registers the declaration, and runs the `OnStart` hook. Then it polls for work,
 dispatches each call to the matching handler, and submits the result. The
 [GitHub plugin](https://github.com/zeroroot-ai/gibson/tree/main/plugins/github)
 is a complete worked example.
 
-### `plugin.yaml`
-
-```yaml
-apiVersion: plugin.gibson.zeroroot.ai/v1
-kind: Plugin
-metadata:
-  name: github
-  version: 0.1.0
-  description: Curated read/write over the GitHub REST API.
-  author: you@example.com
-spec:
-  workload_class: plugin
-  runtime: process              # process | pod | setec
-
-  # Go-first: a method declares only its name and description. Its
-  # request/response contract is derived from the typed Go structs you
-  # register with plugin.WithHandler — there is no request_proto here.
-  methods:
-    - name: GetRepository
-      description: Fetch a repository by owner and name.
-    - name: ListIssues
-      description: List issues for a repository.
-    - name: CreateIssue
-      description: Open a new issue (write).
-
-  # The only credential channel is the secrets broker — never env vars.
-  secrets:
-    - name: cred:github_token
-      scope: startup             # startup | per_call
-      rotation: live             # live | restart
-      required: true
-
-  health:
-    startup_timeout: 30s
-    liveness_interval: 10s
-
-  egress:
-    - host: api.github.com
-      protocol: https
-      port: 443
-      purpose: GitHub API calls
-```
-
 ### Runtime modes
+
+The `runtime` value of the plugin entry in the chart values selects where a
+deployed plugin runs. On your own machine, the plugin runs as a process.
 
 | Mode | Where the plugin runs | Pick this when |
 |---|---|---|
-| `process` (default) | A bare process — your laptop or a dev container | Local development, the fastest loop. Enrol with a one-time token (see below). |
+| process | A bare process — your laptop or a dev container | Local development, the fastest loop. Enrol with a one-time token (see below). |
 | `pod` (default in-cluster) | A Kubernetes pod, deployed by Helm/GitOps | Production. Auto-enrols via its SPIFFE identity — no token. |
 | `setec` | A microVM under the [Setec](https://github.com/zeroroot-ai/setec) sandbox operator | Hardened isolation for sensitive workloads. |
 
-### Secrets and egress
+### Secrets
 
-Each `spec.secrets` entry declares a credential. The plugin resolves the
-credential at runtime through the broker. With `scope: startup`, the
-plugin reads the secret once at boot. With `per_call`, the plugin reads
-the secret again on each invocation, with a small cache. `rotation` says
-what the plugin does when the value changes. A plugin's identity gets
-**exactly the secrets it declared** and nothing else. See
+A plugin declares no secret. A tenant admin grants the plugin access to
+named secrets of the workspace when the plugin is deployed. The plugin
+resolves a secret through the broker with `plugin.ResolveSecret`, and the
+daemon checks the grant on each resolve. A plugin's identity reads
+**exactly the secrets it was granted** and nothing else.
+
+A plugin that cannot start without a secret resolves it in its `OnStart`
+hook, as `requireToken` does above. A missing grant then fails the boot
+with the secret named. When a secret rotates, the plugin drops its cached
+value, and the next resolve gets the new value. See
 [Secrets management](/docs/secrets-management).
-
-`spec.egress` lists the outbound destinations the plugin dials. It
-documents the network footprint. Where the runtime supports it, the
-runtime enforces the list. Setec enforces it, and the pod runtime enforces
-it with the per-plugin NetworkPolicy.
 
 ## Deploying a plugin
 
@@ -170,8 +141,7 @@ is a dashboard upload.
 
 Each plugin is one Go module, so each plugin has an isolated dependency
 graph. Run `gibson component init <name> --kind plugin` in your own repo.
-It writes the manifest, the handler, a test, the `Dockerfile` and the
-Helm values. Then replace the handlers. The first-party plugins live in
+It writes the handler, a test, the `Dockerfile` and the Helm values. Then replace the handlers. The first-party plugins live in
 [`gibson/plugins/<vendor>/`](https://github.com/zeroroot-ai/gibson/tree/main/plugins)
 in the same layout.
 
@@ -210,7 +180,8 @@ step. The plugin re-enrolls cleanly on every restart. See
 [Component bootstrap & auth](/docs/component-bootstrap) for the identity
 model.
 
-After the plugin registers and reports `Ready`, it appears on the
+Before the plugin can start, a tenant admin grants it the secrets it
+resolves. After the plugin registers and reports `Ready`, it appears on the
 **Plugins** page in the dashboard. On that page you grant which tenants,
 teams, or agents may use it.
 

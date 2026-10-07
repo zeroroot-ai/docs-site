@@ -16,7 +16,7 @@ The gate returns one of three answers:
 | Answer | Meaning |
 |---|---|
 | **Deny** | The component does not execute. |
-| **RequireSetec** | The component executes inside a Firecracker microVM, via Kata, orchestrated by the setec operator. |
+| **RequireSetec** | The component executes inside a Firecracker microVM in a launcher pod, orchestrated by the setec operator. See [Sandbox runtime](/docs/sandbox-runtime). |
 | **AllowInProcess** | The component may take the in-process path. |
 
 The gate decides from three inputs: whether a sandboxed dispatch is available,

@@ -104,7 +104,7 @@
       "path": "gibson component",
       "use": "component",
       "short": "Scaffold, validate, build, and run Gibson components (agent | tool | plugin | connector)",
-      "long": "component — kind-aware tooling for the Gibson developer workflow.\n\nSubcommands:\n  init      scaffold a new component directory from templates\n  generate  regenerate gen/ from taxonomy.yaml and ontology.yaml\n  build     generate + validate + go build (one-step developer loop)\n  validate  local schema + proto checks against a component directory\n  run       run the compiled component binary, supervising signals and exit code 75\n\n--kind is required on validate and run. It used to be auto-detected from\ncomponent.yaml, which no longer exists (ADR-0097): everything else about a\ncomponent is implied by its directory, and the kind is not.\n\nA component enrols itself at boot from GIBSON_URL and\nGIBSON_BOOTSTRAP_TOKEN (sdk#128), so there is no register verb.",
+      "long": "component — kind-aware tooling for the Gibson developer workflow.\n\nSubcommands:\n  init      scaffold a new component directory from templates\n  generate  regenerate gen/ from taxonomy.yaml and ontology.yaml\n  build     generate + validate + go build (one-step developer loop)\n  validate  local schema + proto checks against a component directory\n  run       run the compiled component binary, supervising its signals\n\n--kind is required on validate and run. It used to be auto-detected from\ncomponent.yaml, which no longer exists (ADR-0097): everything else about a\ncomponent is implied by its directory, and the kind is not.\n\nA component enrols itself at boot from GIBSON_URL and\nGIBSON_BOOTSTRAP_TOKEN (sdk#128), so there is no register verb.",
       "subcommands": [
         {
           "path": "gibson component build",
@@ -145,7 +145,7 @@
           "path": "gibson component init",
           "use": "init <name>",
           "short": "Scaffold a new component directory (agent | tool | plugin | connector)",
-          "long": "init scaffolds a new Gibson component directory from embedded\ntemplates. The kind selects which template set to render and what file\nshape the new directory has:\n\n  agent:      main.go (sdk.NewAgent + sdk.ServeAgent) +\n              go.mod + Makefile + Dockerfile + README + AGENTS.md +\n              CLAUDE.md + prompts/ + .claude/settings.json\n\n  tool:       like agent, plus api/proto/gibson/tools/<pkg>/v1/<pkg>.proto\n              with field 100 = gibson.graphrag.v1.DiscoveryResult, buf.yaml,\n              buf.gen.yaml, and proto/vendor/ for the SDK protos\n\n  plugin:     Go-first (ADR-0065 R4). plugin.yaml manifest + handler.go\n              (plugin.Serve + plugin.WithHandler, typed Go request/response\n              structs — no .proto) + a hermetic handler_test.go with a\n              committed cassette under testdata/ + helm/values.yaml +\n              go.mod + Makefile + Dockerfile + README + AGENTS.md +\n              CLAUDE.md + prompts/ + .claude/settings.json\n\n  connector:  Declarative (ADR-0065 R6). connector.yaml manifest (the\n              integration IS the manifest — no Go code) + a hermetic\n              schema-validation smoke test (connector_test.go) + go.mod +\n              README + AGENTS.md + CLAUDE.md + .claude/settings.json\n\nThe name must match ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ (DNS-label style).\n\n--with-secret is plugin-only. agent, tool, and connector kinds do not\ndeclare broker secrets.\n\nExamples:\n  gibson component init my-agent --kind agent\n  gibson component init my-scanner --kind tool\n  gibson component init my-plugin --kind plugin --with-secret cred:api_key=startup:live\n  gibson component init my-plugin --kind plugin --dir ~/projects --force\n  gibson component init gitlab --kind connector",
+          "long": "init scaffolds a new Gibson component directory from embedded\ntemplates. The kind selects which template set to render and what file\nshape the new directory has:\n\n  agent:      main.go (sdk.NewAgent + sdk.ServeAgent) +\n              go.mod + Makefile + Dockerfile + README + AGENTS.md +\n              CLAUDE.md + prompts/ + .claude/settings.json\n\n  tool:       like agent, plus api/proto/gibson/tools/<pkg>/v1/<pkg>.proto\n              with field 100 = gibson.graphrag.v1.DiscoveryResult, buf.yaml,\n              buf.gen.yaml, and proto/vendor/ for the SDK protos\n\n  plugin:     Go-first (ADR-0065 R4). handler.go declares the plugin in\n              code (plugin.Serve + WithName, WithVersion, WithHandler, typed\n              Go request/response structs — no .proto, no manifest file,\n              ADR-0097) + a hermetic handler_test.go with a\n              committed cassette under testdata/ + helm/values.yaml +\n              go.mod + Makefile + Dockerfile + README + AGENTS.md +\n              CLAUDE.md + prompts/ + .claude/settings.json\n\n  connector:  Declarative (ADR-0065 R6). connector.yaml manifest (the\n              integration IS the manifest — no Go code) + a hermetic\n              schema-validation smoke test (connector_test.go) + go.mod +\n              README + AGENTS.md + CLAUDE.md + .claude/settings.json\n\nThe name must match ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ (DNS-label style).\n\n--with-secret is plugin-only. It names a broker secret that the plugin\nresolves at start, so a missing grant fails the boot with the secret named.\nA tenant admin grants the secret when the plugin is deployed.\n\nExamples:\n  gibson component init my-agent --kind agent\n  gibson component init my-scanner --kind tool\n  gibson component init my-plugin --kind plugin --with-secret cred:api_key\n  gibson component init my-plugin --kind plugin --dir ~/projects --force\n  gibson component init gitlab --kind connector",
           "flags": [
             {
               "name": "dir",
@@ -165,7 +165,7 @@
             },
             {
               "name": "with-secret",
-              "usage": "plugin-only: declare a secret name=scope:rotation (repeatable)",
+              "usage": "plugin-only: a broker secret the plugin resolves at start, e.g. cred:api_key (repeatable)",
               "type": "stringArray"
             }
           ]
@@ -173,8 +173,8 @@
         {
           "path": "gibson component run",
           "use": "run",
-          "short": "Run the compiled component binary, supervising signals + exit code 75",
-          "long": "run starts the compiled component binary in this directory, forwards\nits stdout/stderr to the operator's terminal, hooks SIGINT/SIGTERM, and\nwaits up to --drain-timeout (default 30s) for graceful shutdown before\nescalating to SIGKILL.\n\nrun is a thin process supervisor — it does NOT compile the binary\n(use `make build` first) and it does NOT mock handlers. The\ncomponent's existing graceful-drain logic in plugin.Serve / serve.Agent /\nserve.Tool is the contract; this verb just supervises it.\n\n--kind is required. It used to be auto-detected from component.yaml, which\nno longer exists (ADR-0097). The binary is <dir>/<dir-name>, which is what\nthe scaffold's Makefile produces.\n\nPre-flight: refuses to launch if the runtime credential at\n~/.gibson/<kind>/<name>.runtime.json is missing, and points at the two\nenvironment variables that enrol a component at boot.\n\nExit codes are surfaced verbatim from the child. Notably:\n  75  the SDK's plugin rotation contract — not a crash; the platform\n      should restart the binary. The CLI prints a clear note.\n\nExamples:\n  gibson component run --kind tool\n  gibson component run --kind plugin --dir ./my-plugin\n  gibson component run --kind agent --drain-timeout 60s",
+          "short": "Run the compiled component binary, supervising its signals",
+          "long": "run starts the compiled component binary in this directory, forwards\nits stdout/stderr to the operator's terminal, hooks SIGINT/SIGTERM, and\nwaits up to --drain-timeout (default 30s) for graceful shutdown before\nescalating to SIGKILL.\n\nrun is a thin process supervisor — it does NOT compile the binary\n(use `make build` first) and it does NOT mock handlers. The\ncomponent's existing graceful-drain logic in plugin.Serve / serve.Agent /\nserve.Tool is the contract; this verb just supervises it.\n\n--kind is required. It used to be auto-detected from component.yaml, which\nno longer exists (ADR-0097). The binary is <dir>/<dir-name>, which is what\nthe scaffold's Makefile produces.\n\nPre-flight: refuses to launch if the runtime credential at\n~/.gibson/<kind>/<name>.runtime.json is missing, and points at the two\nenvironment variables that enrol a component at boot.\n\nExit codes are surfaced verbatim from the child.\n\nExamples:\n  gibson component run --kind tool\n  gibson component run --kind plugin --dir ./my-plugin\n  gibson component run --kind agent --drain-timeout 60s",
           "flags": [
             {
               "name": "dir",
@@ -200,7 +200,7 @@
           "path": "gibson component validate",
           "use": "validate",
           "short": "Local schema + proto checks against a component directory",
-          "long": "validate runs kind-aware local checks against the component in --dir\n(default: current directory).\n\n--kind is required. It used to be auto-detected from component.yaml, which\nno longer exists (ADR-0097): the kind is the only thing a component\ndirectory cannot imply, so it is the one thing you still state.\n\n  agent:  main.go is present and parses\n  tool:   agent checks, plus proto field 100 = DiscoveryResult, plus\n          buf lint when buf is on PATH\n  plugin: agent checks, plus the SDK manifest validator on plugin.yaml\n\nPaths come from the directory rather than from a manifest: main.go at the\nroot, plugin.yaml at the root, and the tool proto at\napi/proto/gibson/tools/<name>/v1/<name>.proto, with <name> the directory\nname minus hyphens.\n\nExit codes:\n  0  no errors\n  2  validation errors (one or more findings printed to stderr)\n  1  I/O / setup error (e.g. --kind missing, or an unusable directory name)\n\nExamples:\n  gibson component validate --kind tool\n  gibson component validate --kind plugin --dir ./my-plugin",
+          "long": "validate runs kind-aware local checks against the component in --dir\n(default: current directory).\n\n--kind is required. It used to be auto-detected from component.yaml, which\nno longer exists (ADR-0097): the kind is the only thing a component\ndirectory cannot imply, so it is the one thing you still state.\n\n  agent:  main.go is present and parses\n  tool:   agent checks, plus proto field 100 = DiscoveryResult, plus\n          buf lint when buf is on PATH\n  plugin: Go source of package main at the root, and each file parses;\n          the plugin declares itself in code (ADR-0097)\n\nPaths come from the directory rather than from a manifest: main.go at the\nroot, and the tool proto at\napi/proto/gibson/tools/<name>/v1/<name>.proto, with <name> the directory\nname minus hyphens.\n\nExit codes:\n  0  no errors\n  2  validation errors (one or more findings printed to stderr)\n  1  I/O / setup error (e.g. --kind missing, or an unusable directory name)\n\nExamples:\n  gibson component validate --kind tool\n  gibson component validate --kind plugin --dir ./my-plugin",
           "flags": [
             {
               "name": "dir",
@@ -310,27 +310,14 @@
     {
       "path": "gibson docs",
       "use": "docs",
-      "short": "Emit machine-readable docs (JSON Schemas, etc.)",
-      "long": "docs — emit developer-facing reference material.\n\nSubcommands:\n  schema    JSON Schema (Draft 2020-12) for plugin.yaml\n  cli       the command tree as machine-readable JSON (drives the CLI reference)",
+      "short": "Emit machine-readable docs",
+      "long": "docs — emit developer-facing reference material.\n\nSubcommands:\n  cli       the command tree as machine-readable JSON (drives the CLI reference)",
       "subcommands": [
         {
           "path": "gibson docs cli",
           "use": "cli",
           "short": "Emit the command tree as machine-readable JSON",
           "long": "cli walks the whole gibson command tree and writes it to stdout as a\nstable JSON document (sorted, deterministic). It is the source of truth\nfor the auto-generated CLI reference in the documentation site: the\ngenerator renders the reference from this JSON, and a drift gate fails\nif the committed page no longer matches.\n\nRegenerate the committed spec after any command, flag, or help-text\nchange:\n\n  gibson docs cli > cli-spec.json"
-        },
-        {
-          "path": "gibson docs schema",
-          "use": "schema [name]",
-          "short": "Emit JSON Schema for plugin.yaml",
-          "long": "schema emits the JSON Schema (Draft 2020-12) for a Gibson YAML\nshape. With no name, lists available schemas. With one of the\nsupported names, writes the schema to stdout (or --output <dir>).\n\nEditor and AI-coder integration: pipe the output into your project's\nschema config (e.g. yaml-language-server settings, JetBrains schema\nregistry) and your editor will validate plugin.yaml\ninline.\n\nExamples:\n  gibson docs schema                       # list available schemas\n  gibson docs schema component-yaml        # emit to stdout\n  gibson docs schema plugin-yaml | jq .    # validate JSON\n  gibson docs schema --output ./schemas    # write both schemas to disk",
-          "flags": [
-            {
-              "name": "output",
-              "usage": "directory to write *.schema.json into (writes both schemas)",
-              "type": "string"
-            }
-          ]
         }
       ]
     },
@@ -608,7 +595,7 @@
           "path": "gibson mission validate",
           "use": "validate <file>",
           "short": "Validate a mission file (CUE / YAML / JSON)",
-          "long": "Validate a mission file.\n\nSteps:\n1. Read and parse the file (CUE → JSON via cuelang; YAML → JSON via\n   sigs.k8s.io/yaml; JSON passes through). Format detected from the\n   file extension; override with --format.\n2. Unmarshal into *missionv1.MissionDefinition via protojson.\n3. Run protovalidate against the message — every\n   (buf.validate.field).* annotation declared in the SDK protos\n   is enforced here, matching what the daemon applies at submit\n   time.\n4. Check that target_ref, when set, is a target UUID. The daemon\n   rejects any other value.\n\nExits non-zero with the underlying library's error message on any\nfailure. Use '-' as the file path to read from stdin.",
+          "long": "Validate a mission file.\n\nSteps:\n1. Read and parse the file (CUE → JSON via cuelang; YAML → JSON via\n   sigs.k8s.io/yaml; JSON passes through). Format detected from the\n   file extension; override with --format.\n2. Unmarshal into *missionv1.MissionDefinition via protojson.\n3. Run protovalidate against the message — every\n   (buf.validate.field).* annotation declared in the SDK protos\n   is enforced here, matching what the daemon applies at submit\n   time.\n4. Check that target_ref, when set, is a target UUID. The daemon\n   rejects any other value.\n5. Check that each starts_from names an earlier node: a node that\n   exists, is not the node itself, and is an ancestor of the node\n   through dependencies or edges (ADR-0169). The daemon applies the\n   same rule at submit time.\n\nExits non-zero with the underlying library's error message on any\nfailure. Use '-' as the file path to read from stdin.",
           "flags": [
             {
               "name": "format",
@@ -835,7 +822,7 @@
           "path": "gibson secret list",
           "use": "list",
           "short": "List secret names and metadata (never values)",
-          "long": "List the tenant's secrets.\n\nThe names printed are exact stored keys, which is what a mission's\ncredential_names needs, so they can be copied without translation.\n\n  gibson secret list\n  gibson secret list --prefix cred:",
+          "long": "List the tenant's secrets.\n\nThe names printed are exact stored keys, which is what a mission's\ncredential_names needs, so they can be copied without translation.\n\n  gibson secret list\n  gibson secret list --prefix cred:\n\nWhen more secrets exist than one page holds, the command prints the token\nof the next page. Pass it to --page-token to read that page.",
           "flags": [
             {
               "name": "gibson-url",
@@ -843,14 +830,14 @@
               "type": "string"
             },
             {
-              "name": "limit",
+              "name": "page-size",
               "usage": "Maximum number to return (0 = server default)",
               "type": "int32"
             },
             {
-              "name": "offset",
-              "usage": "Number to skip",
-              "type": "int32"
+              "name": "page-token",
+              "usage": "Token of the page to read, from the previous page",
+              "type": "string"
             },
             {
               "name": "prefix",
@@ -1031,14 +1018,14 @@
               "type": "string"
             },
             {
-              "name": "limit",
+              "name": "page-size",
               "usage": "Max results (0 = server default)",
               "type": "int32"
             },
             {
-              "name": "offset",
-              "usage": "Skip the first N results",
-              "type": "int32"
+              "name": "page-token",
+              "usage": "Token of the page to read, from the previous page",
+              "type": "string"
             },
             {
               "name": "provider",
