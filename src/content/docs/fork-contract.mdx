@@ -1,0 +1,181 @@
+---
+title: Fork contract
+description: What an agent must do when Gibson can fork it. A fork continues the process of its parent, so it must claim its own task and grant before it does anything else.
+---
+
+A mission can fork an agent. The fork starts from a snapshot of the
+running sandbox of the agent, so it continues the process of its parent.
+The fork starts with the memory of the parent: the task, the capability
+grant and the callback identity of the parent. Those values belong to the
+parent and must not work in the fork.
+
+The fork contract tells an agent how to find out that it is a fork, and
+how to get its own task and grant. The Go SDK has the contract in the
+package `github.com/zeroroot-ai/sdk/fork`, from v0.199.0. The TypeScript
+SDK `@zeroroot-ai/sdk` has it from 0.15.0.
+
+For the mission side, see [Fork a node](/docs/missions#fork-a-node-starts_from).
+
+## The five parts
+
+1. **Sandbox identity on each callback.** The callback client gets a new
+   identity token from setec on each call. It sends the token in the
+   metadata key `x-gibson-sandbox-identity`. The daemon takes the sandbox
+   of the caller only from this token.
+2. **The hostname as a hint.** The client also sends the hostname of the
+   process in `x-gibson-sandbox-id`. The daemon refuses a call whose
+   hostname names another sandbox than the token.
+3. **A refusal of the parent grant.** After a fork, the daemon refuses the
+   grant of the parent in each sandbox except the parent sandbox. The
+   refusal is `FAILED_PRECONDITION` with the reason `GIBSON_FORK_UNCLAIMED`.
+4. **A claim.** A fork calls `ClaimFork` of the harness callback service.
+   The response holds the new grant, the mission IDs, the node ID, the
+   model and the task. A fork can claim one time only.
+5. **A park.** An agent that the daemon launched as a fork source does not
+   exit after its result. It parks and waits for a fork.
+
+The SDK callback clients do parts 1 and 2 for you. Your agent code does
+parts 4 and 5.
+
+## Environment variables
+
+| Variable | Set by | Meaning |
+|---|---|---|
+| `GIBSON_FORKABLE` | The daemon | `1` when a later node names this node in `starts_from`. The process must park after its result. |
+| `GIBSON_PARK_TIMEOUT` | Optional | How long a source parks, as a Go duration such as `10m`. Unset means 10 minutes. |
+| `SETEC_IDENTITY_SOCKET` | setec | The Unix socket that gives the identity tokens of the sandbox. |
+
+A process with no `SETEC_IDENTITY_SOCKET` does not run in a setec sandbox.
+It sends no identity token, and `ClaimFork` refuses it before the call. A
+process with a socket that gives no token sends no call. The call fails
+with `UNAUTHENTICATED`.
+
+## The identity token
+
+setec gives each sandbox, and each fork, its own signing key. No process in
+the sandbox can read the key. The token is valid for 5 minutes and names
+the identity generation of the sandbox. Each snapshot raises the
+generation. So the fork cannot use a token that it finds in the memory of
+its parent. See [Sandbox identity](/docs/sandbox-runtime#sandbox-identity).
+
+The SDK asks the socket for a new token on each call and keeps no copy. Do
+not cache a token in your own code.
+
+## Park after the result
+
+Make a watcher when the process starts, before a fork can happen. The
+watcher records the hostname of the process. A fork has a new hostname, so
+the watcher can tell the parent from a fork.
+
+After the agent writes its result, check `GIBSON_FORKABLE`. If it is set,
+park. The park ends in one of three ways:
+
+- A fork happens. The process is the fork. It claims its dispatch and runs
+  the task of the claim.
+- The timeout ends with no fork. The process is the parent. It exits with
+  status 0.
+- The context ends. The park returns the context error.
+
+### Go
+
+```go
+import (
+    "github.com/zeroroot-ai/sdk/fork"
+    "github.com/zeroroot-ai/sdk/serve"
+)
+
+// At process start, before a fork can happen.
+w, err := fork.NewWatcher()
+if err != nil {
+    return err
+}
+
+// ... run the task and write the result ...
+
+if fork.Forkable() {
+    timeout, err := fork.ParkTimeout()
+    if err != nil {
+        return err
+    }
+    // client is the *serve.CallbackClient of this process.
+    claim, err := fork.Park(ctx, w, client, fork.ParkOptions{Timeout: timeout})
+    if err != nil {
+        return err
+    }
+    if claim == nil {
+        return nil // the parent: no fork came, exit with status 0
+    }
+    if err := client.ApplyClaim(claim); err != nil {
+        return err
+    }
+    // Run claim.Task with claim.Model. Each later call uses claim.Grant.
+}
+```
+
+`ApplyClaim` makes each later call of the client carry the grant and the
+IDs of the claim. A client that has per-call credentials fixed at dial time
+cannot change its grant, so `ApplyClaim` refuses it.
+
+### TypeScript
+
+```ts
+import { Watcher, parkAfterResult, readSandboxDispatch } from "@zeroroot-ai/sdk"
+
+// At process start, before a fork can happen.
+const watcher = Watcher.create()
+
+// ... run the task and write the result ...
+
+const forkEnv = await parkAfterResult(process.env, watcher)
+if (forkEnv) {
+  // This process is a fork. Run its task the same way as a fresh launch.
+  const dispatch = readSandboxDispatch(forkEnv)
+}
+```
+
+`parkAfterResult` returns `undefined` at once when the process is not a
+fork source. It also returns `undefined` when the park ends with no fork.
+In a fork, it returns the launch environment of the task of the fork. The
+claim replaces the grant, the IDs, the model and the task. The environment
+keeps the callback endpoint and has no `GIBSON_FORKABLE`.
+
+## Fork at run time
+
+An agent can fork its own current state. It creates a child mission with
+the option `StartsFromCallerState`. The daemon forks the caller while the
+call is open.
+
+- In the parent, `CreateMission` returns the mission as before.
+- In the fork, `CreateMission` returns `*fork.ErrForked`. The error holds
+  the claim of the fork. The SDK has already applied the claim to the
+  client.
+
+```go
+info, err := h.CreateMission(ctx, def, targetID, &mission.CreateMissionOpts{
+    StartsFromCallerState: true,
+})
+var forked *fork.ErrForked
+if errors.As(err, &forked) {
+    // This process is the fork. Run forked.Claim.Task.
+}
+```
+
+The TypeScript SDK has no helper for a fork at run time. It exports the
+`point` function and the `ForkedError` class, which a runtime can use.
+
+## Recognize a refusal
+
+A call with the grant of the parent in a fork gets `FAILED_PRECONDITION`
+with the reason `GIBSON_FORK_UNCLAIMED` in the domain `gibson.harness.v1`.
+Use `fork.IsForkUnclaimed(err)` in Go, or `isForkUnclaimed(err)` in
+TypeScript. This error means that the process did not claim its dispatch
+first.
+
+`ClaimFork` can also fail with these codes:
+
+| Code | Cause |
+|---|---|
+| `UNAUTHENTICATED` | No identity token, or a token that does not verify. |
+| `PERMISSION_DENIED` | The sandbox is not a fork of the sandbox of the grant, or `sandbox_id` names another sandbox than the token. |
+| `ALREADY_EXISTS` | The fork made its claim before. |
+| `INVALID_ARGUMENT` | The request is not valid. |

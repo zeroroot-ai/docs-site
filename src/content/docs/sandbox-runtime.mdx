@@ -1,0 +1,233 @@
+---
+title: Sandbox runtime
+description: Each sandbox is one Firecracker machine in one launcher pod. The runtime keeps a warm pool, suspends and resumes sessions, keeps a durable session through the loss of its node, and forks a running sandbox.
+---
+
+Gibson runs each agent and each tool in a sandbox. The
+[setec](https://github.com/zeroroot-ai/setec) operator makes the sandbox.
+This page describes what a sandbox is and what the runtime can do with
+one. To watch the sandboxes of your tenant, see
+[Agent sandboxes](/docs/agent-sandboxes).
+
+## One machine in one pod
+
+Each sandbox is one Firecracker machine inside one Kubernetes pod. The pod
+has one container, the **launcher**. The launcher starts Firecracker in the
+pod and joins the machine to the network interface of the pod. The
+untrusted code runs in the machine, not in the container.
+
+Kubernetes still does the work it does for any pod. It schedules the pod,
+applies the network policy of the pod, mounts the volumes, enforces the
+limits and cleans up. A network policy on the launcher pod applies to the
+machine, because each frame of the machine goes through the pod interface.
+
+The launcher is the only runtime. The Kata, gVisor and runc backends are
+gone. The admission webhook refuses a `SandboxClass` that names one of
+them.
+
+### The parts
+
+| Part | What it does |
+|---|---|
+| **Launcher pod** | Boots the machine or loads a snapshot into it. Both are one call. The pod is not privileged, mounts nothing from the host, and has one capability, `NET_ADMIN`, for the network join. |
+| **KVM device plugin** | A DaemonSet that offers `/dev/kvm` and `/dev/net/tun` of each node as the resources `setec.zeroroot.ai/kvm` and `setec.zeroroot.ai/tun`. |
+| **Disk builder** | A Job that turns one image digest into one read-only disk, one time. It signs the disk and pushes it to the registry. |
+| **Guest agent** | The init process of the machine. It starts the workload with the entry point, user, directory and environment of the image. It serves exec over vsock. |
+| **Node agent** | A DaemonSet that takes the snapshots of the machines on its node and stages a snapshot for a restore. |
+
+No container runtime runs inside the machine. The workload processes run
+directly in the guest. Each sandbox gets the signed disk of its image and
+its own writable layer. The launcher checks the disk signature before the
+machine starts, and it refuses a disk that no configured key signed.
+
+`kubectl logs` shows the console of the machine. Exec goes through the
+setec API and the guest agent.
+
+### Node requirements
+
+A node that runs sandboxes needs these:
+
+- An x86-64 CPU with KVM. The node can be bare metal or a virtual machine
+  with nested virtualization. Each node must expose `/dev/kvm`.
+- `/dev/net/tun`, and the kernel modules `tun`, `sch_ingress`,
+  `cls_matchall` and `act_mirred`.
+- Kubernetes 1.35 or later. The launcher pod mounts its disk as an image
+  volume.
+
+Nothing else goes on the node. Firecracker, the guest kernel and the guest
+agent come in the launcher image. A node with no `/dev/kvm` reports the
+device resources as unhealthy and gets no launcher pod.
+
+## Lifecycles
+
+A sandbox has one of two lifecycles. You set it when you create the
+sandbox, and you cannot change it after that.
+
+- **Ephemeral** is the default. The sandbox runs one command to its end and
+  keeps no state.
+- **Session** lives across many calls. It has a workspace volume at
+  `/workspace` that outlives its pod. A client attaches again with the
+  sandbox ID and runs commands with `Exec`.
+
+## Snapshots
+
+A snapshot holds the state of a running machine: the CPU state, the memory
+and the writable layer. The node agent pauses the machine, writes the
+state and resumes the machine. A snapshot can be a diff on top of an
+earlier snapshot of the same sandbox.
+
+A restore is a new launcher pod that loads the snapshot. Before the
+restored machine joins the network, the launcher does four things:
+
+1. It reseeds the entropy of the guest.
+2. It sets the guest clock.
+3. It gives the guest the address of the new pod.
+4. It gives the guest a new identity.
+
+The sandbox is `Running` only after these checks pass. A failed step
+fails the restore. The node agent encrypts each snapshot at rest with its
+own data key.
+
+A `SandboxClass` can name a CPU template. Each machine of the class then
+shows the guest the same CPU features, so a snapshot loads on any node of
+the class. With no template, a snapshot loads only on a node of the same
+instance type as its source.
+
+## Warm pool
+
+A warm pool removes the boot from the start of a sandbox. A pool entry is a
+**base**: a snapshot of a machine that booted the pool image and ran no
+workload. A base holds no tenant data. The node agent scans each base for
+secrets before it keeps it.
+
+Declare a pool on a `SandboxClass`:
+
+```yaml
+apiVersion: setec.zeroroot.ai/v1alpha1
+kind: SandboxClass
+metadata:
+  name: fast
+spec:
+  runtime:
+    backend: launcher
+  defaultResources:
+    vcpu: 2
+    memory: 2Gi
+  preWarmPoolSize: 3
+  preWarmImage: ghcr.io/org/app@sha256:<digest>
+```
+
+The operator keeps `preWarmPoolSize` ready bases, each on a different node.
+A sandbox of the class loads a base when it asks for the pool image with
+the default resources of the class. It then gets a new identity and starts
+its workload. With no ready base, the sandbox boots cold. A failed load
+never fails the sandbox.
+
+The operator drops a base when the image digest, the launcher image, the
+CPU template or the machine size changes. A pool keeps no base for an
+image that no sandbox asked for in 7 days. The webhook refuses a pool with
+no image digest or no default resources.
+
+## Suspend and resume
+
+A session in a class with `sessionCheckpoint` can suspend. A suspend
+writes a checkpoint of the machine and releases the machine. The session
+keeps its workspace and its checkpoint. A suspended session uses no
+compute.
+
+- A session with no attach, no exec and no client stream for 10 minutes
+  suspends. The class can set another time with `sessionIdleTimeout`.
+- A caller can suspend a session with the `Suspend` call of the setec API.
+- An `Attach`, an `Exec` or a `Resume` call brings the session back. A new
+  machine loads the checkpoint and passes the restore checks. It can start
+  on any node.
+- A session that stays suspended longer than `suspendedTTL` is recycled
+  with its checkpoint, its key and its workspace. The default is 7 days.
+
+The checkpoints go to an S3-compatible store. Each checkpoint has its own
+data key, sealed under a key of the session. The end of the session
+deletes that key, so each checkpoint of the session becomes unreadable.
+
+## Durable sessions
+
+Set `durable: true` in the `sessionCheckpoint` of a class to keep a
+session through the loss of its node.
+
+```yaml
+spec:
+  sessionCheckpoint:
+    durable: true
+    interval: 15m
+    suspendedTTL: 168h
+```
+
+A durable session writes a checkpoint at each interval. The default
+interval is 15 minutes. Each checkpoint is a diff on the last checkpoint,
+with at most 8 diffs on one full checkpoint.
+
+- When a node drains, the session writes a fresh checkpoint and resumes on
+  another node.
+- When a node stops reporting for 90 seconds, the operator removes the pod
+  and the session resumes from its last checkpoint on another node.
+- After each load, the workload finds the time of its state and the time of
+  the resume in `/run/setec/resumed`.
+
+A session that has no usable checkpoint restarts from its workspace. The
+sandbox status and a warning event say so. The workspace keeps the data,
+and the process state after the last checkpoint is lost.
+
+## Fork
+
+A fork starts several sandboxes from the state of one running sandbox. The
+`Fork` call of the setec API takes a snapshot of the source and starts the
+number of sandboxes that the request asks for.
+
+- Each fork gets a new identity, new randomness and its own writable layer.
+- Each fork gets the network that the request gives. It never gets the
+  network of the source.
+- Only the owner of the source can fork it. A fork stays in the namespace
+  of its source.
+- The fork snapshot is deleted after its time to live, when no fork still
+  needs it.
+
+Gibson uses this call for mission forks. See
+[Fork a node](/docs/missions#fork-a-node-starts_from) and the
+[fork contract](/docs/fork-contract) for component authors.
+
+## Kept snapshots
+
+The `Keep` call of the setec API keeps the state of a running sandbox for a
+later review.
+
+- setec seals the snapshot with a key of the tenant and writes it to the
+  S3-compatible store.
+- A kept snapshot opens only in a review sandbox. A review sandbox has no
+  network and the machine size of its source. A normal launch from a kept
+  snapshot is refused.
+- A kept snapshot expires after 30 days. The `Pin` call keeps it past that
+  time.
+- The pinned snapshots of a tenant count against a storage limit. The
+  chart value `snapshots.kept.pinnedLimit` sets it. The default is `20Gi`.
+- When a tenant namespace is deleted, its kept snapshots and its key go
+  with it.
+
+## Sandbox identity
+
+Each sandbox, and so each fork, has its own signing key. Only the
+launcher container mounts the key. No process in the machine can read it.
+
+A process in the sandbox gets an identity token from the Unix socket that
+the environment variable `SETEC_IDENTITY_SOCKET` names. The token names the
+sandbox, its owner, the audience and the identity generation. It is valid
+for 5 minutes.
+
+Each snapshot raises the identity generation. So a token that a fork or a
+restore finds in its copy of the source memory does not verify. A service
+checks a token with the `VerifySandboxIdentity` call of the setec API.
+
+## Related
+
+- [Agent sandboxes](/docs/agent-sandboxes) shows the sandboxes of your
+  tenant while they run.
+- [Isolation](/docs/security/isolation) describes the gate that decides
+  when a component runs in a sandbox.
