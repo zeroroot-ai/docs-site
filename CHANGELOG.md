@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.15](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.14...docs-site-v0.6.15) (2026-10-07)
+
+
+### Documentation
+
+* end-phase integration of docs-site, part 2 ([#99](https://github.com/zeroroot-ai/docs-site/issues/99)) ([91bd407](https://github.com/zeroroot-ai/docs-site/commit/91bd40773506a7da45e4502ad140771ceb0e88fc))
+
 ## [0.6.14](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.13...docs-site-v0.6.14) (2026-10-06)
 
 
