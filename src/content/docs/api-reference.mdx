@@ -184,9 +184,8 @@ AgentIdentity is a single entry in the list response.
 | `name` | 3 | `string` | — |
 | `description` | 4 | `string` | — |
 | `created_at` | 5 | `google.protobuf.Timestamp` | — |
-| `last_authenticated_at` | 6 | `google.protobuf.Timestamp` | last_authenticated_at is null if never authenticated or unsupported by the IdP. |
 | `revoked` | 7 | `bool` | — |
-| `created_by_subject` | 8 | `string` | — |
+| `created_by_subject` | 8 | `string` | created_by_subject is the bare subject of the person who created the identity. hosted test/demo/exit-test-enrollment.sh reads it. |
 
 #### `ComponentGrant`
 
@@ -737,35 +736,10 @@ I do right now" UI.
 | `allowed_rpcs` | 5 | `repeated string` | allowed_rpcs is the set of method strings the grant authorizes (e.g. ["GetCredential", "RecordFinding"]). |
 | `mission_id` | 6 | `string` | mission_id is the mission this grant scopes the recipient to. Empty for non-mission-scoped grants. |
 | `task_id` | 7 | `string` | task_id is the task within the mission. Empty when mission_id is empty or the grant is mission-wide. |
-| `issued_at_unix` | 8 | `int64` | issued_at_unix is the iat claim, Unix seconds. |
 | `expires_at_unix` | 9 | `int64` | expires_at_unix is the exp claim, Unix seconds. |
 | `near_expiry` | 10 | `bool` | near_expiry is true when the grant expires within 5 minutes from now. The dashboard renders these rows with a warning highlight. |
-| `isolation` | 11 | `IsolationMode` | isolation is where this grant's untrusted-execution boundary lives (ADR-0110). UNSPECIFIED is treated as HOSTED_SANDBOX by the daemon's dispatch-policy gate. Consumed together with the deployment shape: setec-only permits only HOSTED_SANDBOX (fail-closed otherwise). |
 
 ### Enums
-
-#### `IsolationMode`
-
-IsolationMode is where the untrusted-execution isolation boundary lives for
-a capability grant (ADR-0110). It is consumed by the daemon's dispatch-policy
-gate together with the deployment shape (GIBSON_UNTRUSTED_EXEC): under the
-hosted SaaS shape (setec-only) only ISOLATION_MODE_HOSTED_SANDBOX is
-permitted; any other value is rejected fail-closed. Under a customer-operated
-shape (customer-isolation) the customer modes are permitted, and
-ISOLATION_MODE_ON_PREM_SANDBOX_ENDPOINT resolves the configured (customer-
-pointed) setec SandboxService endpoint.
-
-The enum lives here (public OSS) because callers parsing a
-CapabilityGrantInfo need to render the isolation posture without pulling the
-admin/mint service descriptor — same rationale as RecipientClass.
-
-| Value | # | Description |
-|---|---|---|
-| `ISOLATION_MODE_UNSPECIFIED` | 0 | ISOLATION_MODE_UNSPECIFIED is treated as ISOLATION_MODE_HOSTED_SANDBOX by the gate (back-compat for grants minted before this field shipped), which is the fail-closed-safe default in the hosted shape. |
-| `ISOLATION_MODE_HOSTED_SANDBOX` | 1 | ISOLATION_MODE_HOSTED_SANDBOX: untrusted execution runs in the platform- operated setec sandbox fleet. The only mode permitted under setec-only. |
-| `ISOLATION_MODE_CUSTOMER_CLUSTER_ATTESTED` | 2 | ISOLATION_MODE_CUSTOMER_CLUSTER_ATTESTED: untrusted execution runs in a customer-operated cluster whose isolation the daemon verifies by attestation. Attestation mechanics are a separate follow-up. |
-| `ISOLATION_MODE_CUSTOMER_SELF_SANDBOX` | 3 | ISOLATION_MODE_CUSTOMER_SELF_SANDBOX: the customer owns and operates the isolation boundary entirely. Attestation mechanics are a separate follow-up. |
-| `ISOLATION_MODE_ON_PREM_SANDBOX_ENDPOINT` | 4 | ISOLATION_MODE_ON_PREM_SANDBOX_ENDPOINT: untrusted execution dispatches to a customer-pointed setec SandboxService endpoint configured on the daemon. |
 
 #### `RecipientClass`
 
@@ -822,22 +796,12 @@ FieldError describes one field of a request that broke one rule.
 |---|---|---|---|
 | `status` | 1 | `string` | — |
 | `message` | 2 | `string` | — |
-| `checked_at` | 3 | `int64` | — |
 
 #### `JSONSchema`
 
 | Field | # | Type | Description |
 |---|---|---|---|
 | `json` | 1 | `string` | — |
-
-#### `Metadata`
-
-Metadata contains labels and annotations for resources
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `labels` | 1 | `map<string, string>` | — |
-| `annotations` | 2 | `map<string, string>` | — |
 
 #### `Principal`
 
@@ -918,17 +882,6 @@ ErrorCode defines standard error codes across the system
 | `ERROR_CODE_CHILD_AGENT_FAILED` | 24 | — |
 | `ERROR_CODE_CONFIG_ERROR` | 25 | — |
 
-#### `HealthState`
-
-HealthState defines standard health states
-
-| Value | # | Description |
-|---|---|---|
-| `HEALTH_STATE_UNSPECIFIED` | 0 | — |
-| `HEALTH_STATE_HEALTHY` | 1 | — |
-| `HEALTH_STATE_DEGRADED` | 2 | — |
-| `HEALTH_STATE_UNHEALTHY` | 3 | — |
-
 #### `NullValue`
 
 NullValue represents a null value in TypedValue
@@ -960,6 +913,18 @@ ComponentService is the central gRPC service that all Gibson components
 receive work via long-polling, submit results, and access harness operations
 (LLM completion, tool calls, plugin queries, findings, memory) through
 the proxy RPCs defined here.
+
+##### `Authorize`
+
+`AuthorizeRequest` → `AuthorizeResponse`
+
+Authorize asks the daemon whether the work item of the caller may do an
+action on a resource. It is the pull-transport twin of
+HarnessCallbackService.Authorize and runs the same decision: the daemon
+takes the mission run, the user and the tenant from the work item, never
+from the request, then runs the FGA check. A caller that is not the owner
+of the work item, or a work item with no mission run, is refused. The
+answer is allowed only on an explicit allow (D86).
 
 ##### `CallTool`
 
@@ -1030,6 +995,18 @@ DisablePlugin deactivates a plugin for the calling tenant.
 
 EnablePlugin activates a plugin for the calling tenant, optionally
 supplying an initial configuration JSON blob.
+
+##### `EnrollComponent`
+
+`EnrollComponentRequest` → `EnrollComponentResponse`
+
+EnrollComponent enrolls a component that the calling agent produced
+(gibson#33). The new component gets its own identity in the tenant of
+the caller and a short-lived bootstrap token for that identity only.
+The person who owns the calling agent owns the new component. The
+platform assigns its trust: a produced component is never trusted, so
+a catalog name is refused. A quota for each tenant bounds how many
+components agents enroll. Each enrollment writes an audit record.
 
 ##### `FindSimilarAttacks`
 
@@ -1257,6 +1234,25 @@ AgentDescriptorProto describes a registered agent.
 | `capabilities` | 4 | `repeated string` | — |
 | `target_types` | 5 | `repeated string` | — |
 
+#### `AuthorizeRequest`
+
+AuthorizeRequest asks whether a work item may do an action on a resource.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `work_id` | 1 | `string` | work_id is the work item the caller claimed with PollWork. |
+| `action` | 2 | `string` | action is a verb such as "execute", "read" or "write". |
+| `resource` | 3 | `string` | resource is a kind-qualified reference such as "tool:nmap". |
+
+#### `AuthorizeResponse`
+
+AuthorizeResponse is the decision. allowed is true only on an explicit allow.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `allowed` | 1 | `bool` | — |
+| `reason` | 2 | `string` | reason names the basis of the decision, for example "fga_allow". |
+
 #### `CallToolRequest`
 
 CallToolRequest is a harness proxy request to execute a tool.
@@ -1399,38 +1395,6 @@ CompleteWithToolsResponse carries the LLM's reply including any tool calls.
 | `tool_calls` | 3 | `repeated ToolCallResult` | — |
 | `finish_reason` | 4 | `string` | — |
 
-#### `ComponentDescriptor`
-
-ComponentDescriptor is the unified persisted description of a component
-registered in the Gibson ComponentRegistry, regardless of how it is
-dispatched. Consumers (orchestrator, dashboard, CLI, authz) look up a
-descriptor by name and switch on dispatch_mode to choose the routing.
-
-Legacy fields (name, version, kind, tags, metadata) describe every
-component. Sandboxed-dispatch fields (image, command, env, resources,
-default_timeout_seconds, input_schema_json, output_proto_type,
-default_parse_quality) are populated by the daemon's catalog refresher
-for sandboxed tools. Plugin/agent entries leave those fields zero.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | Common metadata — populated for every dispatch_mode. |
-| `version` | 2 | `string` | — |
-| `kind` | 3 | `string` | — |
-| `description` | 4 | `string` | — |
-| `tags` | 5 | `repeated string` | — |
-| `metadata` | 6 | `map<string, string>` | — |
-| `dispatch_mode` | 7 | `DispatchMode` | — |
-| `image` | 10 | `string` | Sandboxed-dispatch fields (DISPATCH_MODE_SANDBOXED only). image is an OCI reference pinned by digest for reproducibility. |
-| `command` | 11 | `repeated string` | command is the argv the runner executes inside the microVM. |
-| `env` | 12 | `map<string, string>` | env is static environment variables prepended to every Launch call. The daemon adds GIBSON_TOOL_INPUT_B64 and tracing headers on top. |
-| `resources` | 13 | `Resources` | resources is the vCPU + memory budget per sandbox. |
-| `default_timeout_seconds` | 14 | `int32` | default_timeout_seconds bounds the synchronous tool call. |
-| `input_schema_json` | 15 | `bytes` | input_schema_json is the JSON Schema document describing the tool's typed arguments (fed to the orchestrator LLM for tool_use selection). |
-| `output_proto_type` | 16 | `string` | output_proto_type is the fully-qualified proto message name the tool's response conforms to, e.g. "gibson.tool.nmap.v1.ExecuteResponse". |
-| `default_parse_quality` | 17 | `ParseQuality` | default_parse_quality advertises how richly the runner's parser will populate the response's field-100 DiscoveryResult for this tool. |
-| `content_trust` | 18 | `ContentTrust` | content_trust classifies the trust level of input data this component processes at call-time. Consumed by the daemon's dispatch policy gate together with `dispatch_mode` (see `ContentTrust` doc above). The default zero (CONTENT_TRUST_UNSPECIFIED) is treated as TRUSTED at gate-evaluation time for backward compatibility with descriptors registered before this field existed. NOTE: field 100 is reserved platform-wide for `gibson.graphrag.DiscoveryResult` on tool response messages (see `api/proto/DISCOVERY_RESULT.md`); do not assign new fields >= 100 on any component message without coordination. |
-
 #### `ComponentError`
 
 ComponentError represents a structured error returned by a component or harness operation.
@@ -1536,6 +1500,31 @@ EnablePluginResponse reports the outcome of an enable operation.
 |---|---|---|---|
 | `success` | 1 | `bool` | success is true when the plugin was enabled without error. |
 | `message` | 2 | `string` | — |
+
+#### `EnrollComponentRequest`
+
+EnrollComponentRequest describes a component that the calling agent
+produced. The tenant comes from the identity of the caller, never from the
+request.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `kind` | 1 | `string` | kind is "agent", "tool" or "plugin". |
+| `name` | 2 | `string` | name is the component name in the tenant: a lower-case letter, then lower-case letters, digits and dashes, 3 to 41 characters. |
+| `version` | 3 | `string` | version is the version of the artifact, for example "0.1.0". |
+| `image` | 4 | `string` | image is the OCI reference of the built artifact, pinned by digest. |
+| `description` | 5 | `string` | description says what the component does. |
+
+#### `EnrollComponentResponse`
+
+EnrollComponentResponse holds the identity of the new component and its
+one-time credential.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `principal_id` | 1 | `string` | principal_id is the identity of the new component, for example "tool_principal:&lt;id>". |
+| `bootstrap_token` | 2 | `string` | bootstrap_token is the one-time credential that the new component exchanges for its host key. It is valid until expires_at and for this component only. It carries no session capability. |
+| `expires_at` | 3 | `google.protobuf.Timestamp` | expires_at is the end of the bootstrap token. |
 
 #### `FindSimilarAttacksRequest`
 
@@ -1654,9 +1643,7 @@ GetMissionRunHistoryRequest requests summaries of previous mission runs.
 
 GetMissionRunHistoryResponse carries run summaries.
 
-| Field | # | Type | Description |
-|---|---|---|---|
-| `runs_json` | 1 | `bytes` | runs_json is the JSON-encoded []types.MissionRunSummary. |
+_No fields._
 
 #### `GetMissionStatusRequest`
 
@@ -1689,7 +1676,6 @@ GetPluginConfigResponse carries the stored configuration and its schema.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `config_json` | 1 | `string` | config_json is the JSON-encoded configuration currently stored for the plugin. |
 | `config_schema_json` | 2 | `string` | config_schema_json is the JSON Schema document describing the plugin's configurable fields. |
 
 #### `GetRelatedFindingsRequest`
@@ -1761,7 +1747,6 @@ HeartbeatResponse is returned by the server after each heartbeat.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `registered` | 1 | `bool` | registered indicates whether the server still considers this instance registered. A false value means the component must re-register before polling for work. |
-| `config_updates` | 2 | `map<string, string>` | config_updates carries any configuration values that have changed since the last heartbeat. The component should merge these into its running config. |
 
 #### `LLMMessage`
 
@@ -1876,9 +1861,6 @@ PluginAccessProto represents the access record linking a tenant to a specific pl
 | `plugin_name` | 2 | `string` | plugin_name is the unique identifier of the plugin. |
 | `enabled` | 3 | `bool` | enabled indicates whether the plugin is currently active for this tenant. |
 | `source` | 4 | `string` | source identifies how the tenant gained access to this plugin (e.g. "manual", "helm"). |
-| `configured_at` | 5 | `string` | configured_at is the RFC 3339 timestamp of the last configuration change. |
-| `configured_by` | 6 | `string` | configured_by is the identity (user or service account) that applied the last config. |
-| `has_config` | 7 | `bool` | has_config indicates whether a non-empty configuration blob is stored for this record. |
 
 #### `PluginCatalogEntryProto`
 
@@ -1895,7 +1877,6 @@ PluginCatalogEntryProto describes a single plugin as it appears in the catalog.
 | `configured` | 7 | `bool` | configured indicates whether the plugin has a non-empty configuration stored. |
 | `health_status` | 8 | `string` | health_status is the last-known health of the plugin: "healthy", "degraded", or "unhealthy". |
 | `source` | 9 | `string` | source identifies where this plugin was discovered (e.g. "registry", "local"). |
-| `instance_count` | 10 | `int32` | instance_count is the number of running instances currently registered. |
 
 #### `PollWorkRequest`
 
@@ -2022,18 +2003,6 @@ ReportStepHintsRequest reports planning step hints from an agent.
 ReportStepHintsResponse is returned after hints are accepted.
 
 _No fields._
-
-#### `Resources`
-
-Resources declares the compute budget a sandboxed component requires per
-call. Units mirror Kubernetes resource conventions (vcpu is whole CPUs;
-memory is a quantity string like "256Mi" or "1Gi"). Only meaningful when
-dispatch_mode == DISPATCH_MODE_SANDBOXED.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `vcpu` | 1 | `int32` | — |
-| `memory` | 2 | `string` | — |
 
 #### `RunMissionRequest`
 
@@ -2517,8 +2486,8 @@ ListTools returns all registered tools from the etcd registry.
 
 `PauseMissionRequest` → `PauseMissionResponse`
 
-PauseMission pauses a running mission at the next clean checkpoint boundary.
-If force is true, pauses immediately without waiting for a clean boundary.
+PauseMission pauses a running mission when the current node ends.
+If force is true, pauses immediately without waiting for the node to end.
 
 ##### `Ping`
 
@@ -2573,7 +2542,9 @@ Spec: unified-identity-and-authorization Requirement 5.8.
 
 `ResumeMissionRequest` → `stream ResumeMissionResponse`
 
-ResumeMission resumes a paused mission from its last checkpoint.
+ResumeMission resumes a paused mission. The resume continues the same
+run. It does not move the run back to a checkpoint: RewindMission does
+that, and it starts a new run (ADR-0170).
 Returns a stream of mission events as execution continues.
 
 ##### `RewindMission`
@@ -2674,19 +2645,6 @@ emitted periodically to keep the stream alive.
 
 ### Messages
 
-#### `AgentEvent`
-
-AgentEvent represents an agent lifecycle event.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `event_type` | 1 | `string` | event_type identifies the agent event type (registered, unregistered, health_change) |
-| `timestamp` | 2 | `int64` | timestamp is when the event occurred (Unix timestamp) |
-| `agent_id` | 3 | `string` | agent_id is the agent identifier |
-| `agent_name` | 4 | `string` | agent_name is the agent name |
-| `message` | 5 | `string` | message is a human-readable message |
-| `data` | 6 | `gibson.common.v1.TypedMap` | data contains event-specific data (typed map) |
-
 #### `AgentInfo`
 
 AgentInfo describes a registered agent.
@@ -2752,15 +2710,14 @@ render it.
 
 #### `CheckpointMetadata`
 
-CheckpointMetadata is the lightweight summary of the source checkpoint
-streamed back on a ResumeMission response so the dashboard can render
-"Resumed from checkpoint X".
-
-Spec: mission-checkpointing R9.
+CheckpointMetadata is the summary of a source checkpoint on a
+ResumeMission response. The daemon does not send it today: see
+ResumeMissionResponse.checkpoint_metadata. The checkpoints of a run are listed by
+GetMissionCheckpoints (ADR-0170).
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `checkpoint_id` | 1 | `string` | checkpoint_id is the unique identifier of the source checkpoint. |
+| `checkpoint_id` | 1 | `string` | checkpoint_id is the identifier of the source checkpoint. |
 | `saved_at_unix_seconds` | 2 | `int64` | saved_at_unix_seconds is when the checkpoint was captured (Unix epoch seconds). |
 | `super_step_number` | 3 | `int32` | super_step_number identifies which super-step boundary this checkpoint captured (1-based; 0 if not super-step-aligned). |
 | `cadence_reason` | 4 | `string` | cadence_reason is a free-form classifier for why the checkpoint was taken. Recognized values per R9.1: "super_step", "parallel_group_complete", "approval_required", "graceful_shutdown". Promoted to enum at v1.0.0. |
@@ -2800,7 +2757,6 @@ ConnectResponse returns connection metadata.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `daemon_version` | 1 | `string` | daemon_version is the version of the running daemon |
 | `session_id` | 2 | `string` | session_id is a unique identifier for this client session |
 | `grpc_address` | 3 | `string` | grpc_address is the address the daemon is listening on |
 
@@ -2842,7 +2798,6 @@ Inline target / inline mission / YAML paths are no longer accepted.
 | `metadata` | 6 | `map<string, string>` | metadata provides additional mission metadata |
 | `variables` | 7 | `map<string, string>` | variables contains mission variables to override at creation time |
 | `memory_continuity` | 8 | `string` | memory_continuity defines how agent memory is shared across mission runs Valid values: "isolated" (default), "inherit", "shared" |
-| `source_yaml` | 9 | `string` | source_yaml is the original YAML the dashboard used to construct this mission. Optional. When non-empty, the daemon stores it alongside the structured mission state. Empty for programmatic callers that never had a YAML source. Spec: dashboard-neo4j-crud-removal Req 3.5. |
 | `idempotency_key` | 13 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
 
 #### `CreateMissionResponse`
@@ -2889,51 +2844,6 @@ DeleteTargetResponse reports the outcome of a delete.
 |---|---|---|---|
 | `success` | 1 | `bool` | — |
 
-#### `Event`
-
-Event represents a generic daemon event.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `event_type` | 1 | `string` | event_type identifies the type of event |
-| `timestamp` | 2 | `int64` | timestamp is when the event occurred (Unix timestamp) |
-| `source` | 3 | `string` | source is the event source (mission, agent, daemon, etc.) |
-| `data` | 4 | `gibson.common.v1.TypedMap` | data contains event-specific data (typed map) |
-| `mission_event` | 5 | `MissionEvent` | — |
-| `agent_event` | 7 | `AgentEvent` | — |
-| `finding_event` | 8 | `FindingEvent` | — |
-| `tool_event` | 9 | `ToolEvent` | — |
-| `llm_event` | 10 | `LLMEvent` | — |
-| `orchestrator_event` | 11 | `OrchestratorEvent` | — |
-
-**oneof `event`** — one of: `mission_event`, `agent_event`, `finding_event`, `tool_event`, `llm_event`, `orchestrator_event`.
-
-#### `FindingEvent`
-
-FindingEvent represents a finding discovery event.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `event_type` | 1 | `string` | event_type identifies the finding event type (discovered, updated) |
-| `timestamp` | 2 | `int64` | timestamp is when the event occurred (Unix timestamp) |
-| `finding` | 3 | `FindingInfo` | finding is the finding information |
-| `mission_id` | 4 | `string` | mission_id is the mission that discovered the finding |
-
-#### `FindingInfo`
-
-FindingInfo describes a discovered vulnerability.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | id is the unique finding identifier |
-| `title` | 2 | `string` | title is the finding title |
-| `severity` | 3 | `string` | severity is the severity level (info, low, medium, high, critical) |
-| `category` | 4 | `string` | category is the finding category |
-| `description` | 5 | `string` | description is the detailed finding description |
-| `technique` | 6 | `string` | technique is the MITRE ATT&amp;CK or ATLAS technique ID |
-| `evidence` | 7 | `string` | evidence contains supporting evidence |
-| `timestamp` | 8 | `int64` | timestamp is when the finding was discovered (Unix timestamp) |
-
 #### `GetAgentStatusRequest`
 
 GetAgentStatusRequest queries a specific agent.
@@ -2950,8 +2860,6 @@ GetAgentStatusResponse returns agent status.
 |---|---|---|---|
 | `agent` | 1 | `AgentInfo` | agent is the agent information |
 | `active` | 2 | `bool` | active indicates if the agent is currently executing a task |
-| `current_task` | 3 | `string` | current_task describes the active task (if any) |
-| `task_start_time` | 4 | `int64` | task_start_time is when the current task started (Unix timestamp) |
 
 #### `GetComponentLogsRequest`
 
@@ -3083,7 +2991,6 @@ GetMyPermissionsResponse returns a compact summary of the caller's permissions.
 | `role` | 2 | `string` | role is the caller's FGA-backed role ("owner", "admin", "operator", "viewer") |
 | `is_admin` | 3 | `bool` | is_admin is true when the caller holds the admin or owner relation on the tenant |
 | `component_grants` | 4 | `repeated PermissionComponentGrant` | component_grants lists the component access grants held by the caller |
-| `team_memberships` | 5 | `repeated PermissionTeamMembership` | team_memberships lists the teams the caller belongs to within this tenant |
 
 #### `GetTargetRequest`
 
@@ -3119,28 +3026,6 @@ symbol under the cursor, or an empty string if there is no hover info.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `markdown` | 1 | `string` | markdown is the hover documentation rendered as Markdown. |
-
-#### `LLMEvent`
-
-LLMEvent represents an LLM activity event.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `event_type` | 1 | `string` | event_type identifies the LLM event type (llm.request.started, llm.request.completed, llm.request.failed) |
-| `timestamp` | 2 | `int64` | timestamp is when the event occurred (Unix timestamp) |
-| `agent_id` | 3 | `string` | agent_id is the agent identifier |
-| `agent_name` | 4 | `string` | agent_name is the agent name |
-| `model` | 5 | `string` | model is the LLM model identifier (e.g., "claude-3-5-sonnet-20241022") |
-| `slot` | 6 | `string` | slot is the LLM slot (primary, fast, reasoning) |
-| `message_count` | 7 | `int32` | message_count is the number of messages in the request |
-| `prompt_tokens` | 8 | `int32` | prompt_tokens is the number of input tokens |
-| `completion_tokens` | 9 | `int32` | completion_tokens is the number of output tokens |
-| `total_tokens` | 10 | `int32` | total_tokens is the sum of prompt and completion tokens |
-| `duration_ms` | 11 | `double` | duration_ms is the request duration in milliseconds |
-| `cached` | 12 | `bool` | cached indicates if the response was served from cache |
-| `error` | 13 | `string` | error contains error information if the event represents a failure |
-| `error_code` | 14 | `string` | error_code identifies the error type (rate_limit, context_length, api_error, timeout) |
-| `will_retry` | 15 | `bool` | will_retry indicates if the failed request will be retried |
 
 #### `ListAgentsRequest`
 
@@ -3279,17 +3164,6 @@ ListToolsResponse returns registered tools.
 |---|---|---|---|
 | `tools` | 1 | `repeated ToolInfo` | tools is the list of registered tools |
 
-#### `LogEntry`
-
-LogEntry represents a single log entry from a component.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `timestamp` | 1 | `int64` | timestamp is when the log entry was created (Unix timestamp) |
-| `level` | 2 | `string` | level is the log level (debug, info, warn, error) |
-| `message` | 3 | `string` | message is the log message |
-| `fields` | 4 | `gibson.common.v1.TypedMap` | fields contains additional structured log fields (typed map) |
-
 #### `Membership`
 
 Membership describes one tenant the caller is a member of, plus the
@@ -3314,26 +3188,12 @@ Mission represents a complete mission execution instance with full state.
 | `mission_definition_id` | 5 | `string` | mission_definition_id is the mission definition identifier |
 | `constraints` | 6 | `gibson.mission.v1.MissionConstraints` | constraints defines execution constraints. Canonical type per ADR 0004: gibson.mission.v1.MissionConstraints is the single platform-wide shape. |
 | `metrics` | 7 | `MissionMetrics` | metrics contains current execution metrics |
-| `checkpoint` | 8 | `MissionCheckpoint` | checkpoint is the latest checkpoint (if any) |
 | `run_number` | 9 | `int32` | run_number is the sequential run number for this mission name |
 | `created_at` | 10 | `int64` | created_at is when the mission was created (Unix timestamp in milliseconds) |
 | `updated_at` | 11 | `int64` | updated_at is when the mission was last updated (Unix timestamp in milliseconds) |
 | `started_at` | 12 | `int64` | started_at is when the mission execution started (Unix timestamp in milliseconds) |
 | `completed_at` | 13 | `int64` | completed_at is when the mission execution completed (Unix timestamp in milliseconds, 0 if not completed) |
 | `created_by` | 14 | `gibson.common.v1.Principal` | created_by is the principal that created the mission. See MissionInfo.created_by. |
-
-#### `MissionCheckpoint`
-
-MissionCheckpoint represents a saved checkpoint state for pause/resume.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | id is the unique checkpoint identifier |
-| `version` | 2 | `int32` | version is the checkpoint format version |
-| `completed_nodes` | 3 | `int32` | completed_nodes is the number of nodes that had completed at checkpoint time |
-| `total_nodes` | 4 | `int32` | total_nodes is the total number of nodes in the mission |
-| `created_at` | 5 | `int64` | created_at is when this checkpoint was created (Unix timestamp in milliseconds) |
-| `state_data` | 6 | `bytes` | state_data is the serialized checkpoint state (opaque blob) |
 
 #### `MissionDefinitionInfo`
 
@@ -3455,15 +3315,7 @@ MissionMetrics contains execution metrics for a mission.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `turns_used` | 1 | `int32` | turns_used is the number of agent turns/iterations executed |
-| `nodes_executed` | 2 | `int32` | nodes_executed is the number of mission nodes that ran successfully |
-| `nodes_failed` | 3 | `int32` | nodes_failed is the number of mission nodes that failed |
 | `findings_count` | 4 | `int32` | findings_count is the total number of findings discovered |
-| `critical_count` | 5 | `int32` | critical_count is the number of critical severity findings |
-| `high_count` | 6 | `int32` | high_count is the number of high severity findings |
-| `medium_count` | 7 | `int32` | medium_count is the number of medium severity findings |
-| `low_count` | 8 | `int32` | low_count is the number of low severity findings |
-| `tokens_used` | 9 | `int64` | tokens_used is the total LLM tokens consumed |
 
 #### `MissionRun`
 
@@ -3477,7 +3329,6 @@ MissionRun represents a single execution instance of a mission.
 | `created_at` | 4 | `int64` | created_at is when this run was created (Unix timestamp) |
 | `completed_at` | 5 | `int64` | completed_at is when this run completed (Unix timestamp, 0 if not completed) |
 | `findings_count` | 6 | `int32` | findings_count is the number of findings discovered in this run |
-| `previous_run_id` | 7 | `string` | previous_run_id is the ID of the previous run (if any) |
 | `trace_id` | 8 | `string` | trace_id is the OTel trace ID for Langfuse lookup |
 | `parent_mission_id` | 9 | `string` | parent_mission_id is the id of the run that this run was rewound from (ADR-0170). Empty on a run that is not the result of a rewind. A client follows this field to show the runs as a chain. |
 | `parent_checkpoint_id` | 10 | `string` | parent_checkpoint_id is the id of the checkpoint of the parent run at which this run started. Empty when parent_mission_id is empty. |
@@ -3485,8 +3336,7 @@ MissionRun represents a single execution instance of a mission.
 #### `NodeCheckpoint`
 
 NodeCheckpoint is the end of one node in a mission run (ADR-0170). It is
-the point at which a rewind can start a new run. It is not the older
-MissionCheckpoint, which describes a saved state blob.
+the point at which a rewind can start a new run.
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -3517,38 +3367,9 @@ This provides typed metrics instead of JSON-encoded strings.
 | `duration_ms` | 2 | `int64` | duration_ms is the total duration in milliseconds |
 | `started_at` | 3 | `int64` | started_at is the Unix timestamp (milliseconds) when the operation started |
 | `completed_at` | 4 | `int64` | completed_at is the Unix timestamp (milliseconds) when the operation completed |
-| `turns_used` | 5 | `int32` | turns_used is the number of agent turns/iterations executed |
-| `tokens_used` | 6 | `int64` | tokens_used is the total LLM tokens consumed |
-| `nodes_executed` | 7 | `int32` | nodes_executed is the number of mission nodes that ran successfully |
-| `nodes_failed` | 8 | `int32` | nodes_failed is the number of mission nodes that failed |
 | `findings_count` | 9 | `int32` | findings_count is the total number of findings discovered |
-| `critical_count` | 10 | `int32` | critical_count is the number of critical severity findings |
-| `high_count` | 11 | `int32` | high_count is the number of high severity findings |
-| `medium_count` | 12 | `int32` | medium_count is the number of medium severity findings |
-| `low_count` | 13 | `int32` | low_count is the number of low severity findings |
 | `error_message` | 14 | `string` | error_message contains the error message if status == "failed" |
 | `error_code` | 15 | `string` | error_code contains a machine-readable error code if status == "failed" |
-
-#### `OrchestratorEvent`
-
-OrchestratorEvent represents an orchestrator decision event.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `event_type` | 1 | `string` | event_type identifies the orchestrator event type (orchestrator.decision, orchestrator.approval_required) |
-| `timestamp` | 2 | `int64` | timestamp is when the event occurred (Unix timestamp) |
-| `mission_id` | 3 | `string` | mission_id is the mission identifier |
-| `iteration` | 4 | `int32` | iteration is the orchestrator iteration number |
-| `action` | 5 | `string` | action is the orchestrator action (execute_agent, skip_node, wait, complete, request_approval) |
-| `target_node_id` | 6 | `string` | target_node_id is the mission node ID being targeted |
-| `target_agent_name` | 7 | `string` | target_agent_name is the agent name being targeted |
-| `confidence` | 8 | `double` | confidence is the decision confidence score (0-1) |
-| `reasoning` | 9 | `string` | reasoning is the orchestrator's reasoning (max 500 chars in practice) |
-| `tokens_used` | 10 | `int32` | tokens_used is the number of tokens consumed for this decision |
-| `latency_ms` | 11 | `double` | latency_ms is the decision latency in milliseconds |
-| `approval_id` | 12 | `string` | approval_id is set when approval is required |
-| `risk` | 13 | `string` | risk is the risk level (low, medium, high, critical) |
-| `timeout_seconds` | 14 | `int32` | timeout_seconds is the timeout for approval requests |
 
 #### `PauseMissionRequest`
 
@@ -3557,7 +3378,7 @@ PauseMissionRequest requests pausing a running mission.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `mission_id` | 1 | `string` | mission_id is the unique identifier of the mission to pause |
-| `force` | 2 | `bool` | force indicates whether to pause immediately without waiting for a clean checkpoint boundary If false (default), waits for the current node to complete before pausing |
+| `force` | 2 | `bool` | force indicates whether to pause immediately without waiting for the current node to end If false (default), waits for the current node to complete before pausing |
 
 #### `PauseMissionResponse`
 
@@ -3566,7 +3387,7 @@ PauseMissionResponse confirms the mission pause request.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `success` | 1 | `bool` | success indicates if the pause request was accepted |
-| `checkpoint_id` | 2 | `string` | checkpoint_id is the ID of the checkpoint created during pause |
+| `checkpoint_id` | 2 | `string` | checkpoint_id is empty. A pause does not make a checkpoint: a checkpoint is the end of a node in a run (ADR-0170). Use GetMissionCheckpoints to list the checkpoints of a run. |
 | `message` | 3 | `string` | message provides additional context about the pause operation |
 
 #### `PermissionComponentGrant`
@@ -3577,16 +3398,6 @@ PermissionComponentGrant is a compact component grant for use in permissions sum
 |---|---|---|---|
 | `component_ref` | 1 | `string` | component_ref is the component identifier, e.g. "tool:mytool" |
 | `actions` | 2 | `repeated string` | actions lists the FGA relations the caller holds (execute, configure, read) |
-
-#### `PermissionTeamMembership`
-
-PermissionTeamMembership describes the caller's membership in a team.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `team_id` | 1 | `string` | team_id is the unique team identifier |
-| `team_name` | 2 | `string` | team_name is the human-readable team name |
-| `is_admin` | 3 | `bool` | is_admin is true when the caller is an admin of the team |
 
 #### `PingRequest`
 
@@ -3689,8 +3500,6 @@ ResumeMissionRequest requests resuming a paused mission.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `mission_id` | 1 | `string` | mission_id is the unique identifier of the mission to resume |
-| `checkpoint_id` | 2 | `string` | checkpoint_id optionally specifies a specific checkpoint to resume from If empty, resumes from the latest checkpoint |
-| `target_checkpoint_id` | 3 | `string` | Empty string = legacy resume-from-latest behavior (backward compatible). When non-empty, the daemon rewinds the mission to the named checkpoint and resumes execution from that point. The handler additionally enforces the mission#admin FGA relation when this field is non-empty per mission-checkpointing R16.3. |
 
 #### `ResumeMissionResponse`
 
@@ -3706,7 +3515,7 @@ ResumeMissionResponse wraps a MissionEvent for the ResumeMission streaming RPC.
 | `data` | 6 | `gibson.common.v1.TypedMap` | data contains event-specific data (typed map) |
 | `error` | 7 | `string` | error contains error information if the event represents an error |
 | `result` | 8 | `OperationResult` | result contains typed operation metrics (for mission.completed events) |
-| `checkpoint_metadata` | 9 | `CheckpointMetadata` | checkpoint_metadata surfaces the source checkpoint metadata at the start of a resumed stream so the dashboard can render the "Resumed from checkpoint X" affordance. Populated on the first event of a resume stream; nil/empty on subsequent events. Spec: mission-checkpointing R9. |
+| `checkpoint_metadata` | 9 | `CheckpointMetadata` | checkpoint_metadata is not set by the daemon. A resume continues the same run, so a resume stream has no source checkpoint. A run that starts at a checkpoint is a new run from RewindMission, and it records the checkpoint in parent_checkpoint_id (ADR-0170). |
 
 #### `RewindMissionRequest`
 
@@ -3879,34 +3688,8 @@ SubscribeResponse wraps an Event for the Subscribe streaming RPC.
 | `source` | 3 | `string` | source is the event source (mission, agent, daemon, etc.) |
 | `data` | 4 | `gibson.common.v1.TypedMap` | data contains event-specific data (typed map) |
 | `mission_event` | 5 | `MissionEvent` | — |
-| `agent_event` | 7 | `AgentEvent` | — |
-| `finding_event` | 8 | `FindingEvent` | — |
-| `tool_event` | 9 | `ToolEvent` | — |
-| `llm_event` | 10 | `LLMEvent` | — |
-| `orchestrator_event` | 11 | `OrchestratorEvent` | — |
 
-**oneof `event`** — one of: `mission_event`, `agent_event`, `finding_event`, `tool_event`, `llm_event`, `orchestrator_event`.
-
-#### `ToolEvent`
-
-ToolEvent represents a tool execution event.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `event_type` | 1 | `string` | event_type identifies the tool event type (tool.started, tool.completed, tool.failed, tool.progress, tool.warning) |
-| `timestamp` | 2 | `int64` | timestamp is when the event occurred (Unix timestamp) |
-| `tool_name` | 3 | `string` | tool_name is the name of the tool being executed |
-| `agent_id` | 4 | `string` | agent_id is the agent identifier executing the tool |
-| `agent_name` | 5 | `string` | agent_name is the agent name executing the tool |
-| `mission_id` | 6 | `string` | mission_id is the mission context for this tool execution |
-| `message` | 7 | `string` | message is a human-readable event message |
-| `duration` | 8 | `double` | duration is the execution time in seconds (for completed/failed events) |
-| `progress` | 9 | `double` | progress is the completion percentage (0-1 for progress events) |
-| `error` | 10 | `string` | error contains error information if the event represents an error |
-| `error_code` | 11 | `string` | error_code contains a machine-readable error code |
-| `warning` | 12 | `string` | warning contains warning information if the event represents a warning |
-| `warning_severity` | 13 | `string` | warning_severity is the severity level (low, medium, high) |
-| `data` | 14 | `gibson.common.v1.TypedMap` | data contains event-specific data (typed map) |
+**oneof `event`** — one of: `mission_event`.
 
 #### `ToolInfo`
 
@@ -4380,9 +4163,6 @@ AttackPattern is a MITRE ATT&amp;CK-shaped technique record from the tenant grap
 | `technique_id` | 2 | `string` | technique_id is the ATT&amp;CK identifier, e.g. "T1566". |
 | `name` | 3 | `string` | — |
 | `description` | 4 | `string` | — |
-| `tactics` | 5 | `repeated string` | tactics, e.g. ["Initial Access", "Execution"]. |
-| `platforms` | 6 | `repeated string` | platforms, e.g. ["Windows", "Linux"]. |
-| `data_sources` | 7 | `repeated string` | — |
 | `references` | 8 | `repeated string` | — |
 | `created_at` | 20 | `int64` | — |
 | `updated_at` | 21 | `int64` | — |
@@ -4409,13 +4189,9 @@ Certificate discovered.
 | `id` | 1 | `optional string` | — |
 | `subject` | 2 | `optional string` | — |
 | `issuer` | 3 | `optional string` | — |
-| `serial_number` | 4 | `optional string` | — |
-| `not_before` | 5 | `optional int64` | — |
 | `not_after` | 6 | `optional int64` | — |
 | `fingerprint_sha256` | 7 | `optional string` | — |
-| `san` | 8 | `optional string` | — |
 | `parent_id` | 10 | `optional string` | Parent entity reference (optional - cert can be associated with various entities) |
-| `parent_type` | 11 | `optional string` | — |
 
 #### `CustomNode`
 
@@ -4458,9 +4234,6 @@ Domain discovered.
 |---|---|---|---|
 | `id` | 1 | `optional string` | — |
 | `name` | 2 | `string` | — |
-| `registrar` | 3 | `optional string` | — |
-| `created_date` | 4 | `optional int64` | — |
-| `expiry_date` | 5 | `optional int64` | — |
 
 #### `Endpoint`
 
@@ -4474,7 +4247,6 @@ Endpoint (URL) on a service.
 | `method` | 4 | `optional string` | — |
 | `status_code` | 5 | `optional int32` | — |
 | `content_type` | 6 | `optional string` | — |
-| `content_length` | 7 | `optional int64` | — |
 | `title` | 8 | `optional string` | — |
 
 #### `Evidence`
@@ -4515,10 +4287,8 @@ Finding (vulnerability or security issue).
 | `confidence` | 5 | `optional double` | — |
 | `category` | 6 | `optional string` | — |
 | `remediation` | 7 | `optional string` | — |
-| `cvss_score` | 8 | `optional double` | — |
 | `cve_ids` | 9 | `optional string` | — |
 | `parent_id` | 10 | `optional string` | Parent entity reference (optional - finding can be associated with various entities) |
-| `parent_type` | 11 | `optional string` | — |
 
 #### `FindingNode`
 
@@ -4555,13 +4325,9 @@ This is the proto-canonical representation for storage and query operations.
 | `mission_id` | 10 | `string` | Scoping fields (injected by harness) |
 | `mission_run_id` | 11 | `string` | — |
 | `agent_run_id` | 12 | `string` | — |
-| `discovered_by` | 13 | `string` | — |
 | `discovered_at` | 14 | `int64` | — |
 | `created_at` | 20 | `int64` | Timestamps |
 | `updated_at` | 21 | `int64` | — |
-| `parent_id` | 30 | `optional string` | Parent reference |
-| `parent_type` | 31 | `optional string` | — |
-| `parent_relationship` | 32 | `optional string` | — |
 
 #### `GraphQuery`
 
@@ -4574,13 +4340,10 @@ GraphQuery represents a query against the knowledge graph using proto-canonical 
 | `top_k` | 3 | `int32` | — |
 | `node_types` | 4 | `repeated string` | — |
 | `min_score` | 5 | `double` | — |
-| `max_score` | 6 | `double` | — |
 | `mission_id` | 7 | `string` | — |
 | `mission_run_id` | 8 | `string` | — |
 | `scope` | 9 | `QueryScope` | — |
 | `filters` | 10 | `map<string, string>` | — |
-| `vector_weight` | 11 | `double` | — |
-| `graph_weight` | 12 | `double` | — |
 | `from_node_id` | 13 | `string` | from_node_id anchors a relationship traversal: with relationship_type, restrict results to nodes reachable from this node by that relationship (sdk#72, the SDK search primitive). Optional; a query with neither this nor relationship_type is a plain type/text/relevance search, unchanged. |
 | `relationship_type` | 14 | `string` | relationship_type names the relationship to traverse from from_node_id, e.g. "RESOLVES_TO" (sdk#72). Optional; requires from_node_id to have any effect. |
 
@@ -4606,7 +4369,6 @@ Host discovered by a tool.
 | `hostname` | 3 | `optional string` | — |
 | `state` | 4 | `optional string` | — |
 | `os` | 5 | `optional string` | — |
-| `os_version` | 6 | `optional string` | — |
 | `mac_address` | 7 | `optional string` | — |
 
 #### `IFPDef`
@@ -4670,26 +4432,8 @@ QueryResult represents a single result from a graph query.
 |---|---|---|---|
 | `node` | 1 | `GraphNode` | — |
 | `score` | 2 | `double` | — |
-| `vector_score` | 3 | `double` | — |
-| `graph_score` | 4 | `double` | — |
 | `path` | 5 | `repeated string` | — |
 | `distance` | 6 | `int32` | — |
-
-#### `Relationship`
-
-Relationship represents a connection between two nodes.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `from_id` | 2 | `string` | — |
-| `to_id` | 3 | `string` | — |
-| `type` | 4 | `string` | — |
-| `properties` | 5 | `map<string, Value>` | — |
-| `weight` | 6 | `double` | — |
-| `mission_id` | 10 | `string` | Scoping |
-| `mission_run_id` | 11 | `string` | — |
-| `created_at` | 20 | `int64` | Timestamps |
 
 #### `SameAsPair`
 
@@ -4714,9 +4458,7 @@ Service running on a port.
 | `name` | 3 | `string` | — |
 | `product` | 4 | `optional string` | — |
 | `version` | 5 | `optional string` | — |
-| `extra_info` | 6 | `optional string` | — |
 | `banner` | 7 | `optional string` | — |
-| `cpe` | 8 | `optional string` | — |
 
 #### `Subdomain`
 
@@ -4740,9 +4482,7 @@ Technology detected.
 | `version` | 3 | `optional string` | — |
 | `category` | 4 | `optional string` | — |
 | `confidence` | 5 | `optional int32` | — |
-| `cpe` | 6 | `optional string` | — |
 | `parent_id` | 10 | `optional string` | Parent entity reference (optional - tech can be associated with various entities) |
-| `parent_type` | 11 | `optional string` | — |
 
 #### `Value`
 
@@ -4822,6 +4562,23 @@ Tool Operations
 ##### `CancelMission`
 
 `CancelMissionRequest` → `CancelMissionResponse`
+
+##### `ClaimFork`
+
+`ClaimForkRequest` → `ClaimForkResponse`
+
+ClaimFork returns the dispatch of a fork (D74, sdk#248). A fork from a
+snapshot starts with the grant of its parent in memory. It calls
+ClaimFork first, with no grant (D80), and from then on uses only the grant
+of the response. The daemon knows the fork only from the setec identity
+token in the metadata key x-gibson-sandbox-identity (sdk#251). It
+accepts the call only when that sandbox is a fork of the sandbox of the
+grant, and only one time for each fork.
+
+Errors: Unauthenticated (no identity token, or a token that does not
+verify), PermissionDenied (the sandbox is not a fork of the grant, or
+sandbox_id names another sandbox than the token), AlreadyExists (the
+fork was claimed before), InvalidArgument.
 
 ##### `CloseJob`
 
@@ -5312,36 +5069,6 @@ conflating the two is what makes an unanswerable question look like good news.
 | `findings` | 1 | `repeated ApplicationFinding` | — |
 | `error` | 2 | `HarnessError` | — |
 
-#### `AttackChain`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | — |
-| `severity` | 3 | `string` | — |
-| `steps` | 4 | `repeated AttackStep` | — |
-
-#### `AttackPattern`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `technique_id` | 1 | `string` | — |
-| `name` | 2 | `string` | — |
-| `description` | 3 | `string` | — |
-| `tactics` | 4 | `repeated string` | — |
-| `platforms` | 5 | `repeated string` | — |
-| `similarity` | 6 | `double` | — |
-
-#### `AttackStep`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `order` | 1 | `int32` | — |
-| `technique_id` | 2 | `string` | — |
-| `node_id` | 3 | `string` | — |
-| `description` | 4 | `string` | — |
-| `confidence` | 5 | `double` | — |
-
 #### `AuthorizeRequest`
 
 AuthorizeRequest asks the daemon whether the current work execution is
@@ -5434,7 +5161,6 @@ CallToolProtoStreamResponse streams tool execution events back to the agent.
 | `trace_id` | 10 | `string` | — |
 | `span_id` | 11 | `string` | — |
 | `sequence` | 12 | `int64` | — |
-| `timestamp_ms` | 13 | `int64` | — |
 
 **oneof `payload`** — one of: `progress`, `partial`, `warning`, `complete`, `error`.
 
@@ -5465,6 +5191,29 @@ CertificateObservation is a TLS certificate served on a port (identity: fingerpr
 | `subject` | 2 | `string` | — |
 | `issuer` | 3 | `string` | — |
 | `not_after` | 4 | `string` | — |
+
+#### `ClaimForkRequest`
+
+ClaimForkRequest names the fork that asks for its dispatch.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `sandbox_id` | 1 | `string` | sandbox_id is the hostname of the fork. It is a hint, not a proof: the daemon takes the fork from the identity token, and refuses a sandbox_id that names another sandbox than the token. |
+
+#### `ClaimForkResponse`
+
+ClaimForkResponse is the dispatch of the fork. It holds the values that a
+launch gives to a new sandbox through its environment.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `grant` | 1 | `string` | grant is the capability grant of the fork. The fork uses it for each later call. The grant of the parent does not work in the fork. |
+| `mission_id` | 2 | `string` | mission_id, mission_run_id and agent_run_id scope the callbacks of the fork. |
+| `mission_run_id` | 3 | `string` | — |
+| `agent_run_id` | 4 | `string` | — |
+| `node_id` | 5 | `string` | node_id is the mission node that the fork runs. |
+| `model` | 6 | `string` | model is the model resolved for the tenant for this dispatch. |
+| `task` | 7 | `gibson.types.v1.Task` | task is the task that the fork runs. |
 
 #### `CloseJobRequest`
 
@@ -5510,10 +5259,9 @@ CreateMissionRequest creates a new mission from a mission definition.
 | `mission_definition_json` | 2 | `bytes` | — |
 | `target_id` | 3 | `string` | — |
 | `name` | 4 | `string` | — |
-| `constraints` | 5 | `MissionConstraints` | Deprecated: use canonical_constraints (field 8) instead. constraints uses the harness-local MissionConstraints shape which only carries max_duration_ms (int64 ms), max_tokens, max_cost, and max_findings. It will be removed in a follow-up release once all microVM consumers have migrated to canonical_constraints. |
 | `metadata` | 6 | `map<string, gibson.common.v1.TypedValue>` | — |
 | `tags` | 7 | `repeated string` | — |
-| `canonical_constraints` | 8 | `gibson.mission.v1.MissionConstraints` | canonical_constraints carries the platform-canonical gibson.mission.v1.MissionConstraints type (ADR 0004). Prefer this field over the deprecated constraints (field 5). The daemon merges canonical_constraints with any constraints baked into the mission definition (dispatch wins on conflict). Absent means no dispatch-time constraint overrides. |
+| `canonical_constraints` | 8 | `gibson.mission.v1.MissionConstraints` | canonical_constraints carries the platform-canonical gibson.mission.v1.MissionConstraints type (ADR 0004). The daemon merges canonical_constraints with any constraints baked into the mission definition (dispatch wins on conflict). Absent means no dispatch-time constraint overrides. |
 | `catalog_mission` | 9 | `string` | catalog_mission names a mission definition checked into the platform's mission catalog, to be originated instead of a caller-supplied graph (ADR-0118: the checked-in definition is authoritative). This is a second *input* to the one mission-creation route, deliberately not a second RPC. A dedicated RPC would carry its own authorization surface, so the per-tenant gate and the ADR-0063 origination rule ("a component originates only from inside a live parent") would be enforced in two places — which is where two enforcement paths drift apart. Exactly one of mission_definition_json (field 2) or catalog_mission must be set. Both is InvalidArgument; neither is InvalidArgument. |
 | `catalog_params` | 10 | `map<string, string>` | catalog_params carries the parameters the named catalog mission declares, keyed by the definition's own parameter names. The map is CLOSED: the daemon refuses an unrecognised key rather than ignoring it. Silently dropping a key a caller sent would let that caller believe a parameter bound when it did not — which is what keeps the runtime target out of this map honest. The target continues to bind from target_id (field 3) alone, so a scan can only ever run against a target the tenant registered. Every missing parameter is reported at once rather than one render at a time. Only meaningful when catalog_mission is set. |
 | `starts_from` | 11 | `OriginationStart` | starts_from selects the state that the new mission starts from (ADR-0169). An agent forks at run time when it originates a child mission with ORIGINATION_START_CALLER_STATE. The origination bounds still apply to a fork: the budget comes from the remainder of the parent, the targets are a subset, and the depth limit holds (ADR-0063). The child gets the network scope of its own nodes, never the scope of the caller. |
@@ -5702,18 +5450,6 @@ FindingFilter represents filtering criteria for findings
 | `status` | 4 | `gibson.types.v1.FindingStatus` | — |
 | `tags` | 5 | `repeated string` | — |
 
-#### `FindingNode`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `title` | 2 | `string` | — |
-| `description` | 3 | `string` | — |
-| `severity` | 4 | `string` | — |
-| `category` | 5 | `string` | — |
-| `confidence` | 6 | `double` | — |
-| `similarity` | 7 | `double` | — |
-
 #### `GenerateNodeIDRequest`
 
 | Field | # | Type | Description |
@@ -5843,7 +5579,6 @@ GetMissionStatusResponse returns detailed status info.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `plan_context` | 1 | `PlanContext` | — |
 | `error` | 2 | `HarnessError` | — |
 
 #### `GetRelatedFindingsRequest`
@@ -5921,30 +5656,6 @@ GetRunFindingsResponse carries findings from the selected runs.
 | `capabilities` | 7 | `repeated TaxonomyCapability` | — |
 | `error` | 8 | `HarnessError` | — |
 
-#### `GraphNode`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `type` | 2 | `string` | — |
-| `properties` | 3 | `map<string, gibson.common.v1.TypedValue>` | — |
-| `content` | 4 | `string` | — |
-| `mission_id` | 5 | `string` | — |
-| `agent_name` | 6 | `string` | — |
-| `created_at` | 7 | `int64` | — |
-| `updated_at` | 8 | `int64` | — |
-
-#### `GraphRAGResult`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `node` | 1 | `GraphNode` | — |
-| `score` | 2 | `double` | — |
-| `vector_score` | 3 | `double` | — |
-| `graph_score` | 4 | `double` | — |
-| `path` | 5 | `repeated string` | — |
-| `distance` | 6 | `int32` | — |
-
 #### `HarnessAgentDescriptor`
 
 | Field | # | Type | Description |
@@ -5966,16 +5677,6 @@ Error represents an error response from a callback operation.
 | `message` | 2 | `string` | — |
 | `retryable` | 3 | `bool` | — |
 
-#### `HarnessHealthStatus`
-
-HealthStatus represents the health status of a service.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `state` | 1 | `string` | — |
-| `message` | 2 | `string` | — |
-| `checked_at` | 3 | `int64` | — |
-
 #### `HarnessPluginDescriptor`
 
 | Field | # | Type | Description |
@@ -5992,16 +5693,6 @@ HealthStatus represents the health status of a service.
 | `name` | 1 | `string` | — |
 | `description` | 2 | `string` | — |
 | `input_schema` | 5 | `JSONSchemaNode` | Structured schemas with full taxonomy support |
-| `output_schema` | 6 | `JSONSchemaNode` | — |
-
-#### `HistoricalValueItem`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `value` | 1 | `gibson.common.v1.TypedValue` | — |
-| `run_number` | 2 | `int32` | — |
-| `mission_id` | 3 | `string` | — |
-| `stored_at` | 4 | `string` | — |
 
 #### `HostObservation`
 
@@ -6050,11 +5741,8 @@ Used for structured schema transmission that preserves taxonomy mappings.
 | `maximum` | 9 | `optional double` | — |
 | `min_length` | 10 | `optional int32` | — |
 | `max_length` | 11 | `optional int32` | — |
-| `min_items` | 12 | `optional int32` | — |
-| `max_items` | 13 | `optional int32` | — |
 | `pattern` | 14 | `optional string` | — |
 | `default_value` | 15 | `optional string` | — |
-| `nullable` | 16 | `bool` | — |
 | `taxonomy` | 17 | `TaxonomyMapping` | — |
 
 #### `KeyValue`
@@ -6251,16 +5939,6 @@ ListMissionsResponse returns matching missions.
 | `tools` | 1 | `repeated HarnessToolDescriptor` | — |
 | `error` | 2 | `HarnessError` | — |
 
-#### `LongTermMemoryResult`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `content` | 2 | `string` | — |
-| `metadata` | 3 | `map<string, gibson.common.v1.TypedValue>` | — |
-| `score` | 4 | `double` | — |
-| `created_at` | 5 | `string` | — |
-
 #### `MemoryObservation`
 
 MemoryObservation reports a fact the agent wants to keep across runs, in the
@@ -6278,22 +5956,6 @@ other variants. There is no field for either.
 | `kind` | 2 | `string` | kind is a short category, for example "convention", "decision", "layout". |
 | `tags` | 3 | `repeated string` | tags help recall. Free-form, lower-case. |
 | `source_ref` | 4 | `string` | source_ref names where the fact came from: a path, a URL, or a work id. |
-
-#### `MissionConstraints`
-
-MissionConstraints limits mission execution to prevent resource exhaustion.
-
-Deprecated: use gibson.mission.v1.MissionConstraints via the
-canonical_constraints field on CreateMissionRequest instead.
-This type will be removed in a follow-up release after all microVM
-consumers have migrated.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `max_duration_ms` | 1 | `int64` | — |
-| `max_tokens` | 2 | `int64` | — |
-| `max_cost` | 3 | `double` | — |
-| `max_findings` | 4 | `int32` | — |
 
 #### `MissionFilter`
 
@@ -6322,27 +5984,6 @@ MissionInfo provides metadata about a mission.
 | `created_at` | 6 | `int64` | — |
 | `tags` | 7 | `repeated string` | — |
 
-#### `MissionMemoryItem`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `key` | 1 | `string` | — |
-| `value` | 2 | `gibson.common.v1.TypedValue` | — |
-| `metadata` | 3 | `map<string, gibson.common.v1.TypedValue>` | — |
-| `created_at` | 4 | `string` | — |
-| `updated_at` | 5 | `string` | — |
-
-#### `MissionMemoryResult`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `key` | 1 | `string` | — |
-| `value` | 2 | `gibson.common.v1.TypedValue` | — |
-| `metadata` | 3 | `map<string, gibson.common.v1.TypedValue>` | — |
-| `score` | 4 | `double` | — |
-| `created_at` | 5 | `string` | — |
-| `updated_at` | 6 | `string` | — |
-
 #### `MissionMetrics`
 
 MissionMetrics aggregates execution statistics.
@@ -6368,23 +6009,6 @@ MissionResult contains final results of a completed mission.
 | `metrics` | 5 | `MissionMetrics` | — |
 | `error` | 6 | `string` | — |
 | `completed_at` | 7 | `int64` | — |
-
-#### `MissionRunSummary`
-
-MissionRunSummary is the proto wire type for types.MissionRunSummary,
-used by GetMissionRunHistory to return chronological run records to
-the SDK CallbackHarness.
-
-Spec: headline-feature-completion R6.1.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `mission_id` | 1 | `string` | mission_id uniquely identifies this run. |
-| `run_number` | 2 | `int32` | run_number is the sequential run number for this mission name (1-based). |
-| `status` | 3 | `string` | status is the final status string (`running`, `completed`, `failed`, `cancelled`, `paused`). |
-| `findings_count` | 4 | `int32` | findings_count is the number of findings discovered in this run. |
-| `created_at_unix` | 5 | `int64` | created_at is when the run was created (Unix epoch seconds). |
-| `completed_at_unix` | 6 | `int64` | completed_at_unix is when the run completed (Unix epoch seconds, 0 if still running). |
 
 #### `MissionStatusInfo`
 
@@ -6417,8 +6041,6 @@ OAuthCredential represents OAuth tokens
 | Field | # | Type | Description |
 |---|---|---|---|
 | `access_token` | 1 | `string` | — |
-| `refresh_token` | 2 | `string` | — |
-| `token_type` | 3 | `string` | — |
 | `expires_at` | 4 | `int64` | — |
 
 #### `ObserveRequest`
@@ -6487,16 +6109,6 @@ PlaceBetResponse acknowledges a bet placement.
 |---|---|---|---|
 | `error` | 1 | `HarnessError` | — |
 
-#### `PlanContext`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `current_step_index` | 1 | `int32` | — |
-| `total_steps` | 2 | `int32` | — |
-| `remaining_steps` | 3 | `repeated string` | — |
-| `step_budget` | 4 | `int32` | — |
-| `mission_budget_remaining` | 5 | `int32` | — |
-
 #### `PortObservation`
 
 PortObservation is an observed open port and its optional service detail.
@@ -6551,7 +6163,6 @@ recurrence.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `accepted` | 1 | `bool` | — |
-| `rejection_reason` | 2 | `string` | rejection_reason states, in plain words, why an unaccepted proposal was refused — e.g. an invalid identifier. Empty when accepted is true. |
 | `error` | 3 | `HarnessError` | — |
 
 #### `PullJobRequest`
@@ -6700,16 +6311,6 @@ LifecycleEntityEdge's target).
 | `label` | 1 | `string` | label is the Taxonomy label, e.g. "Host" / "Package". |
 | `id_properties` | 2 | `map<string, string>` | id_properties identify the entity, folded the same way as LifecycleEntityObservation.id_properties. |
 
-#### `Relationship`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `from_id` | 1 | `string` | — |
-| `to_id` | 2 | `string` | — |
-| `type` | 3 | `string` | — |
-| `properties` | 4 | `map<string, gibson.common.v1.TypedValue>` | — |
-| `bidirectional` | 5 | `bool` | — |
-
 #### `RelationshipMapping`
 
 RelationshipMapping defines relationships between nodes using typed references.
@@ -6720,7 +6321,6 @@ RelationshipMapping defines relationships between nodes using typed references.
 | `from` | 2 | `NodeReference` | — |
 | `to` | 3 | `NodeReference` | — |
 | `condition` | 4 | `string` | — |
-| `rel_properties` | 5 | `repeated PropertyMapping` | — |
 
 #### `ReportDeliverableRequest`
 
@@ -6797,7 +6397,6 @@ keeps working while the human decision is pending (ADR-0132).
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `authorization_request_id` | 1 | `string` | authorization_request_id names the pending request. The agent reads the decision back before it performs the destructive act, then names this same hypothesis_id on the eventual SubmitProof. |
 | `error` | 2 | `HarnessError` | — |
 
 #### `RunMissionRequest`
@@ -6910,9 +6509,6 @@ SpanEvent represents a single event within a span.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `confidence` | 1 | `double` | — |
-| `suggested_next` | 2 | `repeated string` | — |
-| `replan_reason` | 3 | `string` | — |
-| `key_findings` | 4 | `repeated string` | — |
 
 #### `SubdomainObservation`
 
@@ -7001,7 +6597,6 @@ Uses deterministic ID generation based on identifying properties instead of temp
 | Field | # | Type | Description |
 |---|---|---|---|
 | `node_type` | 1 | `string` | — |
-| `identifying_properties` | 2 | `map<string, string>` | — |
 | `properties` | 3 | `repeated PropertyMapping` | — |
 | `relationships` | 4 | `repeated RelationshipMapping` | — |
 
@@ -7014,7 +6609,6 @@ Uses deterministic ID generation based on identifying properties instead of temp
 | `type` | 3 | `string` | — |
 | `category` | 4 | `string` | — |
 | `description` | 5 | `string` | — |
-| `identifying_properties` | 6 | `repeated string` | — |
 | `properties` | 7 | `repeated TaxonomyProperty` | — |
 
 #### `TaxonomyProperty`
@@ -7025,7 +6619,6 @@ Uses deterministic ID generation based on identifying properties instead of temp
 | `type` | 2 | `string` | — |
 | `required` | 3 | `bool` | — |
 | `description` | 4 | `string` | — |
-| `enum_values` | 5 | `repeated string` | — |
 | `default_value` | 6 | `string` | — |
 
 #### `TaxonomyRelationshipType`
@@ -7064,8 +6657,6 @@ Uses deterministic ID generation based on identifying properties instead of temp
 | `category` | 4 | `string` | — |
 | `description` | 5 | `string` | — |
 | `tactic` | 6 | `string` | — |
-| `platforms` | 7 | `repeated string` | — |
-| `mitre_mapping` | 8 | `repeated string` | — |
 
 #### `TaxonomyTechniqueType`
 
@@ -7186,23 +6777,6 @@ ToolWarningEvent contains non-fatal warnings during execution
 | `message` | 1 | `string` | — |
 | `code` | 2 | `string` | — |
 
-#### `TraversalOptions`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `max_depth` | 1 | `int32` | — |
-| `relationship_types` | 2 | `repeated string` | — |
-| `node_types` | 3 | `repeated string` | — |
-| `direction` | 4 | `string` | — |
-
-#### `TraversalResult`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `node` | 1 | `GraphNode` | — |
-| `path` | 2 | `repeated string` | — |
-| `distance` | 3 | `int32` | — |
-
 #### `ValidateFindingRequest`
 
 | Field | # | Type | Description |
@@ -7242,8 +6816,6 @@ ToolWarningEvent contains non-fatal warnings during execution
 |---|---|---|---|
 | `context` | 1 | `ContextInfo` | — |
 | `relationship_type` | 2 | `string` | — |
-| `from_node_type` | 3 | `string` | — |
-| `to_node_type` | 4 | `string` | — |
 | `properties` | 5 | `map<string, gibson.common.v1.TypedValue>` | — |
 
 #### `ValidateRelationshipResponse`
@@ -7262,15 +6834,6 @@ ToolWarningEvent contains non-fatal warnings during execution
 | `field` | 1 | `string` | — |
 | `message` | 2 | `string` | — |
 | `code` | 3 | `string` | — |
-
-#### `ValidationResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `valid` | 1 | `bool` | — |
-| `errors` | 2 | `repeated ValidationError` | — |
-| `warnings` | 3 | `repeated string` | — |
-| `error` | 4 | `HarnessError` | — |
 
 #### `WaitForMissionRequest`
 
@@ -7473,17 +7036,6 @@ CredentialType represents the type of credential.
 | `CREDENTIAL_TYPE_BASIC` | 3 | — |
 | `CREDENTIAL_TYPE_OAUTH` | 4 | — |
 | `CREDENTIAL_TYPE_CUSTOM` | 5 | — |
-
-#### `MemoryTier`
-
-MemoryTier specifies which memory tier to use for an operation.
-
-| Value | # | Description |
-|---|---|---|
-| `MEMORY_TIER_UNSPECIFIED` | 0 | — |
-| `MEMORY_TIER_WORKING` | 1 | — |
-| `MEMORY_TIER_MISSION` | 2 | — |
-| `MEMORY_TIER_LONG_TERM` | 3 | — |
 
 #### `MissionStatus`
 
@@ -8077,18 +7629,6 @@ JobVerdict is the outcome a scorer gives when it closes a job.
 
 ### Messages
 
-#### `AgentContract`
-
-AgentContract describes an agent's LLM slot surface and declared
-tool/plugin dependencies. The daemon composes this from the agent's
-descriptor RPC at registration time.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `llm_slot_names` | 1 | `repeated string` | — |
-| `declared_tool_dependencies` | 2 | `repeated string` | — |
-| `declared_plugin_dependencies` | 3 | `repeated string` | — |
-
 #### `CapabilityManifest`
 
 CapabilityManifest is the single, signed, versioned snapshot of every
@@ -8102,20 +7642,14 @@ applies to the calling principal in their resolved tenant. Both SDKs
 | `manifest_version` | 2 | `uint64` | — |
 | `tenant_id` | 3 | `string` | — |
 | `subject` | 4 | `string` | — |
-| `issued_at` | 5 | `google.protobuf.Timestamp` | — |
 | `expires_at` | 6 | `google.protobuf.Timestamp` | — |
 | `ttl_seconds` | 7 | `uint32` | — |
-| `tenant_context` | 10 | `TenantContext` | — |
 | `agents` | 11 | `repeated ComponentCapability` | — |
 | `tools` | 12 | `repeated ComponentCapability` | — |
 | `plugins` | 13 | `repeated ComponentCapability` | — |
-| `cross_component_rules` | 20 | `repeated CrossComponentRule` | — |
-| `cross_component_rules_truncated` | 21 | `bool` | — |
 | `limits` | 30 | `LimitsAndQuotas` | — |
-| `available_llm_slots` | 31 | `repeated string` | — |
 | `memory` | 32 | `MemoryPermissions` | — |
 | `signature` | 200 | `bytes` | Signature payload (Ed25519 over body with signature/kid cleared). |
-| `signing_key_id` | 201 | `string` | — |
 
 #### `ComponentCapability`
 
@@ -8137,16 +7671,9 @@ that the populated `contract` oneof matches the kind.
 | `component_ref` | 3 | `string` | — |
 | `version` | 4 | `string` | — |
 | `description` | 5 | `string` | — |
-| `is_system` | 6 | `bool` | — |
 | `owner_tenant` | 7 | `string` | — |
 | `permissions` | 10 | `repeated string` | — |
-| `agent_contract` | 20 | `AgentContract` | — |
-| `tool_contract` | 21 | `ToolContract` | — |
-| `plugin_contract` | 22 | `PluginContract` | — |
 | `liveness` | 30 | `ComponentLiveness` | — |
-| `principal_kind` | 40 | `gibson.identity.v1.PrincipalKind` | principal_kind is the typed kind discriminator. Populated by the daemon at manifest-resolution time; set by the SDK loader when converting YAML manifests. Must agree with the populated `contract` oneof (PRINCIPAL_KIND_AGENT ↔ agent_contract, etc.) — mismatches are rejected by the daemon's RegisterPlugin / CreateAgentIdentity validators. Spec: component-bootstrap-e2e Requirement 12. |
-
-**oneof `contract`** — one of: `agent_contract`, `tool_contract`, `plugin_contract`.
 
 #### `ComponentLiveness`
 
@@ -8158,20 +7685,6 @@ source of truth for live execution decisions.
 |---|---|---|---|
 | `status` | 1 | `string` | — |
 | `last_heartbeat` | 2 | `google.protobuf.Timestamp` | — |
-| `instance_count` | 3 | `uint32` | — |
-
-#### `CrossComponentRule`
-
-CrossComponentRule expresses an explicit override on the default
-can_execute evaluation for a (source_component, target_component) pair.
-Only rules that override the default are emitted, keeping payload bounded.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `source_component_ref` | 1 | `string` | — |
-| `target_component_ref` | 2 | `string` | — |
-| `effect` | 3 | `CrossComponentRule.Effect` | — |
-| `reason` | 4 | `string` | — |
 
 #### `GetCapabilityManifestRequest`
 
@@ -8203,9 +7716,6 @@ floating-point rounding at quota boundaries.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `max_tokens_per_call` | 1 | `uint64` | — |
-| `max_tokens_per_session` | 2 | `uint64` | — |
-| `rate_limit_per_minute` | 3 | `uint32` | — |
-| `max_spend_usd` | 4 | `string` | — |
 
 #### `ManifestInvalidationEvent`
 
@@ -8218,8 +7728,6 @@ alive; INVALIDATED events indicate a refresh is warranted.
 | `event_type` | 1 | `ManifestInvalidationEvent.EventType` | — |
 | `tenant_id` | 2 | `string` | — |
 | `reason` | 3 | `string` | — |
-| `new_manifest_version` | 4 | `uint64` | — |
-| `emitted_at` | 5 | `google.protobuf.Timestamp` | — |
 
 #### `MemoryPermissions`
 
@@ -8229,51 +7737,6 @@ MemoryPermissions expresses per-tier memory access (e.g. "ro", "rw", "").
 |---|---|---|---|
 | `working` | 1 | `string` | — |
 | `mission` | 2 | `string` | — |
-| `longterm` | 3 | `string` | — |
-
-#### `PluginContract`
-
-PluginContract enumerates a plugin's callable methods with per-method
-schemas and per-method FGA-derived invocation permission.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `methods` | 1 | `repeated PluginMethod` | — |
-
-#### `PluginMethod`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `params_schema_json` | 2 | `string` | — |
-| `result_schema_json` | 3 | `string` | — |
-| `can_invoke` | 4 | `bool` | — |
-
-#### `TenantContext`
-
-TenantContext surfaces the tenant identity and team memberships that
-gate the manifest's scope.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `tenant_id` | 1 | `string` | — |
-| `tenant_display_name` | 2 | `string` | — |
-| `team_memberships` | 3 | `repeated string` | — |
-| `is_admin` | 4 | `bool` | — |
-
-#### `ToolContract`
-
-ToolContract describes the proto envelope a tool accepts and emits.
-input_schema_json and output_schema_json are derived from the
-FileDescriptor and rendered to JSON Schema for SDK/ADK consumption.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `input_proto_name` | 1 | `string` | — |
-| `output_proto_name` | 2 | `string` | — |
-| `input_schema_json` | 3 | `string` | — |
-| `output_schema_json` | 4 | `string` | — |
-| `idempotency` | 5 | `ToolIdempotency` | see ToolIdempotency enum; UNSPECIFIED is treated as AT_LEAST_ONCE |
 
 #### `WatchManifestInvalidationsRequest`
 
@@ -8293,14 +7756,6 @@ so the RPC's streaming response type satisfies Buf STANDARD naming.
 
 ### Enums
 
-#### `CrossComponentRule.Effect`
-
-| Value | # | Description |
-|---|---|---|
-| `EFFECT_UNSPECIFIED` | 0 | — |
-| `EFFECT_ALLOW` | 1 | — |
-| `EFFECT_DENY` | 2 | — |
-
 #### `ManifestInvalidationEvent.EventType`
 
 | Value | # | Description |
@@ -8308,25 +7763,6 @@ so the RPC's streaming response type satisfies Buf STANDARD naming.
 | `EVENT_TYPE_UNSPECIFIED` | 0 | — |
 | `EVENT_TYPE_HEARTBEAT` | 1 | — |
 | `EVENT_TYPE_INVALIDATED` | 2 | — |
-
-#### `ToolIdempotency`
-
-ToolIdempotency declares the at-most-once / at-least-once / exactly-once
-delivery semantics a tool guarantees. Read by the resume-from-checkpoint
-logic: tools at AT_LEAST_ONCE are safely retried on resume; tools at
-AT_MOST_ONCE are skipped if their pre-checkpoint invocation status is
-ambiguous; tools at EXACTLY_ONCE require the orchestrator to consult the
-idempotency journal before re-issuing. UNSPECIFIED is treated as
-AT_LEAST_ONCE for backward compatibility.
-
-Spec: mission-checkpointing R6.
-
-| Value | # | Description |
-|---|---|---|
-| `TOOL_IDEMPOTENCY_UNSPECIFIED` | 0 | — |
-| `TOOL_IDEMPOTENCY_AT_MOST_ONCE` | 1 | — |
-| `TOOL_IDEMPOTENCY_AT_LEAST_ONCE` | 2 | — |
-| `TOOL_IDEMPOTENCY_EXACTLY_ONCE` | 3 | — |
 
 ## Package `gibson.mission.v1`
 
@@ -8901,15 +8337,6 @@ GetPluginInstall returns one install by ID.
 
 ListPluginInstalls returns all plugin installs for the tenant.
 
-##### `RegisterPlugin`
-
-`RegisterPluginRequest` → `RegisterPluginResponse`
-
-RegisterPlugin atomically registers a plugin per Spec 2 R3.1: validates
-manifest, creates the Zitadel plugin_principal SA, writes per-binding
-FGA can_resolve tuples (creating any inline secrets in the broker),
-returns the bootstrap token. Any partial failure rolls back all created state.
-
 ##### `RevokePluginSecretBinding`
 
 `RevokePluginSecretBindingRequest` → `RevokePluginSecretBindingResponse`
@@ -8971,54 +8398,12 @@ GetPluginInstall.
 | `name` | 2 | `string` | — |
 | `version` | 3 | `string` | — |
 | `declared_methods` | 4 | `repeated string` | — |
-| `runtime_mode` | 5 | `string` | — |
-| `setec_required` | 6 | `bool` | — |
 | `host_id` | 7 | `string` | — |
 | `status` | 8 | `PluginInstallStatus` | — |
 | `address` | 9 | `string` | — |
 | `last_heartbeat_at_unix` | 10 | `int64` | — |
 | `created_at_unix` | 11 | `int64` | — |
 | `bound_secret_refs` | 12 | `repeated string` | — |
-
-#### `PluginManifestValidationError`
-
-PluginManifestValidationError carries one structured manifest error.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `field` | 1 | `string` | field is the dotted JSONPath into the manifest. |
-| `line` | 2 | `int32` | — |
-| `code` | 3 | `string` | — |
-| `message` | 4 | `string` | — |
-
-#### `PluginSecretBinding`
-
-PluginSecretBinding describes one secret binding in a RegisterPlugin request.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `declared_name` | 1 | `string` | declared_name is the name as declared in the plugin manifest's spec.secrets[] entry. |
-| `mode` | 2 | `string` | mode is one of: "existing" (bind to existing secret) or "create" (create new secret inline). |
-| `existing_ref` | 3 | `string` | existing_ref is the broker-namespaced name of an already-stored secret to bind to. Set when mode = "existing". |
-| `create_value` | 4 | `bytes` | create_value is the plaintext bytes to store under declared_name when mode = "create". TLS in transit; never logged. |
-
-#### `RegisterPluginRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `manifest_yaml` | 1 | `bytes` | manifest_yaml is the plugin manifest YAML bytes. |
-| `bindings` | 2 | `repeated PluginSecretBinding` | — |
-| `dry_run` | 3 | `bool` | dry_run, when true, validates manifest + bindings without creating any state. |
-
-#### `RegisterPluginResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `install_id` | 1 | `string` | — |
-| `plugin_principal_id` | 2 | `string` | — |
-| `bootstrap_token` | 3 | `string` | bootstrap_token is the single-use enrollment token. Empty when dry_run. |
-| `bootstrap_token_expires_at_unix` | 4 | `int64` | — |
-| `validation_errors` | 5 | `repeated PluginManifestValidationError` | — |
 
 #### `RevokePluginSecretBindingRequest`
 
@@ -9515,7 +8900,6 @@ _No fields._
 | `version` | 3 | `string` | — |
 | `tags` | 4 | `repeated string` | — |
 | `input_schema` | 5 | `gibson.common.v1.JSONSchema` | — |
-| `output_schema` | 6 | `gibson.common.v1.JSONSchema` | — |
 
 #### `HealthRequest`
 
@@ -9552,7 +8936,6 @@ Tool -> Client messages for streaming
 | `trace_id` | 10 | `string` | — |
 | `span_id` | 11 | `string` | — |
 | `sequence` | 12 | `int64` | — |
-| `timestamp_ms` | 13 | `int64` | — |
 
 **oneof `payload`** — one of: `progress`, `partial`, `warning`, `complete`, `error`.
 
@@ -9610,18 +8993,6 @@ Tool -> Client messages for streaming
 
 ### Messages
 
-#### `ComplianceMapping`
-
-ComplianceMapping links a Finding to a compliance framework control.
-See finding/compliance_mapping.go for the author-side Go type.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `framework` | 1 | `string` | Compliance framework identifier (e.g. SOC2, NIST_AI_RMF, MITRE_ATLAS, MITRE_ATTACK, PLATFORM). |
-| `control_id` | 2 | `string` | Control identifier within the framework. |
-| `rationale` | 3 | `string` | Optional human-readable rationale. |
-| `evidence_ref` | 4 | `string` | Optional pointer to supporting evidence. |
-
 #### `Evidence`
 
 Evidence represents supporting evidence for a finding.
@@ -9663,26 +9034,6 @@ Finding represents a security vulnerability or issue discovered during testing.
 | `tags` | 22 | `repeated string` | — |
 | `created_at` | 23 | `int64` | — |
 | `updated_at` | 24 | `int64` | — |
-| `compliance_mappings` | 25 | `repeated ComplianceMapping` | Compliance framework mappings — added by audit-finding-compliance-mappings. Links the finding to specific control IDs in compliance frameworks (SOC2, NIST AI RMF, MITRE ATLAS, MITRE ATT&amp;CK). Multiple entries per framework allowed; downstream exporters (SARIF) surface them. |
-
-#### `GraphQuery`
-
-GraphQuery represents a query against the knowledge graph.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `text` | 1 | `string` | — |
-| `embedding` | 2 | `repeated float` | — |
-| `top_k` | 3 | `int32` | — |
-| `node_types` | 4 | `repeated string` | — |
-| `min_score` | 5 | `double` | — |
-| `max_score` | 6 | `double` | — |
-| `mission_id` | 7 | `string` | — |
-| `mission_run_id` | 8 | `string` | — |
-| `scope` | 9 | `QueryScope` | — |
-| `filters` | 10 | `map<string, string>` | — |
-| `vector_weight` | 11 | `double` | Weights for hybrid scoring (must sum to 1.0) |
-| `graph_weight` | 12 | `double` | — |
 
 #### `MissionRunSummary`
 
@@ -9819,17 +9170,6 @@ FindingStatus represents the current status of a security finding.
 | `FINDING_STATUS_CLOSED` | 3 | — |
 | `FINDING_STATUS_FALSE_POSITIVE` | 4 | — |
 
-#### `QueryScope`
-
-QueryScope represents the scope of a GraphRAG query.
-
-| Value | # | Description |
-|---|---|---|
-| `QUERY_SCOPE_UNSPECIFIED` | 0 | — |
-| `QUERY_SCOPE_MISSION_RUN` | 1 | — |
-| `QUERY_SCOPE_MISSION` | 2 | — |
-| `QUERY_SCOPE_GLOBAL` | 3 | — |
-
 #### `ResultStatus`
 
 ResultStatus represents the execution status of a task or operation.
@@ -9842,432 +9182,3 @@ ResultStatus represents the execution status of a task or operation.
 | `RESULT_STATUS_PARTIAL` | 3 | — |
 | `RESULT_STATUS_CANCELLED` | 4 | — |
 | `RESULT_STATUS_TIMEOUT` | 5 | — |
-
-## Package `taxonomy.v1`
-
-### Messages
-
-#### `Account`
-
-Account represents: A principal/account on a target system or identity provider.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `provider` | 2 | `string` | Properties |
-| `subject` | 3 | `string` | — |
-| `username` | 4 | `optional string` | — |
-| `status` | 5 | `optional string` | — |
-| `roles` | 6 | `repeated string` | — |
-
-#### `AgentRun`
-
-AgentRun represents: Single execution of an agent within a mission
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `agent_name` | 2 | `string` | Properties |
-| `mission_run_id` | 3 | `optional string` | — |
-| `status` | 4 | `optional string` | — |
-| `started_at` | 5 | `optional int64` | — |
-| `completed_at` | 6 | `optional int64` | — |
-| `error_message` | 7 | `optional string` | — |
-| `actor_id` | 8 | `string` | — |
-| `actor_tenant_id` | 9 | `string` | — |
-| `api_key_id` | 10 | `optional string` | — |
-| `component_name` | 11 | `string` | — |
-| `component_version` | 12 | `string` | — |
-| `system_owned` | 13 | `bool` | — |
-| `parent_agent_run_id` | 14 | `optional string` | — |
-| `delegation_depth` | 15 | `optional int32` | — |
-
-#### `Certificate`
-
-Certificate represents: TLS/SSL certificate
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `subject` | 2 | `optional string` | Properties |
-| `issuer` | 3 | `optional string` | — |
-| `serial_number` | 4 | `optional string` | — |
-| `not_before` | 5 | `optional int64` | — |
-| `not_after` | 6 | `optional int64` | — |
-| `fingerprint_sha256` | 7 | `optional string` | — |
-| `san` | 8 | `optional string` | — |
-
-#### `ComplianceMapping`
-
-==================== NESTED VALUE-OBJECT MESSAGES ====================
-These are embedded value objects, not graph nodes.
-They have no id field, no parent reference, and no graph-node semantics.
-ComplianceMapping is a nested value-object type.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `framework` | 1 | `string` | — |
-| `control_id` | 2 | `string` | — |
-| `rationale` | 3 | `optional string` | — |
-| `evidence_ref` | 4 | `optional string` | — |
-
-#### `Credential`
-
-Credential represents: A credential (secret material), identified by the hash of its secret. May work across scopes.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `hash` | 2 | `string` | Properties |
-| `kind` | 3 | `optional string` | — |
-| `username` | 4 | `optional string` | — |
-| `source` | 5 | `optional string` | — |
-| `validated` | 6 | `optional bool` | — |
-
-#### `Domain`
-
-Domain represents: Root domain entity (e.g., example.com)
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | Properties |
-| `registrar` | 3 | `optional string` | — |
-| `created_date` | 4 | `optional int64` | — |
-| `expiry_date` | 5 | `optional int64` | — |
-| `nameservers` | 6 | `optional string` | — |
-
-#### `Endpoint`
-
-Endpoint represents: Web endpoint or URL
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `url` | 2 | `string` | Properties |
-| `method` | 3 | `optional string` | — |
-| `status_code` | 4 | `optional int32` | — |
-| `content_type` | 5 | `optional string` | — |
-| `content_length` | 6 | `optional int64` | — |
-| `title` | 7 | `optional string` | — |
-| `parent_service_id` | 8 | `string` | Parent reference |
-
-#### `Evidence`
-
-Evidence represents: Supporting evidence for a finding
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `type` | 2 | `string` | Properties |
-| `content` | 3 | `optional string` | — |
-| `content_type` | 4 | `optional string` | — |
-| `url` | 5 | `optional string` | — |
-| `parent_finding_id` | 6 | `string` | Parent reference |
-
-#### `Finding`
-
-Finding represents: Security vulnerability or issue
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `title` | 2 | `string` | Properties |
-| `description` | 3 | `optional string` | — |
-| `severity` | 4 | `string` | — |
-| `confidence` | 5 | `optional double` | — |
-| `category` | 6 | `optional string` | — |
-| `subcategory` | 7 | `optional string` | — |
-| `remediation` | 8 | `optional string` | — |
-| `cvss_score` | 9 | `optional double` | — |
-| `cve_ids` | 10 | `optional string` | — |
-| `cwe_ids` | 11 | `optional string` | — |
-| `compliance_mappings` | 12 | `repeated ComplianceMapping` | — |
-
-#### `GraphNode`
-
-GraphNode is the generic node type that can represent any taxonomy node.
-Use typed messages (Host, Port, etc.) for compile-time safety,
-or GraphNode for dynamic/custom types.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | Identity |
-| `type` | 2 | `string` | — |
-| `properties` | 3 | `map<string, Value>` | Properties (flexible key-value) |
-| `parent_id` | 4 | `optional string` | Parent reference (set by BelongsTo) |
-| `parent_type` | 5 | `optional string` | — |
-| `parent_relationship` | 6 | `optional string` | — |
-| `mission_id` | 10 | `string` | Scoping (injected by harness - agents never set these) |
-| `mission_run_id` | 11 | `string` | — |
-| `agent_run_id` | 12 | `string` | — |
-| `discovered_by` | 13 | `string` | — |
-| `discovered_at` | 14 | `int64` | — |
-| `created_at` | 20 | `int64` | Timestamps |
-| `updated_at` | 21 | `int64` | — |
-
-#### `Host`
-
-Host represents: IP address or hostname
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `ip` | 2 | `optional string` | Properties |
-| `hostname` | 3 | `optional string` | — |
-| `os` | 4 | `optional string` | — |
-| `os_version` | 5 | `optional string` | — |
-| `mac_address` | 6 | `optional string` | — |
-| `state` | 7 | `optional string` | — |
-
-#### `ListValue`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `values` | 1 | `repeated Value` | — |
-
-#### `LlmCall`
-
-LlmCall represents: Call to a large language model
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `model` | 2 | `string` | Properties |
-| `provider` | 3 | `optional string` | — |
-| `slot_name` | 4 | `optional string` | — |
-| `agent_run_id` | 5 | `optional string` | — |
-| `prompt_tokens` | 6 | `optional int32` | — |
-| `completion_tokens` | 7 | `optional int32` | — |
-| `total_tokens` | 8 | `optional int32` | — |
-| `latency_ms` | 9 | `optional int64` | — |
-| `started_at` | 10 | `optional int64` | — |
-| `actor_id` | 11 | `string` | — |
-| `actor_tenant_id` | 12 | `string` | — |
-| `api_key_id` | 13 | `optional string` | — |
-| `component_name` | 14 | `string` | — |
-| `component_version` | 15 | `string` | — |
-| `model_id` | 16 | `string` | — |
-
-#### `MapValue`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `fields` | 1 | `map<string, Value>` | — |
-
-#### `Mission`
-
-Mission represents: Top-level security assessment mission
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | Properties |
-| `target` | 3 | `string` | — |
-| `status` | 4 | `optional string` | — |
-| `description` | 5 | `optional string` | — |
-| `started_at` | 6 | `optional int64` | — |
-| `completed_at` | 7 | `optional int64` | — |
-
-#### `MissionRun`
-
-MissionRun represents: Single execution of a mission pipeline
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `run_number` | 2 | `int32` | Properties |
-| `status` | 3 | `optional string` | — |
-| `started_at` | 4 | `optional int64` | — |
-| `completed_at` | 5 | `optional int64` | — |
-| `actor_id` | 6 | `string` | — |
-| `actor_tenant_id` | 7 | `string` | — |
-| `api_key_id` | 8 | `optional string` | — |
-| `mission_yaml_digest` | 9 | `string` | — |
-| `parent_mission_id` | 10 | `string` | Parent reference |
-
-#### `Port`
-
-Port represents: Network port on a host
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `number` | 2 | `int32` | Properties |
-| `protocol` | 3 | `string` | — |
-| `state` | 4 | `optional string` | — |
-| `reason` | 5 | `optional string` | — |
-| `parent_host_id` | 6 | `string` | Parent reference |
-
-#### `Relationship`
-
-Relationship represents a connection between two nodes.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `from_id` | 2 | `string` | — |
-| `to_id` | 3 | `string` | — |
-| `type` | 4 | `string` | — |
-| `properties` | 5 | `map<string, Value>` | — |
-| `weight` | 6 | `double` | — |
-| `mission_id` | 10 | `string` | Scoping |
-| `mission_run_id` | 11 | `string` | — |
-| `created_at` | 20 | `int64` | Timestamps |
-
-#### `Scope`
-
-Scope represents: Network/addressing context (vantage) an observation was made within; declared in the mission (RoE) or minted on pivot. The coordinate of an asset is (scope, address).
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `scope_id` | 2 | `string` | Properties |
-| `name` | 3 | `optional string` | — |
-| `kind` | 4 | `optional string` | — |
-| `cidrs` | 5 | `repeated string` | — |
-| `gateway_fingerprint` | 6 | `optional string` | — |
-| `reachable` | 7 | `optional bool` | — |
-
-#### `Service`
-
-Service represents: Service running on a port
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | Properties |
-| `product` | 3 | `optional string` | — |
-| `version` | 4 | `optional string` | — |
-| `extra_info` | 5 | `optional string` | — |
-| `banner` | 6 | `optional string` | — |
-| `cpe` | 7 | `optional string` | — |
-| `parent_port_id` | 8 | `string` | Parent reference |
-
-#### `Subdomain`
-
-Subdomain represents: Subdomain under a root domain
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | Properties |
-| `full_name` | 3 | `optional string` | — |
-| `parent_domain_id` | 4 | `string` | Parent reference |
-
-#### `Technique`
-
-Technique represents: Attack technique (MITRE/Gibson)
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `technique_id` | 2 | `string` | Properties |
-| `name` | 3 | `string` | — |
-| `taxonomy` | 4 | `optional string` | — |
-| `tactic` | 5 | `optional string` | — |
-| `description` | 6 | `optional string` | — |
-| `url` | 7 | `optional string` | — |
-
-#### `Technology`
-
-Technology represents: Technology/framework detected
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | Properties |
-| `version` | 3 | `optional string` | — |
-| `category` | 4 | `optional string` | — |
-| `confidence` | 5 | `optional int32` | — |
-| `cpe` | 6 | `optional string` | — |
-
-#### `ToolExecution`
-
-ToolExecution represents: Execution of a security tool
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `tool_name` | 2 | `string` | Properties |
-| `command` | 3 | `optional string` | — |
-| `exit_code` | 4 | `optional int32` | — |
-| `started_at` | 5 | `optional int64` | — |
-| `completed_at` | 6 | `optional int64` | — |
-| `stdout` | 7 | `optional string` | — |
-| `stderr` | 8 | `optional string` | — |
-| `actor_id` | 9 | `string` | — |
-| `actor_tenant_id` | 10 | `string` | — |
-| `api_key_id` | 11 | `optional string` | — |
-| `component_name` | 12 | `string` | — |
-| `component_version` | 13 | `string` | — |
-| `system_owned` | 14 | `bool` | — |
-| `parent_agent_run_id` | 15 | `string` | Parent reference |
-
-#### `Value`
-
-Value represents a dynamic property value.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `string_value` | 1 | `string` | — |
-| `int_value` | 2 | `int64` | — |
-| `double_value` | 3 | `double` | — |
-| `bool_value` | 4 | `bool` | — |
-| `bytes_value` | 5 | `bytes` | — |
-| `timestamp_value` | 6 | `int64` | — |
-| `list_value` | 7 | `ListValue` | — |
-| `map_value` | 8 | `MapValue` | — |
-
-**oneof `kind`** — one of: `string_value`, `int_value`, `double_value`, `bool_value`, `bytes_value`, `timestamp_value`, `list_value`, `map_value`.
-
-### Enums
-
-#### `CoreNodeType`
-
-Retired. The number and the name are reserved so neither can be reused:
-a reused number changes the meaning of data already on the wire.
-
-| Value | # | Description |
-|---|---|---|
-| `CORE_NODE_TYPE_UNSPECIFIED` | 0 | — |
-| `CORE_NODE_TYPE_MISSION` | 1 | — |
-| `CORE_NODE_TYPE_MISSION_RUN` | 2 | — |
-| `CORE_NODE_TYPE_AGENT_RUN` | 3 | — |
-| `CORE_NODE_TYPE_TOOL_EXECUTION` | 4 | — |
-| `CORE_NODE_TYPE_LLM_CALL` | 5 | — |
-| `CORE_NODE_TYPE_DOMAIN` | 6 | — |
-| `CORE_NODE_TYPE_SUBDOMAIN` | 7 | — |
-| `CORE_NODE_TYPE_HOST` | 8 | — |
-| `CORE_NODE_TYPE_PORT` | 9 | — |
-| `CORE_NODE_TYPE_SERVICE` | 10 | — |
-| `CORE_NODE_TYPE_ENDPOINT` | 11 | — |
-| `CORE_NODE_TYPE_TECHNOLOGY` | 12 | — |
-| `CORE_NODE_TYPE_CERTIFICATE` | 13 | — |
-| `CORE_NODE_TYPE_FINDING` | 14 | — |
-| `CORE_NODE_TYPE_EVIDENCE` | 15 | — |
-| `CORE_NODE_TYPE_TECHNIQUE` | 16 | — |
-| `CORE_NODE_TYPE_SCOPE` | 18 | — |
-| `CORE_NODE_TYPE_CREDENTIAL` | 19 | — |
-| `CORE_NODE_TYPE_ACCOUNT` | 20 | — |
-
-#### `CoreRelationType`
-
-Retired. See the note in CoreNodeType.
-
-| Value | # | Description |
-|---|---|---|
-| `CORE_RELATION_TYPE_UNSPECIFIED` | 0 | — |
-| `CORE_RELATION_TYPE_USED_TOOL` | 1 | — |
-| `CORE_RELATION_TYPE_DELEGATED_TO` | 2 | — |
-| `CORE_RELATION_TYPE_HAS_SUBDOMAIN` | 5 | — |
-| `CORE_RELATION_TYPE_RESOLVES_TO` | 6 | — |
-| `CORE_RELATION_TYPE_HAS_PORT` | 7 | — |
-| `CORE_RELATION_TYPE_RUNS_SERVICE` | 8 | — |
-| `CORE_RELATION_TYPE_HAS_ENDPOINT` | 9 | — |
-| `CORE_RELATION_TYPE_USES_TECHNOLOGY` | 10 | — |
-| `CORE_RELATION_TYPE_SERVES_CERTIFICATE` | 11 | — |
-| `CORE_RELATION_TYPE_AFFECTS` | 12 | — |
-| `CORE_RELATION_TYPE_HAS_EVIDENCE` | 13 | — |
-| `CORE_RELATION_TYPE_USES_TECHNIQUE` | 14 | — |
-| `CORE_RELATION_TYPE_LEADS_TO` | 15 | — |
