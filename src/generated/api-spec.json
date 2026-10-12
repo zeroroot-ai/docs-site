@@ -428,12 +428,6 @@
               "comment": ""
             },
             {
-              "name": "last_authenticated_at",
-              "number": 6,
-              "type": "google.protobuf.Timestamp",
-              "comment": "last_authenticated_at is null if never authenticated or unsupported by the\nIdP."
-            },
-            {
               "name": "revoked",
               "number": 7,
               "type": "bool",
@@ -443,7 +437,7 @@
               "name": "created_by_subject",
               "number": 8,
               "type": "string",
-              "comment": ""
+              "comment": "created_by_subject is the bare subject of the person who created the\nidentity. hosted test/demo/exit-test-enrollment.sh reads it."
             }
           ]
         },
@@ -1504,12 +1498,6 @@
               "comment": "task_id is the task within the mission. Empty when mission_id is\nempty or the grant is mission-wide."
             },
             {
-              "name": "issued_at_unix",
-              "number": 8,
-              "type": "int64",
-              "comment": "issued_at_unix is the iat claim, Unix seconds."
-            },
-            {
               "name": "expires_at_unix",
               "number": 9,
               "type": "int64",
@@ -1520,48 +1508,11 @@
               "number": 10,
               "type": "bool",
               "comment": "near_expiry is true when the grant expires within 5 minutes from\nnow. The dashboard renders these rows with a warning highlight."
-            },
-            {
-              "name": "isolation",
-              "number": 11,
-              "type": "IsolationMode",
-              "comment": "isolation is where this grant's untrusted-execution boundary lives\n(ADR-0110). UNSPECIFIED is treated as HOSTED_SANDBOX by the daemon's\ndispatch-policy gate. Consumed together with the deployment shape:\nsetec-only permits only HOSTED_SANDBOX (fail-closed otherwise)."
             }
           ]
         }
       ],
       "enums": [
-        {
-          "name": "IsolationMode",
-          "comment": "IsolationMode is where the untrusted-execution isolation boundary lives for\na capability grant (ADR-0110). It is consumed by the daemon's dispatch-policy\ngate together with the deployment shape (GIBSON_UNTRUSTED_EXEC): under the\nhosted SaaS shape (setec-only) only ISOLATION_MODE_HOSTED_SANDBOX is\npermitted; any other value is rejected fail-closed. Under a customer-operated\nshape (customer-isolation) the customer modes are permitted, and\nISOLATION_MODE_ON_PREM_SANDBOX_ENDPOINT resolves the configured (customer-\npointed) setec SandboxService endpoint.\n\nThe enum lives here (public OSS) because callers parsing a\nCapabilityGrantInfo need to render the isolation posture without pulling the\nadmin/mint service descriptor — same rationale as RecipientClass.",
-          "values": [
-            {
-              "name": "ISOLATION_MODE_UNSPECIFIED",
-              "number": 0,
-              "comment": "ISOLATION_MODE_UNSPECIFIED is treated as ISOLATION_MODE_HOSTED_SANDBOX by\nthe gate (back-compat for grants minted before this field shipped), which\nis the fail-closed-safe default in the hosted shape."
-            },
-            {
-              "name": "ISOLATION_MODE_HOSTED_SANDBOX",
-              "number": 1,
-              "comment": "ISOLATION_MODE_HOSTED_SANDBOX: untrusted execution runs in the platform-\noperated setec sandbox fleet. The only mode permitted under setec-only."
-            },
-            {
-              "name": "ISOLATION_MODE_CUSTOMER_CLUSTER_ATTESTED",
-              "number": 2,
-              "comment": "ISOLATION_MODE_CUSTOMER_CLUSTER_ATTESTED: untrusted execution runs in a\ncustomer-operated cluster whose isolation the daemon verifies by\nattestation. Attestation mechanics are a separate follow-up."
-            },
-            {
-              "name": "ISOLATION_MODE_CUSTOMER_SELF_SANDBOX",
-              "number": 3,
-              "comment": "ISOLATION_MODE_CUSTOMER_SELF_SANDBOX: the customer owns and operates the\nisolation boundary entirely. Attestation mechanics are a separate\nfollow-up."
-            },
-            {
-              "name": "ISOLATION_MODE_ON_PREM_SANDBOX_ENDPOINT",
-              "number": 4,
-              "comment": "ISOLATION_MODE_ON_PREM_SANDBOX_ENDPOINT: untrusted execution dispatches to\na customer-pointed setec SandboxService endpoint configured on the daemon."
-            }
-          ]
-        },
         {
           "name": "RecipientClass",
           "comment": "RecipientClass is the class of caller a capability grant is issued\nto. The runtime enum lives here (public OSS) because callers parsing\na CapabilityGrantInfo need to discriminate without pulling the admin\nservice descriptor.",
@@ -1687,12 +1638,6 @@
               "number": 2,
               "type": "string",
               "comment": ""
-            },
-            {
-              "name": "checked_at",
-              "number": 3,
-              "type": "int64",
-              "comment": ""
             }
           ]
         },
@@ -1704,24 +1649,6 @@
               "name": "json",
               "number": 1,
               "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Metadata",
-          "comment": "Metadata contains labels and annotations for resources",
-          "fields": [
-            {
-              "name": "labels",
-              "number": 1,
-              "type": "map<string, string>",
-              "comment": ""
-            },
-            {
-              "name": "annotations",
-              "number": 2,
-              "type": "map<string, string>",
               "comment": ""
             }
           ]
@@ -1976,32 +1903,6 @@
           ]
         },
         {
-          "name": "HealthState",
-          "comment": "HealthState defines standard health states",
-          "values": [
-            {
-              "name": "HEALTH_STATE_UNSPECIFIED",
-              "number": 0,
-              "comment": ""
-            },
-            {
-              "name": "HEALTH_STATE_HEALTHY",
-              "number": 1,
-              "comment": ""
-            },
-            {
-              "name": "HEALTH_STATE_DEGRADED",
-              "number": 2,
-              "comment": ""
-            },
-            {
-              "name": "HEALTH_STATE_UNHEALTHY",
-              "number": 3,
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "NullValue",
           "comment": "NullValue represents a null value in TypedValue",
           "values": [
@@ -2052,6 +1953,14 @@
           "name": "ComponentService",
           "comment": "ComponentService is the central gRPC service that all Gibson components\n(agents, tools, and plugins) connect to. Components register themselves,\nreceive work via long-polling, submit results, and access harness operations\n(LLM completion, tool calls, plugin queries, findings, memory) through\nthe proxy RPCs defined here.",
           "methods": [
+            {
+              "name": "Authorize",
+              "input": "AuthorizeRequest",
+              "output": "AuthorizeResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "Authorize asks the daemon whether the work item of the caller may do an\naction on a resource. It is the pull-transport twin of\nHarnessCallbackService.Authorize and runs the same decision: the daemon\ntakes the mission run, the user and the tenant from the work item, never\nfrom the request, then runs the FGA check. A caller that is not the owner\nof the work item, or a work item with no mission run, is refused. The\nanswer is allowed only on an explicit allow (D86)."
+            },
             {
               "name": "CallTool",
               "input": "CallToolRequest",
@@ -2139,6 +2048,14 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "EnablePlugin activates a plugin for the calling tenant, optionally\nsupplying an initial configuration JSON blob."
+            },
+            {
+              "name": "EnrollComponent",
+              "input": "EnrollComponentRequest",
+              "output": "EnrollComponentResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "EnrollComponent enrolls a component that the calling agent produced\n(gibson#33). The new component gets its own identity in the tenant of\nthe caller and a short-lived bootstrap token for that identity only.\nThe person who owns the calling agent owns the new component. The\nplatform assigns its trust: a produced component is never trusted, so\na catalog name is refused. A quota for each tenant bounds how many\ncomponents agents enroll. Each enrollment writes an audit record."
             },
             {
               "name": "FindSimilarAttacks",
@@ -2433,6 +2350,48 @@
               "number": 5,
               "type": "repeated string",
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "AuthorizeRequest",
+          "comment": "AuthorizeRequest asks whether a work item may do an action on a resource.",
+          "fields": [
+            {
+              "name": "work_id",
+              "number": 1,
+              "type": "string",
+              "comment": "work_id is the work item the caller claimed with PollWork."
+            },
+            {
+              "name": "action",
+              "number": 2,
+              "type": "string",
+              "comment": "action is a verb such as \"execute\", \"read\" or \"write\"."
+            },
+            {
+              "name": "resource",
+              "number": 3,
+              "type": "string",
+              "comment": "resource is a kind-qualified reference such as \"tool:nmap\"."
+            }
+          ]
+        },
+        {
+          "name": "AuthorizeResponse",
+          "comment": "AuthorizeResponse is the decision. allowed is true only on an explicit allow.",
+          "fields": [
+            {
+              "name": "allowed",
+              "number": 1,
+              "type": "bool",
+              "comment": ""
+            },
+            {
+              "name": "reason",
+              "number": 2,
+              "type": "string",
+              "comment": "reason names the basis of the decision, for example \"fga_allow\"."
             }
           ]
         },
@@ -2790,108 +2749,6 @@
           ]
         },
         {
-          "name": "ComponentDescriptor",
-          "comment": "ComponentDescriptor is the unified persisted description of a component\nregistered in the Gibson ComponentRegistry, regardless of how it is\ndispatched. Consumers (orchestrator, dashboard, CLI, authz) look up a\ndescriptor by name and switch on dispatch_mode to choose the routing.\n\nLegacy fields (name, version, kind, tags, metadata) describe every\ncomponent. Sandboxed-dispatch fields (image, command, env, resources,\ndefault_timeout_seconds, input_schema_json, output_proto_type,\ndefault_parse_quality) are populated by the daemon's catalog refresher\nfor sandboxed tools. Plugin/agent entries leave those fields zero.",
-          "fields": [
-            {
-              "name": "name",
-              "number": 1,
-              "type": "string",
-              "comment": "Common metadata — populated for every dispatch_mode."
-            },
-            {
-              "name": "version",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "kind",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "tags",
-              "number": 5,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "metadata",
-              "number": 6,
-              "type": "map<string, string>",
-              "comment": ""
-            },
-            {
-              "name": "dispatch_mode",
-              "number": 7,
-              "type": "DispatchMode",
-              "comment": ""
-            },
-            {
-              "name": "image",
-              "number": 10,
-              "type": "string",
-              "comment": "Sandboxed-dispatch fields (DISPATCH_MODE_SANDBOXED only).\nimage is an OCI reference pinned by digest for reproducibility."
-            },
-            {
-              "name": "command",
-              "number": 11,
-              "type": "repeated string",
-              "comment": "command is the argv the runner executes inside the microVM."
-            },
-            {
-              "name": "env",
-              "number": 12,
-              "type": "map<string, string>",
-              "comment": "env is static environment variables prepended to every Launch call.\nThe daemon adds GIBSON_TOOL_INPUT_B64 and tracing headers on top."
-            },
-            {
-              "name": "resources",
-              "number": 13,
-              "type": "Resources",
-              "comment": "resources is the vCPU + memory budget per sandbox."
-            },
-            {
-              "name": "default_timeout_seconds",
-              "number": 14,
-              "type": "int32",
-              "comment": "default_timeout_seconds bounds the synchronous tool call."
-            },
-            {
-              "name": "input_schema_json",
-              "number": 15,
-              "type": "bytes",
-              "comment": "input_schema_json is the JSON Schema document describing the tool's\ntyped arguments (fed to the orchestrator LLM for tool_use selection)."
-            },
-            {
-              "name": "output_proto_type",
-              "number": 16,
-              "type": "string",
-              "comment": "output_proto_type is the fully-qualified proto message name the tool's\nresponse conforms to, e.g. \"gibson.tool.nmap.v1.ExecuteResponse\"."
-            },
-            {
-              "name": "default_parse_quality",
-              "number": 17,
-              "type": "ParseQuality",
-              "comment": "default_parse_quality advertises how richly the runner's parser will\npopulate the response's field-100 DiscoveryResult for this tool."
-            },
-            {
-              "name": "content_trust",
-              "number": 18,
-              "type": "ContentTrust",
-              "comment": "content_trust classifies the trust level of input data this component\nprocesses at call-time. Consumed by the daemon's dispatch policy gate\ntogether with `dispatch_mode` (see `ContentTrust` doc above).\n\nThe default zero (CONTENT_TRUST_UNSPECIFIED) is treated as TRUSTED at\ngate-evaluation time for backward compatibility with descriptors\nregistered before this field existed.\n\nNOTE: field 100 is reserved platform-wide for `gibson.graphrag.DiscoveryResult`\non tool response messages (see `api/proto/DISCOVERY_RESULT.md`); do not\nassign new fields >= 100 on any component message without coordination."
-            }
-          ]
-        },
-        {
           "name": "ComponentError",
           "comment": "ComponentError represents a structured error returned by a component or harness operation.",
           "fields": [
@@ -3126,6 +2983,66 @@
           ]
         },
         {
+          "name": "EnrollComponentRequest",
+          "comment": "EnrollComponentRequest describes a component that the calling agent\nproduced. The tenant comes from the identity of the caller, never from the\nrequest.",
+          "fields": [
+            {
+              "name": "kind",
+              "number": 1,
+              "type": "string",
+              "comment": "kind is \"agent\", \"tool\" or \"plugin\"."
+            },
+            {
+              "name": "name",
+              "number": 2,
+              "type": "string",
+              "comment": "name is the component name in the tenant: a lower-case letter, then\nlower-case letters, digits and dashes, 3 to 41 characters."
+            },
+            {
+              "name": "version",
+              "number": 3,
+              "type": "string",
+              "comment": "version is the version of the artifact, for example \"0.1.0\"."
+            },
+            {
+              "name": "image",
+              "number": 4,
+              "type": "string",
+              "comment": "image is the OCI reference of the built artifact, pinned by digest."
+            },
+            {
+              "name": "description",
+              "number": 5,
+              "type": "string",
+              "comment": "description says what the component does."
+            }
+          ]
+        },
+        {
+          "name": "EnrollComponentResponse",
+          "comment": "EnrollComponentResponse holds the identity of the new component and its\none-time credential.",
+          "fields": [
+            {
+              "name": "principal_id",
+              "number": 1,
+              "type": "string",
+              "comment": "principal_id is the identity of the new component, for example\n\"tool_principal:<id>\"."
+            },
+            {
+              "name": "bootstrap_token",
+              "number": 2,
+              "type": "string",
+              "comment": "bootstrap_token is the one-time credential that the new component\nexchanges for its host key. It is valid until expires_at and for this\ncomponent only. It carries no session capability."
+            },
+            {
+              "name": "expires_at",
+              "number": 3,
+              "type": "google.protobuf.Timestamp",
+              "comment": "expires_at is the end of the bootstrap token."
+            }
+          ]
+        },
+        {
           "name": "FindSimilarAttacksRequest",
           "comment": "FindSimilarAttacksRequest searches for attack patterns similar to the given content.",
           "fields": [
@@ -3338,14 +3255,7 @@
         {
           "name": "GetMissionRunHistoryResponse",
           "comment": "GetMissionRunHistoryResponse carries run summaries.",
-          "fields": [
-            {
-              "name": "runs_json",
-              "number": 1,
-              "type": "bytes",
-              "comment": "runs_json is the JSON-encoded []types.MissionRunSummary."
-            }
-          ]
+          "fields": []
         },
         {
           "name": "GetMissionStatusRequest",
@@ -3393,12 +3303,6 @@
           "name": "GetPluginConfigResponse",
           "comment": "GetPluginConfigResponse carries the stored configuration and its schema.",
           "fields": [
-            {
-              "name": "config_json",
-              "number": 1,
-              "type": "string",
-              "comment": "config_json is the JSON-encoded configuration currently stored for the plugin."
-            },
             {
               "name": "config_schema_json",
               "number": 2,
@@ -3536,12 +3440,6 @@
               "number": 1,
               "type": "bool",
               "comment": "registered indicates whether the server still considers this instance registered.\nA false value means the component must re-register before polling for work."
-            },
-            {
-              "name": "config_updates",
-              "number": 2,
-              "type": "map<string, string>",
-              "comment": "config_updates carries any configuration values that have changed since the\nlast heartbeat. The component should merge these into its running config."
             }
           ]
         },
@@ -3714,24 +3612,6 @@
               "number": 4,
               "type": "string",
               "comment": "source identifies how the tenant gained access to this plugin (e.g. \"manual\", \"helm\")."
-            },
-            {
-              "name": "configured_at",
-              "number": 5,
-              "type": "string",
-              "comment": "configured_at is the RFC 3339 timestamp of the last configuration change."
-            },
-            {
-              "name": "configured_by",
-              "number": 6,
-              "type": "string",
-              "comment": "configured_by is the identity (user or service account) that applied the last config."
-            },
-            {
-              "name": "has_config",
-              "number": 7,
-              "type": "bool",
-              "comment": "has_config indicates whether a non-empty configuration blob is stored for this record."
             }
           ]
         },
@@ -3792,12 +3672,6 @@
               "number": 9,
               "type": "string",
               "comment": "source identifies where this plugin was discovered (e.g. \"registry\", \"local\")."
-            },
-            {
-              "name": "instance_count",
-              "number": 10,
-              "type": "int32",
-              "comment": "instance_count is the number of running instances currently registered."
             }
           ]
         },
@@ -4111,24 +3985,6 @@
           "name": "ReportStepHintsResponse",
           "comment": "ReportStepHintsResponse is returned after hints are accepted.",
           "fields": []
-        },
-        {
-          "name": "Resources",
-          "comment": "Resources declares the compute budget a sandboxed component requires per\ncall. Units mirror Kubernetes resource conventions (vcpu is whole CPUs;\nmemory is a quantity string like \"256Mi\" or \"1Gi\"). Only meaningful when\ndispatch_mode == DISPATCH_MODE_SANDBOXED.",
-          "fields": [
-            {
-              "name": "vcpu",
-              "number": 1,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "memory",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            }
-          ]
         },
         {
           "name": "RunMissionRequest",
@@ -4807,7 +4663,7 @@
               "output": "PauseMissionResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "PauseMission pauses a running mission at the next clean checkpoint boundary.\nIf force is true, pauses immediately without waiting for a clean boundary."
+              "comment": "PauseMission pauses a running mission when the current node ends.\nIf force is true, pauses immediately without waiting for the node to end."
             },
             {
               "name": "Ping",
@@ -4847,7 +4703,7 @@
               "output": "ResumeMissionResponse",
               "clientStreaming": false,
               "serverStreaming": true,
-              "comment": "ResumeMission resumes a paused mission from its last checkpoint.\nReturns a stream of mission events as execution continues."
+              "comment": "ResumeMission resumes a paused mission. The resume continues the same\nrun. It does not move the run back to a checkpoint: RewindMission does\nthat, and it starts a new run (ADR-0170).\nReturns a stream of mission events as execution continues."
             },
             {
               "name": "RewindMission",
@@ -4949,48 +4805,6 @@
         }
       ],
       "messages": [
-        {
-          "name": "AgentEvent",
-          "comment": "AgentEvent represents an agent lifecycle event.",
-          "fields": [
-            {
-              "name": "event_type",
-              "number": 1,
-              "type": "string",
-              "comment": "event_type identifies the agent event type (registered, unregistered, health_change)"
-            },
-            {
-              "name": "timestamp",
-              "number": 2,
-              "type": "int64",
-              "comment": "timestamp is when the event occurred (Unix timestamp)"
-            },
-            {
-              "name": "agent_id",
-              "number": 3,
-              "type": "string",
-              "comment": "agent_id is the agent identifier"
-            },
-            {
-              "name": "agent_name",
-              "number": 4,
-              "type": "string",
-              "comment": "agent_name is the agent name"
-            },
-            {
-              "name": "message",
-              "number": 5,
-              "type": "string",
-              "comment": "message is a human-readable message"
-            },
-            {
-              "name": "data",
-              "number": 6,
-              "type": "gibson.common.v1.TypedMap",
-              "comment": "data contains event-specific data (typed map)"
-            }
-          ]
-        },
         {
           "name": "AgentInfo",
           "comment": "AgentInfo describes a registered agent.",
@@ -5179,13 +4993,13 @@
         },
         {
           "name": "CheckpointMetadata",
-          "comment": "CheckpointMetadata is the lightweight summary of the source checkpoint\nstreamed back on a ResumeMission response so the dashboard can render\n\"Resumed from checkpoint X\".\n\nSpec: mission-checkpointing R9.",
+          "comment": "CheckpointMetadata is the summary of a source checkpoint on a\nResumeMission response. The daemon does not send it today: see\nResumeMissionResponse.checkpoint_metadata. The checkpoints of a run are listed by\nGetMissionCheckpoints (ADR-0170).",
           "fields": [
             {
               "name": "checkpoint_id",
               "number": 1,
               "type": "string",
-              "comment": "checkpoint_id is the unique identifier of the source checkpoint."
+              "comment": "checkpoint_id is the identifier of the source checkpoint."
             },
             {
               "name": "saved_at_unix_seconds",
@@ -5271,12 +5085,6 @@
           "name": "ConnectResponse",
           "comment": "ConnectResponse returns connection metadata.",
           "fields": [
-            {
-              "name": "daemon_version",
-              "number": 1,
-              "type": "string",
-              "comment": "daemon_version is the version of the running daemon"
-            },
             {
               "name": "session_id",
               "number": 2,
@@ -5386,12 +5194,6 @@
               "comment": "memory_continuity defines how agent memory is shared across mission runs\nValid values: \"isolated\" (default), \"inherit\", \"shared\""
             },
             {
-              "name": "source_yaml",
-              "number": 9,
-              "type": "string",
-              "comment": "source_yaml is the original YAML the dashboard used to construct this\nmission. Optional. When non-empty, the daemon stores it alongside the\nstructured mission state. Empty for programmatic callers that never had\na YAML source.\nSpec: dashboard-neo4j-crud-removal Req 3.5."
-            },
-            {
               "name": "idempotency_key",
               "number": 13,
               "type": "string",
@@ -5484,169 +5286,6 @@
           ]
         },
         {
-          "name": "Event",
-          "comment": "Event represents a generic daemon event.",
-          "fields": [
-            {
-              "name": "event_type",
-              "number": 1,
-              "type": "string",
-              "comment": "event_type identifies the type of event"
-            },
-            {
-              "name": "timestamp",
-              "number": 2,
-              "type": "int64",
-              "comment": "timestamp is when the event occurred (Unix timestamp)"
-            },
-            {
-              "name": "source",
-              "number": 3,
-              "type": "string",
-              "comment": "source is the event source (mission, agent, daemon, etc.)"
-            },
-            {
-              "name": "data",
-              "number": 4,
-              "type": "gibson.common.v1.TypedMap",
-              "comment": "data contains event-specific data (typed map)"
-            },
-            {
-              "name": "mission_event",
-              "number": 5,
-              "type": "MissionEvent",
-              "comment": ""
-            },
-            {
-              "name": "agent_event",
-              "number": 7,
-              "type": "AgentEvent",
-              "comment": ""
-            },
-            {
-              "name": "finding_event",
-              "number": 8,
-              "type": "FindingEvent",
-              "comment": ""
-            },
-            {
-              "name": "tool_event",
-              "number": 9,
-              "type": "ToolEvent",
-              "comment": ""
-            },
-            {
-              "name": "llm_event",
-              "number": 10,
-              "type": "LLMEvent",
-              "comment": ""
-            },
-            {
-              "name": "orchestrator_event",
-              "number": 11,
-              "type": "OrchestratorEvent",
-              "comment": ""
-            }
-          ],
-          "oneofs": [
-            {
-              "name": "event",
-              "fields": [
-                "mission_event",
-                "agent_event",
-                "finding_event",
-                "tool_event",
-                "llm_event",
-                "orchestrator_event"
-              ]
-            }
-          ]
-        },
-        {
-          "name": "FindingEvent",
-          "comment": "FindingEvent represents a finding discovery event.",
-          "fields": [
-            {
-              "name": "event_type",
-              "number": 1,
-              "type": "string",
-              "comment": "event_type identifies the finding event type (discovered, updated)"
-            },
-            {
-              "name": "timestamp",
-              "number": 2,
-              "type": "int64",
-              "comment": "timestamp is when the event occurred (Unix timestamp)"
-            },
-            {
-              "name": "finding",
-              "number": 3,
-              "type": "FindingInfo",
-              "comment": "finding is the finding information"
-            },
-            {
-              "name": "mission_id",
-              "number": 4,
-              "type": "string",
-              "comment": "mission_id is the mission that discovered the finding"
-            }
-          ]
-        },
-        {
-          "name": "FindingInfo",
-          "comment": "FindingInfo describes a discovered vulnerability.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": "id is the unique finding identifier"
-            },
-            {
-              "name": "title",
-              "number": 2,
-              "type": "string",
-              "comment": "title is the finding title"
-            },
-            {
-              "name": "severity",
-              "number": 3,
-              "type": "string",
-              "comment": "severity is the severity level (info, low, medium, high, critical)"
-            },
-            {
-              "name": "category",
-              "number": 4,
-              "type": "string",
-              "comment": "category is the finding category"
-            },
-            {
-              "name": "description",
-              "number": 5,
-              "type": "string",
-              "comment": "description is the detailed finding description"
-            },
-            {
-              "name": "technique",
-              "number": 6,
-              "type": "string",
-              "comment": "technique is the MITRE ATT&CK or ATLAS technique ID"
-            },
-            {
-              "name": "evidence",
-              "number": 7,
-              "type": "string",
-              "comment": "evidence contains supporting evidence"
-            },
-            {
-              "name": "timestamp",
-              "number": 8,
-              "type": "int64",
-              "comment": "timestamp is when the finding was discovered (Unix timestamp)"
-            }
-          ]
-        },
-        {
           "name": "GetAgentStatusRequest",
           "comment": "GetAgentStatusRequest queries a specific agent.",
           "fields": [
@@ -5673,18 +5312,6 @@
               "number": 2,
               "type": "bool",
               "comment": "active indicates if the agent is currently executing a task"
-            },
-            {
-              "name": "current_task",
-              "number": 3,
-              "type": "string",
-              "comment": "current_task describes the active task (if any)"
-            },
-            {
-              "name": "task_start_time",
-              "number": 4,
-              "type": "int64",
-              "comment": "task_start_time is when the current task started (Unix timestamp)"
             }
           ]
         },
@@ -5943,12 +5570,6 @@
               "number": 4,
               "type": "repeated PermissionComponentGrant",
               "comment": "component_grants lists the component access grants held by the caller"
-            },
-            {
-              "name": "team_memberships",
-              "number": 5,
-              "type": "repeated PermissionTeamMembership",
-              "comment": "team_memberships lists the teams the caller belongs to within this tenant"
             }
           ]
         },
@@ -6009,102 +5630,6 @@
               "number": 1,
               "type": "string",
               "comment": "markdown is the hover documentation rendered as Markdown."
-            }
-          ]
-        },
-        {
-          "name": "LLMEvent",
-          "comment": "LLMEvent represents an LLM activity event.",
-          "fields": [
-            {
-              "name": "event_type",
-              "number": 1,
-              "type": "string",
-              "comment": "event_type identifies the LLM event type (llm.request.started, llm.request.completed, llm.request.failed)"
-            },
-            {
-              "name": "timestamp",
-              "number": 2,
-              "type": "int64",
-              "comment": "timestamp is when the event occurred (Unix timestamp)"
-            },
-            {
-              "name": "agent_id",
-              "number": 3,
-              "type": "string",
-              "comment": "agent_id is the agent identifier"
-            },
-            {
-              "name": "agent_name",
-              "number": 4,
-              "type": "string",
-              "comment": "agent_name is the agent name"
-            },
-            {
-              "name": "model",
-              "number": 5,
-              "type": "string",
-              "comment": "model is the LLM model identifier (e.g., \"claude-3-5-sonnet-20241022\")"
-            },
-            {
-              "name": "slot",
-              "number": 6,
-              "type": "string",
-              "comment": "slot is the LLM slot (primary, fast, reasoning)"
-            },
-            {
-              "name": "message_count",
-              "number": 7,
-              "type": "int32",
-              "comment": "message_count is the number of messages in the request"
-            },
-            {
-              "name": "prompt_tokens",
-              "number": 8,
-              "type": "int32",
-              "comment": "prompt_tokens is the number of input tokens"
-            },
-            {
-              "name": "completion_tokens",
-              "number": 9,
-              "type": "int32",
-              "comment": "completion_tokens is the number of output tokens"
-            },
-            {
-              "name": "total_tokens",
-              "number": 10,
-              "type": "int32",
-              "comment": "total_tokens is the sum of prompt and completion tokens"
-            },
-            {
-              "name": "duration_ms",
-              "number": 11,
-              "type": "double",
-              "comment": "duration_ms is the request duration in milliseconds"
-            },
-            {
-              "name": "cached",
-              "number": 12,
-              "type": "bool",
-              "comment": "cached indicates if the response was served from cache"
-            },
-            {
-              "name": "error",
-              "number": 13,
-              "type": "string",
-              "comment": "error contains error information if the event represents a failure"
-            },
-            {
-              "name": "error_code",
-              "number": 14,
-              "type": "string",
-              "comment": "error_code identifies the error type (rate_limit, context_length, api_error, timeout)"
-            },
-            {
-              "name": "will_retry",
-              "number": 15,
-              "type": "bool",
-              "comment": "will_retry indicates if the failed request will be retried"
             }
           ]
         },
@@ -6345,36 +5870,6 @@
           ]
         },
         {
-          "name": "LogEntry",
-          "comment": "LogEntry represents a single log entry from a component.",
-          "fields": [
-            {
-              "name": "timestamp",
-              "number": 1,
-              "type": "int64",
-              "comment": "timestamp is when the log entry was created (Unix timestamp)"
-            },
-            {
-              "name": "level",
-              "number": 2,
-              "type": "string",
-              "comment": "level is the log level (debug, info, warn, error)"
-            },
-            {
-              "name": "message",
-              "number": 3,
-              "type": "string",
-              "comment": "message is the log message"
-            },
-            {
-              "name": "fields",
-              "number": 4,
-              "type": "gibson.common.v1.TypedMap",
-              "comment": "fields contains additional structured log fields (typed map)"
-            }
-          ]
-        },
-        {
           "name": "Membership",
           "comment": "Membership describes one tenant the caller is a member of, plus the\ncaller's role in that tenant.",
           "fields": [
@@ -6445,12 +5940,6 @@
               "comment": "metrics contains current execution metrics"
             },
             {
-              "name": "checkpoint",
-              "number": 8,
-              "type": "MissionCheckpoint",
-              "comment": "checkpoint is the latest checkpoint (if any)"
-            },
-            {
               "name": "run_number",
               "number": 9,
               "type": "int32",
@@ -6485,48 +5974,6 @@
               "number": 14,
               "type": "gibson.common.v1.Principal",
               "comment": "created_by is the principal that created the mission. See\nMissionInfo.created_by."
-            }
-          ]
-        },
-        {
-          "name": "MissionCheckpoint",
-          "comment": "MissionCheckpoint represents a saved checkpoint state for pause/resume.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": "id is the unique checkpoint identifier"
-            },
-            {
-              "name": "version",
-              "number": 2,
-              "type": "int32",
-              "comment": "version is the checkpoint format version"
-            },
-            {
-              "name": "completed_nodes",
-              "number": 3,
-              "type": "int32",
-              "comment": "completed_nodes is the number of nodes that had completed at checkpoint time"
-            },
-            {
-              "name": "total_nodes",
-              "number": 4,
-              "type": "int32",
-              "comment": "total_nodes is the total number of nodes in the mission"
-            },
-            {
-              "name": "created_at",
-              "number": 5,
-              "type": "int64",
-              "comment": "created_at is when this checkpoint was created (Unix timestamp in milliseconds)"
-            },
-            {
-              "name": "state_data",
-              "number": 6,
-              "type": "bytes",
-              "comment": "state_data is the serialized checkpoint state (opaque blob)"
             }
           ]
         },
@@ -6913,58 +6360,10 @@
           "comment": "MissionMetrics contains execution metrics for a mission.",
           "fields": [
             {
-              "name": "turns_used",
-              "number": 1,
-              "type": "int32",
-              "comment": "turns_used is the number of agent turns/iterations executed"
-            },
-            {
-              "name": "nodes_executed",
-              "number": 2,
-              "type": "int32",
-              "comment": "nodes_executed is the number of mission nodes that ran successfully"
-            },
-            {
-              "name": "nodes_failed",
-              "number": 3,
-              "type": "int32",
-              "comment": "nodes_failed is the number of mission nodes that failed"
-            },
-            {
               "name": "findings_count",
               "number": 4,
               "type": "int32",
               "comment": "findings_count is the total number of findings discovered"
-            },
-            {
-              "name": "critical_count",
-              "number": 5,
-              "type": "int32",
-              "comment": "critical_count is the number of critical severity findings"
-            },
-            {
-              "name": "high_count",
-              "number": 6,
-              "type": "int32",
-              "comment": "high_count is the number of high severity findings"
-            },
-            {
-              "name": "medium_count",
-              "number": 7,
-              "type": "int32",
-              "comment": "medium_count is the number of medium severity findings"
-            },
-            {
-              "name": "low_count",
-              "number": 8,
-              "type": "int32",
-              "comment": "low_count is the number of low severity findings"
-            },
-            {
-              "name": "tokens_used",
-              "number": 9,
-              "type": "int64",
-              "comment": "tokens_used is the total LLM tokens consumed"
             }
           ]
         },
@@ -7009,12 +6408,6 @@
               "comment": "findings_count is the number of findings discovered in this run"
             },
             {
-              "name": "previous_run_id",
-              "number": 7,
-              "type": "string",
-              "comment": "previous_run_id is the ID of the previous run (if any)"
-            },
-            {
               "name": "trace_id",
               "number": 8,
               "type": "string",
@@ -7036,7 +6429,7 @@
         },
         {
           "name": "NodeCheckpoint",
-          "comment": "NodeCheckpoint is the end of one node in a mission run (ADR-0170). It is\nthe point at which a rewind can start a new run. It is not the older\nMissionCheckpoint, which describes a saved state blob.",
+          "comment": "NodeCheckpoint is the end of one node in a mission run (ADR-0170). It is\nthe point at which a rewind can start a new run.",
           "fields": [
             {
               "name": "checkpoint_id",
@@ -7123,58 +6516,10 @@
               "comment": "completed_at is the Unix timestamp (milliseconds) when the operation completed"
             },
             {
-              "name": "turns_used",
-              "number": 5,
-              "type": "int32",
-              "comment": "turns_used is the number of agent turns/iterations executed"
-            },
-            {
-              "name": "tokens_used",
-              "number": 6,
-              "type": "int64",
-              "comment": "tokens_used is the total LLM tokens consumed"
-            },
-            {
-              "name": "nodes_executed",
-              "number": 7,
-              "type": "int32",
-              "comment": "nodes_executed is the number of mission nodes that ran successfully"
-            },
-            {
-              "name": "nodes_failed",
-              "number": 8,
-              "type": "int32",
-              "comment": "nodes_failed is the number of mission nodes that failed"
-            },
-            {
               "name": "findings_count",
               "number": 9,
               "type": "int32",
               "comment": "findings_count is the total number of findings discovered"
-            },
-            {
-              "name": "critical_count",
-              "number": 10,
-              "type": "int32",
-              "comment": "critical_count is the number of critical severity findings"
-            },
-            {
-              "name": "high_count",
-              "number": 11,
-              "type": "int32",
-              "comment": "high_count is the number of high severity findings"
-            },
-            {
-              "name": "medium_count",
-              "number": 12,
-              "type": "int32",
-              "comment": "medium_count is the number of medium severity findings"
-            },
-            {
-              "name": "low_count",
-              "number": 13,
-              "type": "int32",
-              "comment": "low_count is the number of low severity findings"
             },
             {
               "name": "error_message",
@@ -7187,96 +6532,6 @@
               "number": 15,
               "type": "string",
               "comment": "error_code contains a machine-readable error code if status == \"failed\""
-            }
-          ]
-        },
-        {
-          "name": "OrchestratorEvent",
-          "comment": "OrchestratorEvent represents an orchestrator decision event.",
-          "fields": [
-            {
-              "name": "event_type",
-              "number": 1,
-              "type": "string",
-              "comment": "event_type identifies the orchestrator event type (orchestrator.decision, orchestrator.approval_required)"
-            },
-            {
-              "name": "timestamp",
-              "number": 2,
-              "type": "int64",
-              "comment": "timestamp is when the event occurred (Unix timestamp)"
-            },
-            {
-              "name": "mission_id",
-              "number": 3,
-              "type": "string",
-              "comment": "mission_id is the mission identifier"
-            },
-            {
-              "name": "iteration",
-              "number": 4,
-              "type": "int32",
-              "comment": "iteration is the orchestrator iteration number"
-            },
-            {
-              "name": "action",
-              "number": 5,
-              "type": "string",
-              "comment": "action is the orchestrator action (execute_agent, skip_node, wait, complete, request_approval)"
-            },
-            {
-              "name": "target_node_id",
-              "number": 6,
-              "type": "string",
-              "comment": "target_node_id is the mission node ID being targeted"
-            },
-            {
-              "name": "target_agent_name",
-              "number": 7,
-              "type": "string",
-              "comment": "target_agent_name is the agent name being targeted"
-            },
-            {
-              "name": "confidence",
-              "number": 8,
-              "type": "double",
-              "comment": "confidence is the decision confidence score (0-1)"
-            },
-            {
-              "name": "reasoning",
-              "number": 9,
-              "type": "string",
-              "comment": "reasoning is the orchestrator's reasoning (max 500 chars in practice)"
-            },
-            {
-              "name": "tokens_used",
-              "number": 10,
-              "type": "int32",
-              "comment": "tokens_used is the number of tokens consumed for this decision"
-            },
-            {
-              "name": "latency_ms",
-              "number": 11,
-              "type": "double",
-              "comment": "latency_ms is the decision latency in milliseconds"
-            },
-            {
-              "name": "approval_id",
-              "number": 12,
-              "type": "string",
-              "comment": "approval_id is set when approval is required"
-            },
-            {
-              "name": "risk",
-              "number": 13,
-              "type": "string",
-              "comment": "risk is the risk level (low, medium, high, critical)"
-            },
-            {
-              "name": "timeout_seconds",
-              "number": 14,
-              "type": "int32",
-              "comment": "timeout_seconds is the timeout for approval requests"
             }
           ]
         },
@@ -7294,7 +6549,7 @@
               "name": "force",
               "number": 2,
               "type": "bool",
-              "comment": "force indicates whether to pause immediately without waiting for a clean checkpoint boundary\nIf false (default), waits for the current node to complete before pausing"
+              "comment": "force indicates whether to pause immediately without waiting for the current node to end\nIf false (default), waits for the current node to complete before pausing"
             }
           ]
         },
@@ -7312,7 +6567,7 @@
               "name": "checkpoint_id",
               "number": 2,
               "type": "string",
-              "comment": "checkpoint_id is the ID of the checkpoint created during pause"
+              "comment": "checkpoint_id is empty. A pause does not make a checkpoint: a\ncheckpoint is the end of a node in a run (ADR-0170). Use\nGetMissionCheckpoints to list the checkpoints of a run."
             },
             {
               "name": "message",
@@ -7337,30 +6592,6 @@
               "number": 2,
               "type": "repeated string",
               "comment": "actions lists the FGA relations the caller holds (execute, configure, read)"
-            }
-          ]
-        },
-        {
-          "name": "PermissionTeamMembership",
-          "comment": "PermissionTeamMembership describes the caller's membership in a team.",
-          "fields": [
-            {
-              "name": "team_id",
-              "number": 1,
-              "type": "string",
-              "comment": "team_id is the unique team identifier"
-            },
-            {
-              "name": "team_name",
-              "number": 2,
-              "type": "string",
-              "comment": "team_name is the human-readable team name"
-            },
-            {
-              "name": "is_admin",
-              "number": 3,
-              "type": "bool",
-              "comment": "is_admin is true when the caller is an admin of the team"
             }
           ]
         },
@@ -7570,18 +6801,6 @@
               "number": 1,
               "type": "string",
               "comment": "mission_id is the unique identifier of the mission to resume"
-            },
-            {
-              "name": "checkpoint_id",
-              "number": 2,
-              "type": "string",
-              "comment": "checkpoint_id optionally specifies a specific checkpoint to resume from\nIf empty, resumes from the latest checkpoint"
-            },
-            {
-              "name": "target_checkpoint_id",
-              "number": 3,
-              "type": "string",
-              "comment": "Empty string = legacy resume-from-latest behavior (backward compatible).\nWhen non-empty, the daemon rewinds the mission to the named checkpoint\nand resumes execution from that point. The handler additionally enforces\nthe mission#admin FGA relation when this field is non-empty per\nmission-checkpointing R16.3."
             }
           ]
         },
@@ -7641,7 +6860,7 @@
               "name": "checkpoint_metadata",
               "number": 9,
               "type": "CheckpointMetadata",
-              "comment": "checkpoint_metadata surfaces the source checkpoint metadata at the\nstart of a resumed stream so the dashboard can render the\n\"Resumed from checkpoint X\" affordance. Populated on the first\nevent of a resume stream; nil/empty on subsequent events.\nSpec: mission-checkpointing R9."
+              "comment": "checkpoint_metadata is not set by the daemon. A resume continues the\nsame run, so a resume stream has no source checkpoint. A run that\nstarts at a checkpoint is a new run from RewindMission, and it records\nthe checkpoint in parent_checkpoint_id (ADR-0170)."
             }
           ]
         },
@@ -8085,139 +7304,14 @@
               "number": 5,
               "type": "MissionEvent",
               "comment": ""
-            },
-            {
-              "name": "agent_event",
-              "number": 7,
-              "type": "AgentEvent",
-              "comment": ""
-            },
-            {
-              "name": "finding_event",
-              "number": 8,
-              "type": "FindingEvent",
-              "comment": ""
-            },
-            {
-              "name": "tool_event",
-              "number": 9,
-              "type": "ToolEvent",
-              "comment": ""
-            },
-            {
-              "name": "llm_event",
-              "number": 10,
-              "type": "LLMEvent",
-              "comment": ""
-            },
-            {
-              "name": "orchestrator_event",
-              "number": 11,
-              "type": "OrchestratorEvent",
-              "comment": ""
             }
           ],
           "oneofs": [
             {
               "name": "event",
               "fields": [
-                "mission_event",
-                "agent_event",
-                "finding_event",
-                "tool_event",
-                "llm_event",
-                "orchestrator_event"
+                "mission_event"
               ]
-            }
-          ]
-        },
-        {
-          "name": "ToolEvent",
-          "comment": "ToolEvent represents a tool execution event.",
-          "fields": [
-            {
-              "name": "event_type",
-              "number": 1,
-              "type": "string",
-              "comment": "event_type identifies the tool event type (tool.started, tool.completed, tool.failed, tool.progress, tool.warning)"
-            },
-            {
-              "name": "timestamp",
-              "number": 2,
-              "type": "int64",
-              "comment": "timestamp is when the event occurred (Unix timestamp)"
-            },
-            {
-              "name": "tool_name",
-              "number": 3,
-              "type": "string",
-              "comment": "tool_name is the name of the tool being executed"
-            },
-            {
-              "name": "agent_id",
-              "number": 4,
-              "type": "string",
-              "comment": "agent_id is the agent identifier executing the tool"
-            },
-            {
-              "name": "agent_name",
-              "number": 5,
-              "type": "string",
-              "comment": "agent_name is the agent name executing the tool"
-            },
-            {
-              "name": "mission_id",
-              "number": 6,
-              "type": "string",
-              "comment": "mission_id is the mission context for this tool execution"
-            },
-            {
-              "name": "message",
-              "number": 7,
-              "type": "string",
-              "comment": "message is a human-readable event message"
-            },
-            {
-              "name": "duration",
-              "number": 8,
-              "type": "double",
-              "comment": "duration is the execution time in seconds (for completed/failed events)"
-            },
-            {
-              "name": "progress",
-              "number": 9,
-              "type": "double",
-              "comment": "progress is the completion percentage (0-1 for progress events)"
-            },
-            {
-              "name": "error",
-              "number": 10,
-              "type": "string",
-              "comment": "error contains error information if the event represents an error"
-            },
-            {
-              "name": "error_code",
-              "number": 11,
-              "type": "string",
-              "comment": "error_code contains a machine-readable error code"
-            },
-            {
-              "name": "warning",
-              "number": 12,
-              "type": "string",
-              "comment": "warning contains warning information if the event represents a warning"
-            },
-            {
-              "name": "warning_severity",
-              "number": 13,
-              "type": "string",
-              "comment": "warning_severity is the severity level (low, medium, high)"
-            },
-            {
-              "name": "data",
-              "number": 14,
-              "type": "gibson.common.v1.TypedMap",
-              "comment": "data contains event-specific data (typed map)"
             }
           ]
         },
@@ -9320,24 +8414,6 @@
               "comment": ""
             },
             {
-              "name": "tactics",
-              "number": 5,
-              "type": "repeated string",
-              "comment": "tactics, e.g. [\"Initial Access\", \"Execution\"]."
-            },
-            {
-              "name": "platforms",
-              "number": 6,
-              "type": "repeated string",
-              "comment": "platforms, e.g. [\"Windows\", \"Linux\"]."
-            },
-            {
-              "name": "data_sources",
-              "number": 7,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
               "name": "references",
               "number": 8,
               "type": "repeated string",
@@ -9422,18 +8498,6 @@
               "comment": ""
             },
             {
-              "name": "serial_number",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "not_before",
-              "number": 5,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
               "name": "not_after",
               "number": 6,
               "type": "optional int64",
@@ -9446,22 +8510,10 @@
               "comment": ""
             },
             {
-              "name": "san",
-              "number": 8,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
               "name": "parent_id",
               "number": 10,
               "type": "optional string",
               "comment": "Parent entity reference (optional - cert can be associated with various entities)"
-            },
-            {
-              "name": "parent_type",
-              "number": 11,
-              "type": "optional string",
-              "comment": ""
             }
           ]
         },
@@ -9600,24 +8652,6 @@
               "number": 2,
               "type": "string",
               "comment": ""
-            },
-            {
-              "name": "registrar",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "created_date",
-              "number": 4,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "expiry_date",
-              "number": 5,
-              "type": "optional int64",
-              "comment": ""
             }
           ]
         },
@@ -9659,12 +8693,6 @@
               "name": "content_type",
               "number": 6,
               "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "content_length",
-              "number": 7,
-              "type": "optional int64",
               "comment": ""
             },
             {
@@ -9800,12 +8828,6 @@
               "comment": ""
             },
             {
-              "name": "cvss_score",
-              "number": 8,
-              "type": "optional double",
-              "comment": ""
-            },
-            {
               "name": "cve_ids",
               "number": 9,
               "type": "optional string",
@@ -9816,12 +8838,6 @@
               "number": 10,
               "type": "optional string",
               "comment": "Parent entity reference (optional - finding can be associated with various entities)"
-            },
-            {
-              "name": "parent_type",
-              "number": 11,
-              "type": "optional string",
-              "comment": ""
             }
           ]
         },
@@ -9938,12 +8954,6 @@
               "comment": ""
             },
             {
-              "name": "discovered_by",
-              "number": 13,
-              "type": "string",
-              "comment": ""
-            },
-            {
               "name": "discovered_at",
               "number": 14,
               "type": "int64",
@@ -9959,24 +8969,6 @@
               "name": "updated_at",
               "number": 21,
               "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "parent_id",
-              "number": 30,
-              "type": "optional string",
-              "comment": "Parent reference"
-            },
-            {
-              "name": "parent_type",
-              "number": 31,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "parent_relationship",
-              "number": 32,
-              "type": "optional string",
               "comment": ""
             }
           ]
@@ -10016,12 +9008,6 @@
               "comment": ""
             },
             {
-              "name": "max_score",
-              "number": 6,
-              "type": "double",
-              "comment": ""
-            },
-            {
               "name": "mission_id",
               "number": 7,
               "type": "string",
@@ -10043,18 +9029,6 @@
               "name": "filters",
               "number": 10,
               "type": "map<string, string>",
-              "comment": ""
-            },
-            {
-              "name": "vector_weight",
-              "number": 11,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "graph_weight",
-              "number": 12,
-              "type": "double",
               "comment": ""
             },
             {
@@ -10126,12 +9100,6 @@
             {
               "name": "os",
               "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "os_version",
-              "number": 6,
               "type": "optional string",
               "comment": ""
             },
@@ -10280,18 +9248,6 @@
               "comment": ""
             },
             {
-              "name": "vector_score",
-              "number": 3,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "graph_score",
-              "number": 4,
-              "type": "double",
-              "comment": ""
-            },
-            {
               "name": "path",
               "number": 5,
               "type": "repeated string",
@@ -10302,66 +9258,6 @@
               "number": 6,
               "type": "int32",
               "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Relationship",
-          "comment": "Relationship represents a connection between two nodes.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "from_id",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "to_id",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "type",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "properties",
-              "number": 5,
-              "type": "map<string, Value>",
-              "comment": ""
-            },
-            {
-              "name": "weight",
-              "number": 6,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "mission_id",
-              "number": 10,
-              "type": "string",
-              "comment": "Scoping"
-            },
-            {
-              "name": "mission_run_id",
-              "number": 11,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "created_at",
-              "number": 20,
-              "type": "int64",
-              "comment": "Timestamps"
             }
           ]
         },
@@ -10418,20 +9314,8 @@
               "comment": ""
             },
             {
-              "name": "extra_info",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
               "name": "banner",
               "number": 7,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "cpe",
-              "number": 8,
               "type": "optional string",
               "comment": ""
             }
@@ -10502,22 +9386,10 @@
               "comment": ""
             },
             {
-              "name": "cpe",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
               "name": "parent_id",
               "number": 10,
               "type": "optional string",
               "comment": "Parent entity reference (optional - tech can be associated with various entities)"
-            },
-            {
-              "name": "parent_type",
-              "number": 11,
-              "type": "optional string",
-              "comment": ""
             }
           ]
         },
@@ -10666,6 +9538,14 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": ""
+            },
+            {
+              "name": "ClaimFork",
+              "input": "ClaimForkRequest",
+              "output": "ClaimForkResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ClaimFork returns the dispatch of a fork (D74, sdk#248). A fork from a\nsnapshot starts with the grant of its parent in memory. It calls\nClaimFork first, with no grant (D80), and from then on uses only the grant\nof the response. The daemon knows the fork only from the setec identity\ntoken in the metadata key x-gibson-sandbox-identity (sdk#251). It\naccepts the call only when that sandbox is a fork of the sandbox of the\ngrant, and only one time for each fork.\n\nErrors: Unauthenticated (no identity token, or a token that does not\nverify), PermissionDenied (the sandbox is not a fork of the grant, or\nsandbox_id names another sandbox than the token), AlreadyExists (the\nfork was claimed before), InvalidArgument."
             },
             {
               "name": "CloseJob",
@@ -11388,114 +10268,6 @@
           ]
         },
         {
-          "name": "AttackChain",
-          "comment": "",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "severity",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "steps",
-              "number": 4,
-              "type": "repeated AttackStep",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "AttackPattern",
-          "comment": "",
-          "fields": [
-            {
-              "name": "technique_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "tactics",
-              "number": 4,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "platforms",
-              "number": 5,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "similarity",
-              "number": 6,
-              "type": "double",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "AttackStep",
-          "comment": "",
-          "fields": [
-            {
-              "name": "order",
-              "number": 1,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "technique_id",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "node_id",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "confidence",
-              "number": 5,
-              "type": "double",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "AuthorizeRequest",
           "comment": "AuthorizeRequest asks the daemon whether the current work execution is\npermitted to perform action on resource. The daemon resolves run_id to\nthe (user_id, tenant_id) that owns this mission run, then calls FGA.",
           "fields": [
@@ -11732,12 +10504,6 @@
               "number": 12,
               "type": "int64",
               "comment": ""
-            },
-            {
-              "name": "timestamp_ms",
-              "number": 13,
-              "type": "int64",
-              "comment": ""
             }
           ],
           "oneofs": [
@@ -11810,6 +10576,66 @@
               "number": 4,
               "type": "string",
               "comment": ""
+            }
+          ]
+        },
+        {
+          "name": "ClaimForkRequest",
+          "comment": "ClaimForkRequest names the fork that asks for its dispatch.",
+          "fields": [
+            {
+              "name": "sandbox_id",
+              "number": 1,
+              "type": "string",
+              "comment": "sandbox_id is the hostname of the fork. It is a hint, not a proof: the\ndaemon takes the fork from the identity token, and refuses a\nsandbox_id that names another sandbox than the token."
+            }
+          ]
+        },
+        {
+          "name": "ClaimForkResponse",
+          "comment": "ClaimForkResponse is the dispatch of the fork. It holds the values that a\nlaunch gives to a new sandbox through its environment.",
+          "fields": [
+            {
+              "name": "grant",
+              "number": 1,
+              "type": "string",
+              "comment": "grant is the capability grant of the fork. The fork uses it for each\nlater call. The grant of the parent does not work in the fork."
+            },
+            {
+              "name": "mission_id",
+              "number": 2,
+              "type": "string",
+              "comment": "mission_id, mission_run_id and agent_run_id scope the callbacks of the\nfork."
+            },
+            {
+              "name": "mission_run_id",
+              "number": 3,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "agent_run_id",
+              "number": 4,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "node_id",
+              "number": 5,
+              "type": "string",
+              "comment": "node_id is the mission node that the fork runs."
+            },
+            {
+              "name": "model",
+              "number": 6,
+              "type": "string",
+              "comment": "model is the model resolved for the tenant for this dispatch."
+            },
+            {
+              "name": "task",
+              "number": 7,
+              "type": "gibson.types.v1.Task",
+              "comment": "task is the task that the fork runs."
             }
           ]
         },
@@ -11950,12 +10776,6 @@
               "comment": ""
             },
             {
-              "name": "constraints",
-              "number": 5,
-              "type": "MissionConstraints",
-              "comment": "Deprecated: use canonical_constraints (field 8) instead.\nconstraints uses the harness-local MissionConstraints shape which only\ncarries max_duration_ms (int64 ms), max_tokens, max_cost, and max_findings.\nIt will be removed in a follow-up release once all microVM consumers\nhave migrated to canonical_constraints."
-            },
-            {
               "name": "metadata",
               "number": 6,
               "type": "map<string, gibson.common.v1.TypedValue>",
@@ -11971,7 +10791,7 @@
               "name": "canonical_constraints",
               "number": 8,
               "type": "gibson.mission.v1.MissionConstraints",
-              "comment": "canonical_constraints carries the platform-canonical\ngibson.mission.v1.MissionConstraints type (ADR 0004).\nPrefer this field over the deprecated constraints (field 5).\nThe daemon merges canonical_constraints with any constraints baked\ninto the mission definition (dispatch wins on conflict).\nAbsent means no dispatch-time constraint overrides."
+              "comment": "canonical_constraints carries the platform-canonical\ngibson.mission.v1.MissionConstraints type (ADR 0004).\nThe daemon merges canonical_constraints with any constraints baked\ninto the mission definition (dispatch wins on conflict).\nAbsent means no dispatch-time constraint overrides."
             },
             {
               "name": "catalog_mission",
@@ -12453,54 +11273,6 @@
           ]
         },
         {
-          "name": "FindingNode",
-          "comment": "",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "title",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "severity",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "category",
-              "number": 5,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "confidence",
-              "number": 6,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "similarity",
-              "number": 7,
-              "type": "double",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "GenerateNodeIDRequest",
           "comment": "",
           "fields": [
@@ -12775,12 +11547,6 @@
           "comment": "",
           "fields": [
             {
-              "name": "plan_context",
-              "number": 1,
-              "type": "PlanContext",
-              "comment": ""
-            },
-            {
               "name": "error",
               "number": 2,
               "type": "HarnessError",
@@ -12975,102 +11741,6 @@
           ]
         },
         {
-          "name": "GraphNode",
-          "comment": "",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "type",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "properties",
-              "number": 3,
-              "type": "map<string, gibson.common.v1.TypedValue>",
-              "comment": ""
-            },
-            {
-              "name": "content",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "mission_id",
-              "number": 5,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "agent_name",
-              "number": 6,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "created_at",
-              "number": 7,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "updated_at",
-              "number": 8,
-              "type": "int64",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "GraphRAGResult",
-          "comment": "",
-          "fields": [
-            {
-              "name": "node",
-              "number": 1,
-              "type": "GraphNode",
-              "comment": ""
-            },
-            {
-              "name": "score",
-              "number": 2,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "vector_score",
-              "number": 3,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "graph_score",
-              "number": 4,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "path",
-              "number": 5,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "distance",
-              "number": 6,
-              "type": "int32",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "HarnessAgentDescriptor",
           "comment": "",
           "fields": [
@@ -13137,30 +11807,6 @@
           ]
         },
         {
-          "name": "HarnessHealthStatus",
-          "comment": "HealthStatus represents the health status of a service.",
-          "fields": [
-            {
-              "name": "state",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "message",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "checked_at",
-              "number": 3,
-              "type": "int64",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "HarnessPluginDescriptor",
           "comment": "",
           "fields": [
@@ -13211,42 +11857,6 @@
               "number": 5,
               "type": "JSONSchemaNode",
               "comment": "Structured schemas with full taxonomy support"
-            },
-            {
-              "name": "output_schema",
-              "number": 6,
-              "type": "JSONSchemaNode",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "HistoricalValueItem",
-          "comment": "",
-          "fields": [
-            {
-              "name": "value",
-              "number": 1,
-              "type": "gibson.common.v1.TypedValue",
-              "comment": ""
-            },
-            {
-              "name": "run_number",
-              "number": 2,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "mission_id",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "stored_at",
-              "number": 4,
-              "type": "string",
-              "comment": ""
             }
           ]
         },
@@ -13393,18 +12003,6 @@
               "comment": ""
             },
             {
-              "name": "min_items",
-              "number": 12,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "max_items",
-              "number": 13,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
               "name": "pattern",
               "number": 14,
               "type": "optional string",
@@ -13414,12 +12012,6 @@
               "name": "default_value",
               "number": 15,
               "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "nullable",
-              "number": 16,
-              "type": "bool",
               "comment": ""
             },
             {
@@ -13971,42 +12563,6 @@
           ]
         },
         {
-          "name": "LongTermMemoryResult",
-          "comment": "",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "content",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "metadata",
-              "number": 3,
-              "type": "map<string, gibson.common.v1.TypedValue>",
-              "comment": ""
-            },
-            {
-              "name": "score",
-              "number": 4,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "created_at",
-              "number": 5,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "MemoryObservation",
           "comment": "MemoryObservation reports a fact the agent wants to keep across runs, in the\nagent's own words. It is the memory write for coding agents: a memory is\na World observation, not a store of its own.\n\nIdentity is per sighting: the Timeline event id, like every observation. The\nTaxonomy gate lands it as an `Observation` node with shape \"Memory\" until\nSensing promotes the shape. Scope and tenant are server-side, same as the\nother variants. There is no field for either.",
           "fields": [
@@ -14033,36 +12589,6 @@
               "number": 4,
               "type": "string",
               "comment": "source_ref names where the fact came from: a path, a URL, or a work id."
-            }
-          ]
-        },
-        {
-          "name": "MissionConstraints",
-          "comment": "MissionConstraints limits mission execution to prevent resource exhaustion.\n\nDeprecated: use gibson.mission.v1.MissionConstraints via the\ncanonical_constraints field on CreateMissionRequest instead.\nThis type will be removed in a follow-up release after all microVM\nconsumers have migrated.",
-          "fields": [
-            {
-              "name": "max_duration_ms",
-              "number": 1,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "max_tokens",
-              "number": 2,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "max_cost",
-              "number": 3,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "max_findings",
-              "number": 4,
-              "type": "int32",
-              "comment": ""
             }
           ]
         },
@@ -14157,84 +12683,6 @@
           ]
         },
         {
-          "name": "MissionMemoryItem",
-          "comment": "",
-          "fields": [
-            {
-              "name": "key",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "value",
-              "number": 2,
-              "type": "gibson.common.v1.TypedValue",
-              "comment": ""
-            },
-            {
-              "name": "metadata",
-              "number": 3,
-              "type": "map<string, gibson.common.v1.TypedValue>",
-              "comment": ""
-            },
-            {
-              "name": "created_at",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "updated_at",
-              "number": 5,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "MissionMemoryResult",
-          "comment": "",
-          "fields": [
-            {
-              "name": "key",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "value",
-              "number": 2,
-              "type": "gibson.common.v1.TypedValue",
-              "comment": ""
-            },
-            {
-              "name": "metadata",
-              "number": 3,
-              "type": "map<string, gibson.common.v1.TypedValue>",
-              "comment": ""
-            },
-            {
-              "name": "score",
-              "number": 4,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "created_at",
-              "number": 5,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "updated_at",
-              "number": 6,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "MissionMetrics",
           "comment": "MissionMetrics aggregates execution statistics.",
           "fields": [
@@ -14319,48 +12767,6 @@
           ]
         },
         {
-          "name": "MissionRunSummary",
-          "comment": "MissionRunSummary is the proto wire type for types.MissionRunSummary,\nused by GetMissionRunHistory to return chronological run records to\nthe SDK CallbackHarness.\n\nSpec: headline-feature-completion R6.1.",
-          "fields": [
-            {
-              "name": "mission_id",
-              "number": 1,
-              "type": "string",
-              "comment": "mission_id uniquely identifies this run."
-            },
-            {
-              "name": "run_number",
-              "number": 2,
-              "type": "int32",
-              "comment": "run_number is the sequential run number for this mission name (1-based)."
-            },
-            {
-              "name": "status",
-              "number": 3,
-              "type": "string",
-              "comment": "status is the final status string (`running`, `completed`, `failed`, `cancelled`, `paused`)."
-            },
-            {
-              "name": "findings_count",
-              "number": 4,
-              "type": "int32",
-              "comment": "findings_count is the number of findings discovered in this run."
-            },
-            {
-              "name": "created_at_unix",
-              "number": 5,
-              "type": "int64",
-              "comment": "created_at is when the run was created (Unix epoch seconds)."
-            },
-            {
-              "name": "completed_at_unix",
-              "number": 6,
-              "type": "int64",
-              "comment": "completed_at_unix is when the run completed (Unix epoch seconds, 0 if still running)."
-            }
-          ]
-        },
-        {
           "name": "MissionStatusInfo",
           "comment": "MissionStatusInfo provides detailed status of a running mission.",
           "fields": [
@@ -14433,18 +12839,6 @@
             {
               "name": "access_token",
               "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "refresh_token",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "token_type",
-              "number": 3,
               "type": "string",
               "comment": ""
             },
@@ -14636,42 +13030,6 @@
           ]
         },
         {
-          "name": "PlanContext",
-          "comment": "",
-          "fields": [
-            {
-              "name": "current_step_index",
-              "number": 1,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "total_steps",
-              "number": 2,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "remaining_steps",
-              "number": 3,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "step_budget",
-              "number": 4,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "mission_budget_remaining",
-              "number": 5,
-              "type": "int32",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "PortObservation",
           "comment": "PortObservation is an observed open port and its optional service detail.",
           "fields": [
@@ -14800,12 +13158,6 @@
               "number": 1,
               "type": "bool",
               "comment": ""
-            },
-            {
-              "name": "rejection_reason",
-              "number": 2,
-              "type": "string",
-              "comment": "rejection_reason states, in plain words, why an unaccepted proposal\nwas refused — e.g. an invalid identifier. Empty when accepted is true."
             },
             {
               "name": "error",
@@ -15146,42 +13498,6 @@
           ]
         },
         {
-          "name": "Relationship",
-          "comment": "",
-          "fields": [
-            {
-              "name": "from_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "to_id",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "type",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "properties",
-              "number": 4,
-              "type": "map<string, gibson.common.v1.TypedValue>",
-              "comment": ""
-            },
-            {
-              "name": "bidirectional",
-              "number": 5,
-              "type": "bool",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "RelationshipMapping",
           "comment": "RelationshipMapping defines relationships between nodes using typed references.",
           "fields": [
@@ -15207,12 +13523,6 @@
               "name": "condition",
               "number": 4,
               "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "rel_properties",
-              "number": 5,
-              "type": "repeated PropertyMapping",
               "comment": ""
             }
           ]
@@ -15377,12 +13687,6 @@
           "name": "RequestDestructiveAuthorizationResponse",
           "comment": "RequestDestructiveAuthorizationResponse returns immediately: the fleet\nkeeps working while the human decision is pending (ADR-0132).",
           "fields": [
-            {
-              "name": "authorization_request_id",
-              "number": 1,
-              "type": "string",
-              "comment": "authorization_request_id names the pending request. The agent reads\nthe decision back before it performs the destructive act, then names\nthis same hypothesis_id on the eventual SubmitProof."
-            },
             {
               "name": "error",
               "number": 2,
@@ -15688,24 +13992,6 @@
               "number": 1,
               "type": "double",
               "comment": ""
-            },
-            {
-              "name": "suggested_next",
-              "number": 2,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "replan_reason",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "key_findings",
-              "number": 4,
-              "type": "repeated string",
-              "comment": ""
             }
           ]
         },
@@ -15906,12 +14192,6 @@
               "comment": ""
             },
             {
-              "name": "identifying_properties",
-              "number": 2,
-              "type": "map<string, string>",
-              "comment": ""
-            },
-            {
               "name": "properties",
               "number": 3,
               "type": "repeated PropertyMapping",
@@ -15960,12 +14240,6 @@
               "comment": ""
             },
             {
-              "name": "identifying_properties",
-              "number": 6,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
               "name": "properties",
               "number": 7,
               "type": "repeated TaxonomyProperty",
@@ -15999,12 +14273,6 @@
               "name": "description",
               "number": 4,
               "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "enum_values",
-              "number": 5,
-              "type": "repeated string",
               "comment": ""
             },
             {
@@ -16161,18 +14429,6 @@
               "name": "tactic",
               "number": 6,
               "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "platforms",
-              "number": 7,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "mitre_mapping",
-              "number": 8,
-              "type": "repeated string",
               "comment": ""
             }
           ]
@@ -16484,60 +14740,6 @@
           ]
         },
         {
-          "name": "TraversalOptions",
-          "comment": "",
-          "fields": [
-            {
-              "name": "max_depth",
-              "number": 1,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "relationship_types",
-              "number": 2,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "node_types",
-              "number": 3,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "direction",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "TraversalResult",
-          "comment": "",
-          "fields": [
-            {
-              "name": "node",
-              "number": 1,
-              "type": "GraphNode",
-              "comment": ""
-            },
-            {
-              "name": "path",
-              "number": 2,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "distance",
-              "number": 3,
-              "type": "int32",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "ValidateFindingRequest",
           "comment": "",
           "fields": [
@@ -16656,18 +14858,6 @@
               "comment": ""
             },
             {
-              "name": "from_node_type",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "to_node_type",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
               "name": "properties",
               "number": 5,
               "type": "map<string, gibson.common.v1.TypedValue>",
@@ -16725,36 +14915,6 @@
               "name": "code",
               "number": 3,
               "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ValidationResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "valid",
-              "number": 1,
-              "type": "bool",
-              "comment": ""
-            },
-            {
-              "name": "errors",
-              "number": 2,
-              "type": "repeated ValidationError",
-              "comment": ""
-            },
-            {
-              "name": "warnings",
-              "number": 3,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "error",
-              "number": 4,
-              "type": "HarnessError",
               "comment": ""
             }
           ]
@@ -17151,32 +15311,6 @@
             {
               "name": "CREDENTIAL_TYPE_CUSTOM",
               "number": 5,
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "MemoryTier",
-          "comment": "MemoryTier specifies which memory tier to use for an operation.",
-          "values": [
-            {
-              "name": "MEMORY_TIER_UNSPECIFIED",
-              "number": 0,
-              "comment": ""
-            },
-            {
-              "name": "MEMORY_TIER_WORKING",
-              "number": 1,
-              "comment": ""
-            },
-            {
-              "name": "MEMORY_TIER_MISSION",
-              "number": 2,
-              "comment": ""
-            },
-            {
-              "name": "MEMORY_TIER_LONG_TERM",
-              "number": 3,
               "comment": ""
             }
           ]
@@ -18422,30 +16556,6 @@
       "services": [],
       "messages": [
         {
-          "name": "AgentContract",
-          "comment": "AgentContract describes an agent's LLM slot surface and declared\ntool/plugin dependencies. The daemon composes this from the agent's\ndescriptor RPC at registration time.",
-          "fields": [
-            {
-              "name": "llm_slot_names",
-              "number": 1,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "declared_tool_dependencies",
-              "number": 2,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "declared_plugin_dependencies",
-              "number": 3,
-              "type": "repeated string",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "CapabilityManifest",
           "comment": "CapabilityManifest is the single, signed, versioned snapshot of every\ncomponent, permission, cross-component rule, and runtime context that\napplies to the calling principal in their resolved tenant. Both SDKs\n(runtime) and the ADK (scaffold-time) consume this shape.",
           "fields": [
@@ -18474,12 +16584,6 @@
               "comment": ""
             },
             {
-              "name": "issued_at",
-              "number": 5,
-              "type": "google.protobuf.Timestamp",
-              "comment": ""
-            },
-            {
               "name": "expires_at",
               "number": 6,
               "type": "google.protobuf.Timestamp",
@@ -18489,12 +16593,6 @@
               "name": "ttl_seconds",
               "number": 7,
               "type": "uint32",
-              "comment": ""
-            },
-            {
-              "name": "tenant_context",
-              "number": 10,
-              "type": "TenantContext",
               "comment": ""
             },
             {
@@ -18516,27 +16614,9 @@
               "comment": ""
             },
             {
-              "name": "cross_component_rules",
-              "number": 20,
-              "type": "repeated CrossComponentRule",
-              "comment": ""
-            },
-            {
-              "name": "cross_component_rules_truncated",
-              "number": 21,
-              "type": "bool",
-              "comment": ""
-            },
-            {
               "name": "limits",
               "number": 30,
               "type": "LimitsAndQuotas",
-              "comment": ""
-            },
-            {
-              "name": "available_llm_slots",
-              "number": 31,
-              "type": "repeated string",
               "comment": ""
             },
             {
@@ -18550,12 +16630,6 @@
               "number": 200,
               "type": "bytes",
               "comment": "Signature payload (Ed25519 over body with signature/kid cleared)."
-            },
-            {
-              "name": "signing_key_id",
-              "number": 201,
-              "type": "string",
-              "comment": ""
             }
           ]
         },
@@ -18594,12 +16668,6 @@
               "comment": ""
             },
             {
-              "name": "is_system",
-              "number": 6,
-              "type": "bool",
-              "comment": ""
-            },
-            {
               "name": "owner_tenant",
               "number": 7,
               "type": "string",
@@ -18612,44 +16680,10 @@
               "comment": ""
             },
             {
-              "name": "agent_contract",
-              "number": 20,
-              "type": "AgentContract",
-              "comment": ""
-            },
-            {
-              "name": "tool_contract",
-              "number": 21,
-              "type": "ToolContract",
-              "comment": ""
-            },
-            {
-              "name": "plugin_contract",
-              "number": 22,
-              "type": "PluginContract",
-              "comment": ""
-            },
-            {
               "name": "liveness",
               "number": 30,
               "type": "ComponentLiveness",
               "comment": ""
-            },
-            {
-              "name": "principal_kind",
-              "number": 40,
-              "type": "gibson.identity.v1.PrincipalKind",
-              "comment": "principal_kind is the typed kind discriminator. Populated by the\ndaemon at manifest-resolution time; set by the SDK loader when\nconverting YAML manifests. Must agree with the populated\n`contract` oneof (PRINCIPAL_KIND_AGENT ↔ agent_contract, etc.) —\nmismatches are rejected by the daemon's RegisterPlugin /\nCreateAgentIdentity validators.\n\nSpec: component-bootstrap-e2e Requirement 12."
-            }
-          ],
-          "oneofs": [
-            {
-              "name": "contract",
-              "fields": [
-                "agent_contract",
-                "tool_contract",
-                "plugin_contract"
-              ]
             }
           ]
         },
@@ -18667,42 +16701,6 @@
               "name": "last_heartbeat",
               "number": 2,
               "type": "google.protobuf.Timestamp",
-              "comment": ""
-            },
-            {
-              "name": "instance_count",
-              "number": 3,
-              "type": "uint32",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "CrossComponentRule",
-          "comment": "CrossComponentRule expresses an explicit override on the default\ncan_execute evaluation for a (source_component, target_component) pair.\nOnly rules that override the default are emitted, keeping payload bounded.",
-          "fields": [
-            {
-              "name": "source_component_ref",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "target_component_ref",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "effect",
-              "number": 3,
-              "type": "CrossComponentRule.Effect",
-              "comment": ""
-            },
-            {
-              "name": "reason",
-              "number": 4,
-              "type": "string",
               "comment": ""
             }
           ]
@@ -18740,24 +16738,6 @@
               "number": 1,
               "type": "uint64",
               "comment": ""
-            },
-            {
-              "name": "max_tokens_per_session",
-              "number": 2,
-              "type": "uint64",
-              "comment": ""
-            },
-            {
-              "name": "rate_limit_per_minute",
-              "number": 3,
-              "type": "uint32",
-              "comment": ""
-            },
-            {
-              "name": "max_spend_usd",
-              "number": 4,
-              "type": "string",
-              "comment": ""
             }
           ]
         },
@@ -18782,18 +16762,6 @@
               "number": 3,
               "type": "string",
               "comment": ""
-            },
-            {
-              "name": "new_manifest_version",
-              "number": 4,
-              "type": "uint64",
-              "comment": ""
-            },
-            {
-              "name": "emitted_at",
-              "number": 5,
-              "type": "google.protobuf.Timestamp",
-              "comment": ""
             }
           ]
         },
@@ -18812,120 +16780,6 @@
               "number": 2,
               "type": "string",
               "comment": ""
-            },
-            {
-              "name": "longterm",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "PluginContract",
-          "comment": "PluginContract enumerates a plugin's callable methods with per-method\nschemas and per-method FGA-derived invocation permission.",
-          "fields": [
-            {
-              "name": "methods",
-              "number": 1,
-              "type": "repeated PluginMethod",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "PluginMethod",
-          "comment": "",
-          "fields": [
-            {
-              "name": "name",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "params_schema_json",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "result_schema_json",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "can_invoke",
-              "number": 4,
-              "type": "bool",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "TenantContext",
-          "comment": "TenantContext surfaces the tenant identity and team memberships that\ngate the manifest's scope.",
-          "fields": [
-            {
-              "name": "tenant_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "tenant_display_name",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "team_memberships",
-              "number": 3,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "is_admin",
-              "number": 4,
-              "type": "bool",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ToolContract",
-          "comment": "ToolContract describes the proto envelope a tool accepts and emits.\ninput_schema_json and output_schema_json are derived from the\nFileDescriptor and rendered to JSON Schema for SDK/ADK consumption.",
-          "fields": [
-            {
-              "name": "input_proto_name",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "output_proto_name",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "input_schema_json",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "output_schema_json",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "idempotency",
-              "number": 5,
-              "type": "ToolIdempotency",
-              "comment": "see ToolIdempotency enum; UNSPECIFIED is treated as AT_LEAST_ONCE"
             }
           ]
         },
@@ -18949,27 +16803,6 @@
       ],
       "enums": [
         {
-          "name": "CrossComponentRule.Effect",
-          "comment": "",
-          "values": [
-            {
-              "name": "EFFECT_UNSPECIFIED",
-              "number": 0,
-              "comment": ""
-            },
-            {
-              "name": "EFFECT_ALLOW",
-              "number": 1,
-              "comment": ""
-            },
-            {
-              "name": "EFFECT_DENY",
-              "number": 2,
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "ManifestInvalidationEvent.EventType",
           "comment": "",
           "values": [
@@ -18986,32 +16819,6 @@
             {
               "name": "EVENT_TYPE_INVALIDATED",
               "number": 2,
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ToolIdempotency",
-          "comment": "ToolIdempotency declares the at-most-once / at-least-once / exactly-once\ndelivery semantics a tool guarantees. Read by the resume-from-checkpoint\nlogic: tools at AT_LEAST_ONCE are safely retried on resume; tools at\nAT_MOST_ONCE are skipped if their pre-checkpoint invocation status is\nambiguous; tools at EXACTLY_ONCE require the orchestrator to consult the\nidempotency journal before re-issuing. UNSPECIFIED is treated as\nAT_LEAST_ONCE for backward compatibility.\n\nSpec: mission-checkpointing R6.",
-          "values": [
-            {
-              "name": "TOOL_IDEMPOTENCY_UNSPECIFIED",
-              "number": 0,
-              "comment": ""
-            },
-            {
-              "name": "TOOL_IDEMPOTENCY_AT_MOST_ONCE",
-              "number": 1,
-              "comment": ""
-            },
-            {
-              "name": "TOOL_IDEMPOTENCY_AT_LEAST_ONCE",
-              "number": 2,
-              "comment": ""
-            },
-            {
-              "name": "TOOL_IDEMPOTENCY_EXACTLY_ONCE",
-              "number": 3,
               "comment": ""
             }
           ]
@@ -20229,14 +18036,6 @@
               "comment": "ListPluginInstalls returns all plugin installs for the tenant."
             },
             {
-              "name": "RegisterPlugin",
-              "input": "RegisterPluginRequest",
-              "output": "RegisterPluginResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "RegisterPlugin atomically registers a plugin per Spec 2 R3.1: validates\nmanifest, creates the Zitadel plugin_principal SA, writes per-binding\nFGA can_resolve tuples (creating any inline secrets in the broker),\nreturns the bootstrap token. Any partial failure rolls back all created state."
-            },
-            {
               "name": "RevokePluginSecretBinding",
               "input": "RevokePluginSecretBindingRequest",
               "output": "RevokePluginSecretBindingResponse",
@@ -20384,18 +18183,6 @@
               "comment": ""
             },
             {
-              "name": "runtime_mode",
-              "number": 5,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "setec_required",
-              "number": 6,
-              "type": "bool",
-              "comment": ""
-            },
-            {
               "name": "host_id",
               "number": 7,
               "type": "string",
@@ -20429,126 +18216,6 @@
               "name": "bound_secret_refs",
               "number": 12,
               "type": "repeated string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "PluginManifestValidationError",
-          "comment": "PluginManifestValidationError carries one structured manifest error.",
-          "fields": [
-            {
-              "name": "field",
-              "number": 1,
-              "type": "string",
-              "comment": "field is the dotted JSONPath into the manifest."
-            },
-            {
-              "name": "line",
-              "number": 2,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "code",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "message",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "PluginSecretBinding",
-          "comment": "PluginSecretBinding describes one secret binding in a RegisterPlugin request.",
-          "fields": [
-            {
-              "name": "declared_name",
-              "number": 1,
-              "type": "string",
-              "comment": "declared_name is the name as declared in the plugin manifest's\nspec.secrets[] entry."
-            },
-            {
-              "name": "mode",
-              "number": 2,
-              "type": "string",
-              "comment": "mode is one of: \"existing\" (bind to existing secret) or \"create\" (create\nnew secret inline)."
-            },
-            {
-              "name": "existing_ref",
-              "number": 3,
-              "type": "string",
-              "comment": "existing_ref is the broker-namespaced name of an already-stored secret\nto bind to. Set when mode = \"existing\"."
-            },
-            {
-              "name": "create_value",
-              "number": 4,
-              "type": "bytes",
-              "comment": "create_value is the plaintext bytes to store under declared_name when\nmode = \"create\". TLS in transit; never logged."
-            }
-          ]
-        },
-        {
-          "name": "RegisterPluginRequest",
-          "comment": "",
-          "fields": [
-            {
-              "name": "manifest_yaml",
-              "number": 1,
-              "type": "bytes",
-              "comment": "manifest_yaml is the plugin manifest YAML bytes."
-            },
-            {
-              "name": "bindings",
-              "number": 2,
-              "type": "repeated PluginSecretBinding",
-              "comment": ""
-            },
-            {
-              "name": "dry_run",
-              "number": 3,
-              "type": "bool",
-              "comment": "dry_run, when true, validates manifest + bindings without creating any state."
-            }
-          ]
-        },
-        {
-          "name": "RegisterPluginResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "install_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "plugin_principal_id",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "bootstrap_token",
-              "number": 3,
-              "type": "string",
-              "comment": "bootstrap_token is the single-use enrollment token. Empty when dry_run."
-            },
-            {
-              "name": "bootstrap_token_expires_at_unix",
-              "number": 4,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "validation_errors",
-              "number": 5,
-              "type": "repeated PluginManifestValidationError",
               "comment": ""
             }
           ]
@@ -21563,12 +19230,6 @@
               "number": 5,
               "type": "gibson.common.v1.JSONSchema",
               "comment": ""
-            },
-            {
-              "name": "output_schema",
-              "number": 6,
-              "type": "gibson.common.v1.JSONSchema",
-              "comment": ""
             }
           ]
         },
@@ -21665,12 +19326,6 @@
             {
               "name": "sequence",
               "number": 12,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "timestamp_ms",
-              "number": 13,
               "type": "int64",
               "comment": ""
             }
@@ -21827,36 +19482,6 @@
       "name": "gibson.types.v1",
       "services": [],
       "messages": [
-        {
-          "name": "ComplianceMapping",
-          "comment": "ComplianceMapping links a Finding to a compliance framework control.\nSee finding/compliance_mapping.go for the author-side Go type.",
-          "fields": [
-            {
-              "name": "framework",
-              "number": 1,
-              "type": "string",
-              "comment": "Compliance framework identifier (e.g. SOC2, NIST_AI_RMF, MITRE_ATLAS,\nMITRE_ATTACK, PLATFORM)."
-            },
-            {
-              "name": "control_id",
-              "number": 2,
-              "type": "string",
-              "comment": "Control identifier within the framework."
-            },
-            {
-              "name": "rationale",
-              "number": 3,
-              "type": "string",
-              "comment": "Optional human-readable rationale."
-            },
-            {
-              "name": "evidence_ref",
-              "number": 4,
-              "type": "string",
-              "comment": "Optional pointer to supporting evidence."
-            }
-          ]
-        },
         {
           "name": "Evidence",
           "comment": "Evidence represents supporting evidence for a finding.",
@@ -22033,90 +19658,6 @@
               "name": "updated_at",
               "number": 24,
               "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "compliance_mappings",
-              "number": 25,
-              "type": "repeated ComplianceMapping",
-              "comment": "Compliance framework mappings — added by audit-finding-compliance-mappings.\nLinks the finding to specific control IDs in compliance frameworks\n(SOC2, NIST AI RMF, MITRE ATLAS, MITRE ATT&CK). Multiple entries per\nframework allowed; downstream exporters (SARIF) surface them."
-            }
-          ]
-        },
-        {
-          "name": "GraphQuery",
-          "comment": "GraphQuery represents a query against the knowledge graph.",
-          "fields": [
-            {
-              "name": "text",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "embedding",
-              "number": 2,
-              "type": "repeated float",
-              "comment": ""
-            },
-            {
-              "name": "top_k",
-              "number": 3,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "node_types",
-              "number": 4,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "min_score",
-              "number": 5,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "max_score",
-              "number": 6,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "mission_id",
-              "number": 7,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "mission_run_id",
-              "number": 8,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "scope",
-              "number": 9,
-              "type": "QueryScope",
-              "comment": ""
-            },
-            {
-              "name": "filters",
-              "number": 10,
-              "type": "map<string, string>",
-              "comment": ""
-            },
-            {
-              "name": "vector_weight",
-              "number": 11,
-              "type": "double",
-              "comment": "Weights for hybrid scoring (must sum to 1.0)"
-            },
-            {
-              "name": "graph_weight",
-              "number": 12,
-              "type": "double",
               "comment": ""
             }
           ]
@@ -22484,32 +20025,6 @@
           ]
         },
         {
-          "name": "QueryScope",
-          "comment": "QueryScope represents the scope of a GraphRAG query.",
-          "values": [
-            {
-              "name": "QUERY_SCOPE_UNSPECIFIED",
-              "number": 0,
-              "comment": ""
-            },
-            {
-              "name": "QUERY_SCOPE_MISSION_RUN",
-              "number": 1,
-              "comment": ""
-            },
-            {
-              "name": "QUERY_SCOPE_MISSION",
-              "number": 2,
-              "comment": ""
-            },
-            {
-              "name": "QUERY_SCOPE_GLOBAL",
-              "number": 3,
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "ResultStatus",
           "comment": "ResultStatus represents the execution status of a task or operation.",
           "values": [
@@ -22541,1537 +20056,6 @@
             {
               "name": "RESULT_STATUS_TIMEOUT",
               "number": 5,
-              "comment": ""
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "taxonomy.v1",
-      "services": [],
-      "messages": [
-        {
-          "name": "Account",
-          "comment": "Account represents: A principal/account on a target system or identity provider.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "provider",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "subject",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "username",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "status",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "roles",
-              "number": 6,
-              "type": "repeated string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "AgentRun",
-          "comment": "AgentRun represents: Single execution of an agent within a mission",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "agent_name",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "mission_run_id",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "status",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "started_at",
-              "number": 5,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "completed_at",
-              "number": 6,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "error_message",
-              "number": 7,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "actor_id",
-              "number": 8,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "actor_tenant_id",
-              "number": 9,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "api_key_id",
-              "number": 10,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "component_name",
-              "number": 11,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "component_version",
-              "number": 12,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "system_owned",
-              "number": 13,
-              "type": "bool",
-              "comment": ""
-            },
-            {
-              "name": "parent_agent_run_id",
-              "number": 14,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "delegation_depth",
-              "number": 15,
-              "type": "optional int32",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Certificate",
-          "comment": "Certificate represents: TLS/SSL certificate",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "subject",
-              "number": 2,
-              "type": "optional string",
-              "comment": "Properties"
-            },
-            {
-              "name": "issuer",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "serial_number",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "not_before",
-              "number": 5,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "not_after",
-              "number": 6,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "fingerprint_sha256",
-              "number": 7,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "san",
-              "number": 8,
-              "type": "optional string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ComplianceMapping",
-          "comment": "==================== NESTED VALUE-OBJECT MESSAGES ====================\nThese are embedded value objects, not graph nodes.\nThey have no id field, no parent reference, and no graph-node semantics.\nComplianceMapping is a nested value-object type.",
-          "fields": [
-            {
-              "name": "framework",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "control_id",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "rationale",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "evidence_ref",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Credential",
-          "comment": "Credential represents: A credential (secret material), identified by the hash of its secret. May work across scopes.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "hash",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "kind",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "username",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "source",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "validated",
-              "number": 6,
-              "type": "optional bool",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Domain",
-          "comment": "Domain represents: Root domain entity (e.g., example.com)",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "registrar",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "created_date",
-              "number": 4,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "expiry_date",
-              "number": 5,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "nameservers",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Endpoint",
-          "comment": "Endpoint represents: Web endpoint or URL",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "url",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "method",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "status_code",
-              "number": 4,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "content_type",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "content_length",
-              "number": 6,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "title",
-              "number": 7,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "parent_service_id",
-              "number": 8,
-              "type": "string",
-              "comment": "Parent reference"
-            }
-          ]
-        },
-        {
-          "name": "Evidence",
-          "comment": "Evidence represents: Supporting evidence for a finding",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "type",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "content",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "content_type",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "url",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "parent_finding_id",
-              "number": 6,
-              "type": "string",
-              "comment": "Parent reference"
-            }
-          ]
-        },
-        {
-          "name": "Finding",
-          "comment": "Finding represents: Security vulnerability or issue",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "title",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "description",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "severity",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "confidence",
-              "number": 5,
-              "type": "optional double",
-              "comment": ""
-            },
-            {
-              "name": "category",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "subcategory",
-              "number": 7,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "remediation",
-              "number": 8,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "cvss_score",
-              "number": 9,
-              "type": "optional double",
-              "comment": ""
-            },
-            {
-              "name": "cve_ids",
-              "number": 10,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "cwe_ids",
-              "number": 11,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "compliance_mappings",
-              "number": 12,
-              "type": "repeated ComplianceMapping",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "GraphNode",
-          "comment": "GraphNode is the generic node type that can represent any taxonomy node.\nUse typed messages (Host, Port, etc.) for compile-time safety,\nor GraphNode for dynamic/custom types.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": "Identity"
-            },
-            {
-              "name": "type",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "properties",
-              "number": 3,
-              "type": "map<string, Value>",
-              "comment": "Properties (flexible key-value)"
-            },
-            {
-              "name": "parent_id",
-              "number": 4,
-              "type": "optional string",
-              "comment": "Parent reference (set by BelongsTo)"
-            },
-            {
-              "name": "parent_type",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "parent_relationship",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "mission_id",
-              "number": 10,
-              "type": "string",
-              "comment": "Scoping (injected by harness - agents never set these)"
-            },
-            {
-              "name": "mission_run_id",
-              "number": 11,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "agent_run_id",
-              "number": 12,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "discovered_by",
-              "number": 13,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "discovered_at",
-              "number": 14,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "created_at",
-              "number": 20,
-              "type": "int64",
-              "comment": "Timestamps"
-            },
-            {
-              "name": "updated_at",
-              "number": 21,
-              "type": "int64",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Host",
-          "comment": "Host represents: IP address or hostname",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "ip",
-              "number": 2,
-              "type": "optional string",
-              "comment": "Properties"
-            },
-            {
-              "name": "hostname",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "os",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "os_version",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "mac_address",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "state",
-              "number": 7,
-              "type": "optional string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ListValue",
-          "comment": "",
-          "fields": [
-            {
-              "name": "values",
-              "number": 1,
-              "type": "repeated Value",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LlmCall",
-          "comment": "LlmCall represents: Call to a large language model",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "model",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "provider",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "slot_name",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "agent_run_id",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "prompt_tokens",
-              "number": 6,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "completion_tokens",
-              "number": 7,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "total_tokens",
-              "number": 8,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "latency_ms",
-              "number": 9,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "started_at",
-              "number": 10,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "actor_id",
-              "number": 11,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "actor_tenant_id",
-              "number": 12,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "api_key_id",
-              "number": 13,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "component_name",
-              "number": 14,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "component_version",
-              "number": 15,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "model_id",
-              "number": 16,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "MapValue",
-          "comment": "",
-          "fields": [
-            {
-              "name": "fields",
-              "number": 1,
-              "type": "map<string, Value>",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Mission",
-          "comment": "Mission represents: Top-level security assessment mission",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "target",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "status",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "started_at",
-              "number": 6,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "completed_at",
-              "number": 7,
-              "type": "optional int64",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "MissionRun",
-          "comment": "MissionRun represents: Single execution of a mission pipeline",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "run_number",
-              "number": 2,
-              "type": "int32",
-              "comment": "Properties"
-            },
-            {
-              "name": "status",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "started_at",
-              "number": 4,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "completed_at",
-              "number": 5,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "actor_id",
-              "number": 6,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "actor_tenant_id",
-              "number": 7,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "api_key_id",
-              "number": 8,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "mission_yaml_digest",
-              "number": 9,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "parent_mission_id",
-              "number": 10,
-              "type": "string",
-              "comment": "Parent reference"
-            }
-          ]
-        },
-        {
-          "name": "Port",
-          "comment": "Port represents: Network port on a host",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "number",
-              "number": 2,
-              "type": "int32",
-              "comment": "Properties"
-            },
-            {
-              "name": "protocol",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "state",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "reason",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "parent_host_id",
-              "number": 6,
-              "type": "string",
-              "comment": "Parent reference"
-            }
-          ]
-        },
-        {
-          "name": "Relationship",
-          "comment": "Relationship represents a connection between two nodes.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "from_id",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "to_id",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "type",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "properties",
-              "number": 5,
-              "type": "map<string, Value>",
-              "comment": ""
-            },
-            {
-              "name": "weight",
-              "number": 6,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "mission_id",
-              "number": 10,
-              "type": "string",
-              "comment": "Scoping"
-            },
-            {
-              "name": "mission_run_id",
-              "number": 11,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "created_at",
-              "number": 20,
-              "type": "int64",
-              "comment": "Timestamps"
-            }
-          ]
-        },
-        {
-          "name": "Scope",
-          "comment": "Scope represents: Network/addressing context (vantage) an observation was made within; declared in the mission (RoE) or minted on pivot. The coordinate of an asset is (scope, address).",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "scope_id",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "name",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "kind",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "cidrs",
-              "number": 5,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "gateway_fingerprint",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "reachable",
-              "number": 7,
-              "type": "optional bool",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Service",
-          "comment": "Service represents: Service running on a port",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "product",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "version",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "extra_info",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "banner",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "cpe",
-              "number": 7,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "parent_port_id",
-              "number": 8,
-              "type": "string",
-              "comment": "Parent reference"
-            }
-          ]
-        },
-        {
-          "name": "Subdomain",
-          "comment": "Subdomain represents: Subdomain under a root domain",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "full_name",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "parent_domain_id",
-              "number": 4,
-              "type": "string",
-              "comment": "Parent reference"
-            }
-          ]
-        },
-        {
-          "name": "Technique",
-          "comment": "Technique represents: Attack technique (MITRE/Gibson)",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "technique_id",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "name",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "taxonomy",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "tactic",
-              "number": 5,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "url",
-              "number": 7,
-              "type": "optional string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Technology",
-          "comment": "Technology represents: Technology/framework detected",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "version",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "category",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "confidence",
-              "number": 5,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "cpe",
-              "number": 6,
-              "type": "optional string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ToolExecution",
-          "comment": "ToolExecution represents: Execution of a security tool",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "tool_name",
-              "number": 2,
-              "type": "string",
-              "comment": "Properties"
-            },
-            {
-              "name": "command",
-              "number": 3,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "exit_code",
-              "number": 4,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "started_at",
-              "number": 5,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "completed_at",
-              "number": 6,
-              "type": "optional int64",
-              "comment": ""
-            },
-            {
-              "name": "stdout",
-              "number": 7,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "stderr",
-              "number": 8,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "actor_id",
-              "number": 9,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "actor_tenant_id",
-              "number": 10,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "api_key_id",
-              "number": 11,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "component_name",
-              "number": 12,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "component_version",
-              "number": 13,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "system_owned",
-              "number": 14,
-              "type": "bool",
-              "comment": ""
-            },
-            {
-              "name": "parent_agent_run_id",
-              "number": 15,
-              "type": "string",
-              "comment": "Parent reference"
-            }
-          ]
-        },
-        {
-          "name": "Value",
-          "comment": "Value represents a dynamic property value.",
-          "fields": [
-            {
-              "name": "string_value",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "int_value",
-              "number": 2,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "double_value",
-              "number": 3,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "bool_value",
-              "number": 4,
-              "type": "bool",
-              "comment": ""
-            },
-            {
-              "name": "bytes_value",
-              "number": 5,
-              "type": "bytes",
-              "comment": ""
-            },
-            {
-              "name": "timestamp_value",
-              "number": 6,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "list_value",
-              "number": 7,
-              "type": "ListValue",
-              "comment": ""
-            },
-            {
-              "name": "map_value",
-              "number": 8,
-              "type": "MapValue",
-              "comment": ""
-            }
-          ],
-          "oneofs": [
-            {
-              "name": "kind",
-              "fields": [
-                "string_value",
-                "int_value",
-                "double_value",
-                "bool_value",
-                "bytes_value",
-                "timestamp_value",
-                "list_value",
-                "map_value"
-              ]
-            }
-          ]
-        }
-      ],
-      "enums": [
-        {
-          "name": "CoreNodeType",
-          "comment": "Retired. The number and the name are reserved so neither can be reused:\na reused number changes the meaning of data already on the wire.",
-          "values": [
-            {
-              "name": "CORE_NODE_TYPE_UNSPECIFIED",
-              "number": 0,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_MISSION",
-              "number": 1,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_MISSION_RUN",
-              "number": 2,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_AGENT_RUN",
-              "number": 3,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_TOOL_EXECUTION",
-              "number": 4,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_LLM_CALL",
-              "number": 5,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_DOMAIN",
-              "number": 6,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_SUBDOMAIN",
-              "number": 7,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_HOST",
-              "number": 8,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_PORT",
-              "number": 9,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_SERVICE",
-              "number": 10,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_ENDPOINT",
-              "number": 11,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_TECHNOLOGY",
-              "number": 12,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_CERTIFICATE",
-              "number": 13,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_FINDING",
-              "number": 14,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_EVIDENCE",
-              "number": 15,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_TECHNIQUE",
-              "number": 16,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_SCOPE",
-              "number": 18,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_CREDENTIAL",
-              "number": 19,
-              "comment": ""
-            },
-            {
-              "name": "CORE_NODE_TYPE_ACCOUNT",
-              "number": 20,
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "CoreRelationType",
-          "comment": "Retired. See the note in CoreNodeType.",
-          "values": [
-            {
-              "name": "CORE_RELATION_TYPE_UNSPECIFIED",
-              "number": 0,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_USED_TOOL",
-              "number": 1,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_DELEGATED_TO",
-              "number": 2,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_HAS_SUBDOMAIN",
-              "number": 5,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_RESOLVES_TO",
-              "number": 6,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_HAS_PORT",
-              "number": 7,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_RUNS_SERVICE",
-              "number": 8,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_HAS_ENDPOINT",
-              "number": 9,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_USES_TECHNOLOGY",
-              "number": 10,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_SERVES_CERTIFICATE",
-              "number": 11,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_AFFECTS",
-              "number": 12,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_HAS_EVIDENCE",
-              "number": 13,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_USES_TECHNIQUE",
-              "number": 14,
-              "comment": ""
-            },
-            {
-              "name": "CORE_RELATION_TYPE_LEADS_TO",
-              "number": 15,
               "comment": ""
             }
           ]
