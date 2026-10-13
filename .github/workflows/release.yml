@@ -80,11 +80,13 @@ jobs:
   fan-out:
     needs: [release-please, publish-image]
     # A release fans out after its image publishes. A manual run with
-    # `fanout` fans out the current version, and publish-image is skipped.
+    # `fanout` fans out the current version when it cuts no release; when it
+    # cuts one, only the first branch applies, so the image must publish.
     if: >-
       ${{ !cancelled() && (
         (needs.release-please.outputs.release_created && needs.publish-image.result == 'success')
-        || (inputs.fanout && needs.release-please.result == 'success')) }}
+        || (inputs.fanout && needs.release-please.result == 'success'
+            && !needs.release-please.outputs.release_created)) }}
     uses: zeroroot-ai/.github/.github/workflows/reusable-version-fanout.yml@d586fc37fe2cde4f6ed4c462231572d371c6331c # v0.19.3
     permissions:
       contents: read
