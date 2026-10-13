@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.16](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.15...docs-site-v0.6.16) (2026-10-13)
+
+
+### Miscellaneous
+
+* **deps:** bump github/codeql-action/upload-sarif ([5f00b3a](https://github.com/zeroroot-ai/docs-site/commit/5f00b3a12d9b0e7941335383a434020831a1d556))
+* **deps:** bump github/codeql-action/upload-sarif from 4.38.2 to 4.38.3 in the codeql-action group ([#105](https://github.com/zeroroot-ai/docs-site/issues/105)) ([5f00b3a](https://github.com/zeroroot-ai/docs-site/commit/5f00b3a12d9b0e7941335383a434020831a1d556))
+* **deps:** bump the actions-deps group with 6 updates ([#106](https://github.com/zeroroot-ai/docs-site/issues/106)) ([8d4a6f3](https://github.com/zeroroot-ai/docs-site/commit/8d4a6f3990f333630a39e1f7c7eb148b6a60eee1))
+* **deps:** bump the npm-deps group across 1 directory with 6 updates ([#104](https://github.com/zeroroot-ai/docs-site/issues/104)) ([812ca62](https://github.com/zeroroot-ai/docs-site/commit/812ca62e2fea721f993f26bd2c388f720e05e0ca))
+* **docs:** refresh api-spec ([#101](https://github.com/zeroroot-ai/docs-site/issues/101)) ([10a6d25](https://github.com/zeroroot-ai/docs-site/commit/10a6d254440fcf6fa80c22204a458730bd7f7094))
+* **docs:** refresh api-spec from zeroroot-ai/sdk@v0.205.0 ([10a6d25](https://github.com/zeroroot-ai/docs-site/commit/10a6d254440fcf6fa80c22204a458730bd7f7094))
+
 ## [0.6.15](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.14...docs-site-v0.6.15) (2026-10-07)
 
 
