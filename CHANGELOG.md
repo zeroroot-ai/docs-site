@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.17](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.16...docs-site-v0.6.17) (2026-10-16)
+
+
+### Miscellaneous
+
+* **deps:** bump actions/setup-node from 4.4.0 to 7.1.0 ([#107](https://github.com/zeroroot-ai/docs-site/issues/107)) ([40bcdab](https://github.com/zeroroot-ai/docs-site/commit/40bcdabfa3b4fa5e46cb462b090406e805650ae6))
+* **deps:** bump node from `0b36e8c` to `143494b` ([#103](https://github.com/zeroroot-ai/docs-site/issues/103)) ([93a66c2](https://github.com/zeroroot-ai/docs-site/commit/93a66c23a18a1870ccae4566b3f2bc186f0cb237))
+
 ## [0.6.16](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.15...docs-site-v0.6.16) (2026-10-13)
 
 
