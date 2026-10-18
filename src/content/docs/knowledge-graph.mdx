@@ -77,9 +77,9 @@ err := h.Observe(ctx, agent.MemoryObservation{
 })
 ```
 
-Use this path sparingly. Automatic population through `DiscoveryResult`
-keeps your data shape consistent with the rest of the platform. The
-dashboard and other agents find ad-hoc nodes harder to reason about.
+Use a memory observation for a fact that no `DiscoveryResult` carries.
+Here `t` is the `agent.Task` that `Execute` receives, so `t.ID` names the
+work that the fact came from.
 
 ## Provenance
 
@@ -126,9 +126,9 @@ prior, err := h.FindSimilarFindings(ctx, findingID, 5)
 ```
 
 Use these reads to ground LLM prompts ("here are five times we have
-seen something like this before"). `FindSimilarFindings` starts from a
-finding that you already have, so use it to link a new finding to prior
-ones.
+seen something like this before"). The `FindSimilarFindings` read
+starts from a finding that you already have. Use it to read prior
+findings like that one.
 
 ### Attack chain walks
 
