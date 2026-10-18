@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.18](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.17...docs-site-v0.6.18) (2026-10-18)
+
+
+### Documentation
+
+* the agent pages and the API reference match sdk v0.207.0 ([#112](https://github.com/zeroroot-ai/docs-site/issues/112)) ([7b56a76](https://github.com/zeroroot-ai/docs-site/commit/7b56a765e3d769529e139175bfc5f42bcf0430b9))
+
 ## [0.6.17](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.16...docs-site-v0.6.17) (2026-10-16)
 
 
