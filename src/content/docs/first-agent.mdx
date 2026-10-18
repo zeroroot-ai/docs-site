@@ -137,69 +137,63 @@ mission detail page streams events as your agent works. See
 
 ## A more realistic example
 
-This bug-bounty triage agent uses a tool and the graph, and submits a
-finding:
+This bug-bounty triage agent calls a tool, asks the LLM for a structured
+plan, and submits a finding for each item that the plan flags:
 
 ```go
+// triagePlan is the structured output that the LLM fills in.
+type triagePlan struct {
+    Flag []struct {
+        Title       string `json:"title"`
+        Severity    string `json:"severity"`
+        Description string `json:"description"`
+        Evidence    string `json:"evidence"`
+    } `json:"flag"`
+}
+
 func execute(ctx context.Context, h agent.Harness, t agent.Task) (agent.Result, error) {
     target := h.Target()
 
-    // 1. Run a port scan tool we already enrolled.
-    scan, err := h.CallToolProto(ctx, "port-scan", &portscanv1.Request{
-        Host: target.Address,
-    })
-    if err != nil {
-        return agent.NewErrorResult(err), nil
+    // 1. Run a port scan tool that you enrolled before.
+    scan := &portscanv1.Response{}
+    if err := h.CallToolProto(ctx, "port-scan", &portscanv1.Request{Host: target.Name}, scan); err != nil {
+        return failed(err), nil
     }
 
-    // 2. Pull similar prior findings from the knowledge graph for context.
-    similar, err := h.FindSimilarFindings(ctx, agent.SimilarityRequest{
-        Description: "exposed admin endpoint",
-        Limit:       5,
-    })
+    // 2. Ask the LLM what to flag. The struct type sets the output schema.
+    out, err := h.CompleteStructured(ctx, "primary", []llm.Message{
+        {Role: llm.RoleSystem, Content: "Triage the scan output. Decide what to flag."},
+        {Role: llm.RoleUser, Content: prototext.Format(scan)},
+    }, triagePlan{})
     if err != nil {
-        return agent.NewErrorResult(err), nil
+        return failed(err), nil
     }
+    plan := out.(*triagePlan)
 
-    // 3. Have the LLM decide what's worth flagging.
-    plan, err := h.CompleteStructured(ctx, "primary", planSchema, llm.Messages{
-        {Role: llm.RoleSystem, Content: "Triage scan output. Decide what to flag."},
-        {Role: llm.RoleUser, Content: render(scan, similar)},
-    })
-    if err != nil {
-        return agent.NewErrorResult(err), nil
-    }
-
-    // 4. Submit findings.
+    // 3. Submit a finding for each flagged item.
     for _, item := range plan.Flag {
-        if err := h.SubmitFinding(ctx, agent.Finding{
+        if err := h.SubmitFinding(ctx, &finding.Finding{
             Title:       item.Title,
-            Severity:    item.Severity,
-            TargetRef:   target.Id,
+            Severity:    finding.Severity(item.Severity),
             Description: item.Description,
-            Evidence:    item.Evidence,
+            TargetID:    target.ID,
+            Evidence: []finding.Evidence{
+                {Type: finding.EvidenceLog, Title: "port scan", Content: item.Evidence},
+            },
         }); err != nil {
-            return agent.NewErrorResult(err), nil
+            return failed(err), nil
         }
     }
-    return agent.NewSuccessResult("triage complete"), nil
+    return agent.Result{Status: agent.StatusSuccess, Output: "triage complete"}, nil
+}
+
+func failed(err error) agent.Result {
+    return agent.Result{Status: agent.StatusFailed, Output: err.Error()}
 }
 ```
 
 Their own pages explain tools, plugins, and the graph:
 [Tools](/docs/tools), [Plugins](/docs/plugins), [Knowledge graph](/docs/knowledge-graph).
-
-## Lifecycle hooks
-
-Beyond `Execute`, the SDK supports optional lifecycle hooks:
-
-- `Initialize(ctx, cfg)`: runs once when the agent process starts.
-- `Shutdown(ctx)`: runs on graceful shutdown.
-- `Health(ctx)`: Gibson polls this hook to confirm the agent is still alive.
-
-The builder accepts these hooks through `SetInitializeFunc`,
-`SetShutdownFunc`, `SetHealthFunc`. The defaults are no-ops and a
-`Healthy` status. Most agents do not need to override them.
 
 ## Next steps
 

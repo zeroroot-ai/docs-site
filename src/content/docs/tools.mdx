@@ -192,11 +192,10 @@ waits for invocations. Leave it running.
 import portscanv1 "example.com/my-portscan/api/portscan/v1"
 
 req := &portscanv1.Request{Host: "10.0.0.1", Ports: "1-1024"}
-out, err := h.CallToolProto(ctx, "port-scan", req)
-if err != nil {
-    return agent.NewErrorResult(err), nil
+resp := &portscanv1.Response{}
+if err := h.CallToolProto(ctx, "port-scan", req, resp); err != nil {
+    return agent.Result{Status: agent.StatusFailed, Output: err.Error()}, nil
 }
-resp := out.(*portscanv1.Response)
 ```
 
 For tools that emit incrementally (long scans, fuzzers), use
