@@ -62,21 +62,18 @@ When your agent calls `h.SubmitFinding(...)`, Gibson stores the finding
 as a `:finding` node. Gibson links the node to the target asset with
 `AFFECTS`. See [Findings](/docs/findings).
 
-### 3. Manual writes from agents
+### 3. Observations from agents
 
-If the standard taxonomy does not cover a shape, an agent can write
-nodes directly:
+An agent does not write graph nodes or relationships. It reports what it
+saw with `h.Observe`, and the platform resolves identity and topology.
+To keep a fact across runs, the agent reports a memory observation:
 
 ```go
-err := h.StoreNode(ctx, agent.StoreNodeRequest{
-    Label: "decision",
-    Properties: map[string]any{
-        "reason":    "skipped this CVE, vendor disputed it",
-        "cve_id":    "CVE-2024-...",
-    },
-    Relationships: []agent.Relationship{
-        {Type: "PART_OF", To: h.Mission().Id},
-    },
+err := h.Observe(ctx, agent.MemoryObservation{
+    Text:      "skipped this CVE, the vendor disputed it",
+    Kind:      "decision",
+    Tags:      []string{"cve"},
+    SourceRef: t.ID,
 })
 ```
 
@@ -106,14 +103,16 @@ reads require Cypher or graph-database knowledge.
 ### Free-form queries
 
 ```go
-hosts, err := h.QueryNodes(ctx, agent.QueryNodesRequest{
-    Labels:  []string{"host"},
-    Filters: map[string]any{"target_ref": h.Target().Id},
+hits, err := h.QueryNodes(ctx, &graphragpb.GraphQuery{
+    Text:      "exposed admin endpoint",
+    NodeTypes: []string{"host"},
+    TopK:      10,
 })
 ```
 
-Filter by label, properties, and relationships. Use this read when you
-want a specific slice of the graph.
+Search by text, by node type, and by a relationship from a start node
+(`FromNodeId` and `RelationshipType`). Use this read when you want a
+specific slice of the graph.
 
 ### Similarity search
 
@@ -121,31 +120,23 @@ These are the two main reads. Both use embedding similarity over the
 history of your tenant:
 
 ```go
-similar, err := h.FindSimilarAttacks(ctx, agent.SimilarityRequest{
-    Description: "credential stuffing on web login",
-    Limit:       5,
-})
+similar, err := h.FindSimilarAttacks(ctx, "credential stuffing on web login", 5)
 
-prior, err := h.FindSimilarFindings(ctx, agent.SimilarityRequest{
-    Description: "exposed internal admin endpoint",
-    Limit:       5,
-})
+prior, err := h.FindSimilarFindings(ctx, findingID, 5)
 ```
 
 Use these reads to ground LLM prompts ("here are five times we have
-seen something like this before"). Also use them to de-duplicate before
-you submit a finding.
+seen something like this before"). `FindSimilarFindings` starts from a
+finding that you already have, so use it to link a new finding to prior
+ones.
 
 ### Attack chain walks
 
 ```go
-chains, err := h.GetAttackChains(ctx, agent.ChainQuery{
-    StartNodeId: someHost.Id,
-    MaxDepth:    4,
-})
+chains, err := h.GetAttackChains(ctx, techniqueID, 4)
 ```
 
-This read walks attack-pattern relationships from a start node. Use it
+This read walks attack-pattern relationships from a start technique. Use it
 for narrative reports ("here is the path from this exposed service to
 the data we care about").
 
@@ -155,7 +146,7 @@ Common patterns:
 
 | Pattern | Pseudocode |
 |---|---|
-| **De-duplicate before submitting a finding** | `prior := h.FindSimilarFindings(...); if any(prior, similarEnough) { skip }` |
+| **De-duplicate before submitting a finding** | `prior := h.GetFindings(ctx, filter); if any(prior, sameTitleAndTarget) { skip }` |
 | **Ground a triage prompt with context** | `nodes := h.QueryNodes(target=current); pass to LLM as evidence` |
 | **Skip recon you've done recently** | `existing := h.QueryNodes(host=target, mission_started_after=24h ago); if non-empty: re-use` |
 | **Cross-mission learning** | `tactics := h.FindSimilarAttacks(scenario); use as few-shot examples` |
