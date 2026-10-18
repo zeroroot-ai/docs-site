@@ -25,21 +25,22 @@ Every finding has the same shape:
 | **Evidence** | recommended | Structured payload (request/response excerpts, config snippets, traces). Stored verbatim. |
 | **Tags** | optional | Free-form labels, e.g. `pci`, `internal`, `bug-bounty`. Used for filtering. |
 | **CWE / CVE references** | optional | Standard identifiers Gibson links to upstream advisories. |
-| **Confidence** | optional | `confirmed`, `likely`, `tentative`. Triage uses this to prioritize. |
+| **Confidence** | optional | A number from 0 to 1. Triage uses this to prioritize. |
 
 ## Submit a finding from an agent
 
 ```go
-err := h.SubmitFinding(ctx, agent.Finding{
+err := h.SubmitFinding(ctx, &finding.Finding{
     Title:       "Exposed admin endpoint /admin/console",
-    Severity:    agent.SeverityHigh,
-    TargetRef:   h.Target().Id,
+    Severity:    finding.SeverityHigh,
+    TargetID:    h.Target().ID,
     Description: "The /admin/console route is reachable without authentication...",
-    Evidence: agent.Evidence{
-        Request:  rawReq,
-        Response: rawResp,
+    Evidence: []finding.Evidence{
+        {Type: finding.EvidenceHTTPRequest, Title: "request", Content: rawReq},
+        {Type: finding.EvidenceHTTPResponse, Title: "response", Content: rawResp},
     },
-    Tags: []string{"recon", "auth-bypass"},
+    References: []string{"CWE-306"},
+    Tags:       []string{"recon", "auth-bypass"},
 })
 ```
 
