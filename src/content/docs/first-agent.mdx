@@ -64,8 +64,8 @@ need:
 | Hand a subtask to another agent | `h.DelegateToAgent`, `h.ListAgents` |
 | Persist a security finding | `h.SubmitFinding`, `h.GetFindings` |
 | Read the knowledge graph | `h.QueryNodes`, `h.FindSimilarAttacks`, `h.FindSimilarFindings`, `h.GetAttackChains` |
-| Write to the knowledge graph | `h.StoreNode` |
-| Use working / mission / long-term memory | `h.Memory()` |
+| Report what the agent saw into the World | `h.Observe` |
+| Keep a fact across runs | `h.Observe` with an `agent.MemoryObservation` |
 | See the mission's target and metadata | `h.Mission()`, `h.Target()` |
 | Spawn a sub-mission | `h.CreateMission`, `h.RunMission` |
 | Read or write a workspace file | `h.Workspace()`, `h.Workspaces()` |
@@ -154,13 +154,15 @@ type triagePlan struct {
 func execute(ctx context.Context, h agent.Harness, t agent.Task) (agent.Result, error) {
     target := h.Target()
 
-    // 1. Run a port scan tool that you enrolled before.
+    // 1. Run a port scan tool that you enrolled before. In this example
+    //    the target name is the host name.
     scan := &portscanv1.Response{}
     if err := h.CallToolProto(ctx, "port-scan", &portscanv1.Request{Host: target.Name}, scan); err != nil {
         return failed(err), nil
     }
 
-    // 2. Ask the LLM what to flag. The struct type sets the output schema.
+    // 2. Ask the LLM what to flag. The reply is JSON data, so decode it
+    //    into the plan struct.
     out, err := h.CompleteStructured(ctx, "primary", []llm.Message{
         {Role: llm.RoleSystem, Content: "Triage the scan output. Decide what to flag."},
         {Role: llm.RoleUser, Content: prototext.Format(scan)},
@@ -168,7 +170,14 @@ func execute(ctx context.Context, h agent.Harness, t agent.Task) (agent.Result, 
     if err != nil {
         return failed(err), nil
     }
-    plan := out.(*triagePlan)
+    raw, err := json.Marshal(out)
+    if err != nil {
+        return failed(err), nil
+    }
+    var plan triagePlan
+    if err := json.Unmarshal(raw, &plan); err != nil {
+        return failed(err), nil
+    }
 
     // 3. Submit a finding for each flagged item.
     for _, item := range plan.Flag {
