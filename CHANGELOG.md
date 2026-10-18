@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.19](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.18...docs-site-v0.6.19) (2026-10-18)
+
+
+### Documentation
+
+* every agent example calls the SDK that exists ([#114](https://github.com/zeroroot-ai/docs-site/issues/114)) ([361d777](https://github.com/zeroroot-ai/docs-site/commit/361d777b71bdbf98fc6b33f515c41629413e2042))
+* the findings and knowledge graph examples call the SDK that exists ([#116](https://github.com/zeroroot-ai/docs-site/issues/116)) ([c5a71b0](https://github.com/zeroroot-ai/docs-site/commit/c5a71b0035c9f54cb50642a9cdf5157ec959b4d2))
+
 ## [0.6.18](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.17...docs-site-v0.6.18) (2026-10-18)
 
 
