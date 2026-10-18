@@ -38,9 +38,9 @@ on `api.zeroroot.ai`.
 - **Three-tier memory**: working memory lives inside one agent
   invocation. Every node in the run shares mission memory. Long-term
   memory persists across missions.
-- **LLM slot routing**: agents declare slots (`primary`, `summarizer`,
-  and so on). Your tenant's policy maps each slot to a real model. Bring
-  your own provider keys.
+- **LLM slot routing**: an agent names a slot (`primary`, `summarizer`,
+  and so on) in each LLM call. Your tenant's policy maps each slot to a
+  real model. Bring your own provider keys.
 - **Secrets management**: bind credentials to plugins. Rotate them with
   no redeploy.
 - **Findings + audit**: every discovery is structured and

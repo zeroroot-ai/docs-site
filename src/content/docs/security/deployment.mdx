@@ -17,9 +17,9 @@ The platform does not need to phone home to function.
 Model provider credentials stay where your team puts them. The platform does
 not hold them in custody. The platform is not a proxy that holds a key for you.
 
-Components also do not embed a provider SDK. An agent declares the *slot* it
-needs, for example "give me the primary model". The platform resolves the slot
-to a provider and a model at runtime. A provider change is configuration, not
+Components also do not embed a provider SDK. An agent names a *slot* in each
+LLM call, for example the primary model. The platform resolves the slot to a
+provider and a model at runtime. A provider change is configuration, not
 a component rebuild.
 
 **What that gets you:** two separate questions get separate answers. *Who holds
@@ -46,5 +46,5 @@ inside that network. You do not have to open that network to the control plane.
 
 1. The self-hosted install uses the same chart artifact as the hosted fleet.
 2. The platform never holds model credentials in custody.
-3. A component declares a model slot, not a provider.
+3. A component names a model slot, not a provider.
 4. When you self-host, the isolation boundary is yours to own.
