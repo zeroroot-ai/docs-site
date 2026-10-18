@@ -105,6 +105,7 @@ import (
     "context"
     "log"
 
+    sdk "github.com/zeroroot-ai/sdk"
     "github.com/zeroroot-ai/sdk/agent"
     "github.com/zeroroot-ai/sdk/llm"
 )
@@ -114,18 +115,16 @@ func main() {
         SetName("my-first-agent").
         SetVersion("0.1.0").
         SetDescription("Says hi via the primary LLM slot.").
-        AddCapability("greeting").
-        AddTargetType("none").
-        AddLLMSlot("primary", llm.SlotRequirements{}).
+        SetTargetTypes([]string{"none"}).
         SetExecuteFunc(func(ctx context.Context, h agent.Harness, t agent.Task) (agent.Result, error) {
             resp, err := h.Complete(ctx, "primary", []llm.Message{
                 {Role: llm.RoleSystem, Content: "Greet warmly in one sentence."},
-                {Role: llm.RoleUser, Content: t.Prompt},
+                {Role: llm.RoleUser, Content: t.Goal},
             })
             if err != nil {
-                return agent.NewErrorResult(err), nil
+                return agent.Result{Status: agent.StatusFailed, Output: err.Error()}, nil
             }
-            return agent.NewSuccessResult(resp.Content), nil
+            return agent.Result{Status: agent.StatusSuccess, Output: resp.Content}, nil
         })
 
     a, err := agent.New(cfg)
@@ -133,7 +132,7 @@ func main() {
         log.Fatal(err)
     }
 
-    if err := agent.Serve(context.Background(), a); err != nil {
+    if err := sdk.ServeAgent(a); err != nil {
         log.Fatal(err)
     }
 }

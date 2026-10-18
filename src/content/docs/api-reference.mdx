@@ -22,41 +22,11 @@ This is the machine-generated reference for the Gibson SDK proto surface — the
 
 `GetDescriptorRequest` → `GetDescriptorResponse`
 
-##### `GetSlotSchema`
-
-`GetSlotSchemaRequest` → `GetSlotSchemaResponse`
-
 ##### `Health`
 
 `HealthRequest` → `HealthResponse`
 
 ### Messages
-
-#### `AgentSlotConfig`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `provider` | 1 | `string` | — |
-| `model` | 2 | `string` | — |
-| `temperature` | 3 | `double` | — |
-| `max_tokens` | 4 | `int32` | — |
-
-#### `AgentSlotConstraints`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `min_context_window` | 1 | `int32` | — |
-| `required_features` | 2 | `repeated string` | — |
-
-#### `AgentSlotDefinition`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `description` | 2 | `string` | — |
-| `required` | 3 | `bool` | — |
-| `default_config` | 4 | `AgentSlotConfig` | — |
-| `constraints` | 5 | `AgentSlotConstraints` | — |
 
 #### `ExecuteRequest`
 
@@ -99,16 +69,6 @@ _No fields._
 | `target_schemas` | 5 | `repeated TargetSchemaProto` | — |
 | `technique_types` | 6 | `repeated string` | — |
 | `target_types` | 7 | `repeated string` | Deprecated: v0.8.0. Use target_schemas (field 5) instead. Will be removed in v0.10.0. |
-
-#### `GetSlotSchemaRequest`
-
-_No fields._
-
-#### `GetSlotSchemaResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `slots` | 1 | `repeated AgentSlotDefinition` | — |
 
 #### `HealthRequest`
 
