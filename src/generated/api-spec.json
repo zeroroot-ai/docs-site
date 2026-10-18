@@ -26,14 +26,6 @@
               "comment": ""
             },
             {
-              "name": "GetSlotSchema",
-              "input": "GetSlotSchemaRequest",
-              "output": "GetSlotSchemaResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": ""
-            },
-            {
               "name": "Health",
               "input": "HealthRequest",
               "output": "HealthResponse",
@@ -45,90 +37,6 @@
         }
       ],
       "messages": [
-        {
-          "name": "AgentSlotConfig",
-          "comment": "",
-          "fields": [
-            {
-              "name": "provider",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "model",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "temperature",
-              "number": 3,
-              "type": "double",
-              "comment": ""
-            },
-            {
-              "name": "max_tokens",
-              "number": 4,
-              "type": "int32",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "AgentSlotConstraints",
-          "comment": "",
-          "fields": [
-            {
-              "name": "min_context_window",
-              "number": 1,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "required_features",
-              "number": 2,
-              "type": "repeated string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "AgentSlotDefinition",
-          "comment": "",
-          "fields": [
-            {
-              "name": "name",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "required",
-              "number": 3,
-              "type": "bool",
-              "comment": ""
-            },
-            {
-              "name": "default_config",
-              "number": 4,
-              "type": "AgentSlotConfig",
-              "comment": ""
-            },
-            {
-              "name": "constraints",
-              "number": 5,
-              "type": "AgentSlotConstraints",
-              "comment": ""
-            }
-          ]
-        },
         {
           "name": "ExecuteRequest",
           "comment": "",
@@ -287,23 +195,6 @@
               "number": 7,
               "type": "repeated string",
               "comment": "Deprecated: v0.8.0. Use target_schemas (field 5) instead. Will be removed in v0.10.0."
-            }
-          ]
-        },
-        {
-          "name": "GetSlotSchemaRequest",
-          "comment": "",
-          "fields": []
-        },
-        {
-          "name": "GetSlotSchemaResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "slots",
-              "number": 1,
-              "type": "repeated AgentSlotDefinition",
-              "comment": ""
             }
           ]
         },
