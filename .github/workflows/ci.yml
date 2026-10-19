@@ -92,7 +92,7 @@ jobs:
     # Tag shape, before -> after: `:<40-char sha>` becomes `:sha-<7>`;
     # `:main` stays; `:latest` is added on main. The chart pins this image
     # by digest, so no consumer reads either tag.
-    uses: zeroroot-ai/.github/.github/workflows/reusable-image-build.yml@534026f4a8ed977a3c04ad1a69e572fd7d92e7a2 # v0.18.0
+    uses: zeroroot-ai/.github/.github/workflows/reusable-image-build.yml@58931387de5d0f2925ee29fa9781822b1e3a100d # v0.20.0
     permissions:
       contents: read
       packages: write
