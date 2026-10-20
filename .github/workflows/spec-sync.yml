@@ -27,9 +27,6 @@ name: spec-sync
 #                          client_payload.ref = the released tag.
 #   workflow_dispatch    — manual, and how this workflow is tested without a
 #                          release. `ref` builds from any source ref.
-#   schedule (weekly)    — the credential-free safety net. The dispatch path
-#                          needs DOCS_SITE_DISPATCH_TOKEN in adk/sdk; until
-#                          that exists the weekly poll still catches drift.
 #
 # ── Why the PR is opened with RELEASE_PLEASE_TOKEN ──────────────────────────
 # A PR opened with the default GITHUB_TOKEN does not trigger `pull_request`
@@ -51,9 +48,6 @@ on:
         description: "Source repo ref to build from (default: that repo's latest release tag)"
         required: false
         default: ""
-  schedule:
-    # Mondays 06:17 UTC. Off-the-hour to avoid the scheduler's peak-minute queue.
-    - cron: "17 6 * * 1"
 
 permissions:
   contents: read
@@ -189,7 +183,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       # `gibson docs cli` landed in adk after its last release tag (v0.106.0),
-      # so a scheduled build from the latest tag can legitimately have no
+      # so a build from the latest tag can legitimately have no
       # machine-readable CLI spec to emit. Probe for it and skip with a warning
       # rather than failing — the next adk release makes the probe pass. Any
       # other failure (build error, bad JSON from a ref that DOES have the
@@ -319,8 +313,8 @@ jobs:
           esac
 
       # ------------------------------------------------------------------
-      # Failure signal. This workflow runs on dispatch and on a schedule —
-      # nobody is watching either, and that is exactly how sdk's buf-push
+      # Failure signal. This workflow runs on dispatch —
+      # nobody is watching it, and that is exactly how sdk's buf-push
       # stayed red across nine releases (sdk#459/#462). Same find-by-title /
       # refresh-in-place pattern as that workflow's failure step.
       # ------------------------------------------------------------------
