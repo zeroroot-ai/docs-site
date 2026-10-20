@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.20](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.19...docs-site-v0.6.20) (2026-10-20)
+
+
+### Bug Fixes
+
+* **rework:** remove the spec-sync case branch only a schedule reached ([#125](https://github.com/zeroroot-ai/docs-site/issues/125)) ([7b3ab81](https://github.com/zeroroot-ai/docs-site/commit/7b3ab8167ea7e77c8e5c01f9f2d8e9d00716d3ae))
+
+
+### Miscellaneous
+
+* **deps:** bump github/codeql-action/upload-sarif ([0dfabd3](https://github.com/zeroroot-ai/docs-site/commit/0dfabd32114162d0199f2385b6ffa3d251b9dd95))
+* **deps:** bump github/codeql-action/upload-sarif from 4.38.3 to 4.39.0 in the codeql-action group ([#121](https://github.com/zeroroot-ai/docs-site/issues/121)) ([0dfabd3](https://github.com/zeroroot-ai/docs-site/commit/0dfabd32114162d0199f2385b6ffa3d251b9dd95))
+* **deps:** bump the actions-deps group with 6 updates ([#120](https://github.com/zeroroot-ai/docs-site/issues/120)) ([04198ca](https://github.com/zeroroot-ai/docs-site/commit/04198caf823c8e248cbd069c7c483c18d3e8d117))
+* **deps:** bump the npm-deps group across 1 directory with 7 updates ([#119](https://github.com/zeroroot-ai/docs-site/issues/119)) ([fd1ae8d](https://github.com/zeroroot-ai/docs-site/commit/fd1ae8d918533b7f8b000b071814011b8cb579e9))
+
 ## [0.6.19](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.18...docs-site-v0.6.19) (2026-10-18)
 
 
