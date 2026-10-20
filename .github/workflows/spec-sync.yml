@@ -88,10 +88,6 @@ jobs:
               esac
               ref="${DISPATCH_REF:-}"
               ;;
-            *)
-              specs='["cli","api"]'
-              ref=""
-              ;;
           esac
           echo "specs=$specs" >> "$GITHUB_OUTPUT"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
