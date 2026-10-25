@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.20](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.19...docs-site-v0.6.20) (2026-10-25)
+
+
+### Bug Fixes
+
+* **deps:** resolve source-map-js 1.2.2 for GHSA-68fv-2mgg-jv7q ([#126](https://github.com/zeroroot-ai/docs-site/issues/126)) ([fe7d9f3](https://github.com/zeroroot-ai/docs-site/commit/fe7d9f3ae0f9d6e36ef71ae6fc217228b7e0a5a6))
+* **rework:** remove the spec-sync case branch only a schedule reached ([#125](https://github.com/zeroroot-ai/docs-site/issues/125)) ([7b3ab81](https://github.com/zeroroot-ai/docs-site/commit/7b3ab8167ea7e77c8e5c01f9f2d8e9d00716d3ae))
+
+
+### Miscellaneous
+
+* **deps:** bump github/codeql-action/upload-sarif ([0dfabd3](https://github.com/zeroroot-ai/docs-site/commit/0dfabd32114162d0199f2385b6ffa3d251b9dd95))
+* **deps:** bump github/codeql-action/upload-sarif from 4.38.3 to 4.39.0 in the codeql-action group ([#121](https://github.com/zeroroot-ai/docs-site/issues/121)) ([0dfabd3](https://github.com/zeroroot-ai/docs-site/commit/0dfabd32114162d0199f2385b6ffa3d251b9dd95))
+* **deps:** bump node from `143494b` to `6f08a52` ([#118](https://github.com/zeroroot-ai/docs-site/issues/118)) ([cc414da](https://github.com/zeroroot-ai/docs-site/commit/cc414da2b366f8c845d46e32a3bd22764a5c15e0))
+* **deps:** bump the actions-deps group with 6 updates ([#120](https://github.com/zeroroot-ai/docs-site/issues/120)) ([04198ca](https://github.com/zeroroot-ai/docs-site/commit/04198caf823c8e248cbd069c7c483c18d3e8d117))
+* **deps:** bump the npm-deps group across 1 directory with 7 updates ([#119](https://github.com/zeroroot-ai/docs-site/issues/119)) ([fd1ae8d](https://github.com/zeroroot-ai/docs-site/commit/fd1ae8d918533b7f8b000b071814011b8cb579e9))
+
 ## [0.6.19](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.18...docs-site-v0.6.19) (2026-10-18)
 
 
