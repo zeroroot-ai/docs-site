@@ -1,5 +1,9 @@
+# esbuild runs its install script to check and place the binary for the
+# platform. pnpm 11+ runs no install script that this list does not allow.
+# The text that was here was the placeholder pnpm writes, not a value, so
+# `pnpm install` without --ignore-scripts failed with ERR_PNPM_IGNORED_BUILDS.
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
 # pnpm 11+ quarantines any package published in the last 24h
 # (minimumReleaseAge). That protects against a compromised third-party
 # publish being pulled in before anyone notices, which is not the risk
