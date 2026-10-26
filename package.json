@@ -19,9 +19,9 @@
   },
   "dependencies": {
     "@zeroroot-ai/brand": "^0.4.2",
-    "fumadocs-core": "^16.17.5",
-    "fumadocs-mdx": "^15.4.7",
-    "fumadocs-ui": "^16.17.5",
+    "fumadocs-core": "^16.17.7",
+    "fumadocs-mdx": "^15.4.9",
+    "fumadocs-ui": "^16.17.7",
     "next": "16.4.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -35,7 +35,7 @@
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "postcss": "^8.5.30",
+    "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2"
   },
