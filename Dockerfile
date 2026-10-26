@@ -13,7 +13,7 @@
 # the image has failed every build since). A lockfile that no toolchain in the
 # repo maintains cannot stay in sync, so there is one lockfile now and it is
 # the one CI verifies.
-FROM node:26-alpine@sha256:6f08a523443ddedf52941874c203475b0ad503e859ad70cb26ab8be9a517dbd5 AS builder
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS builder
 WORKDIR /app
 # pnpm-workspace.yaml is not optional here: pnpm 10 moved `overrides` out of
 # package.json into it, and the lockfile records them. Without it
