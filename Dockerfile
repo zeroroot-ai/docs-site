@@ -63,7 +63,7 @@ RUN pnpm build
 # (CVE-2026-46675, #45): no `:alpine` digest carried the fixed 1.6.59-r0 yet.
 # The slim image ships the same nginx, the same entrypoint scripts (envsubst
 # on templates, /docker-entrypoint.d) and no libpng at all.
-FROM nginxinc/nginx-unprivileged:alpine-slim@sha256:c81a27f28bc2d9c2da8998444e653c7b85b9bbbaa92e44ef18d8920784e06507 AS runner
+FROM nginxinc/nginx-unprivileged:alpine-slim@sha256:a8cb0f33d51fa107c96fd2bd3a71aaf564ec131e9d2bdf8700944f0ed8b170d7 AS runner
 # The built site ships read-only at /opt/docs-site/html. At start,
 # 40-substitute-origins.sh copies it into /usr/share/nginx/html and writes the
 # origins of this environment into the copy. So the image writes nothing under
