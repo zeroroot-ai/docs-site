@@ -1,0 +1,85 @@
+---
+title: Offer a Shared Agent Skill
+description: An operator offers an Agent Skill to each tenant through the daemon configuration. A tenant admin enables it and grants it before an agent can load it.
+---
+
+**Not yet released.** Agent Skills are in build. This page describes the code
+on the release branches. The names can change before the release.
+
+A **Shared Agent Skill** is an Agent Skill that the operator of the platform
+offers to each tenant. The operator names it in the daemon configuration. A
+tenant has no Shared Agent Skill until a tenant admin enables it.
+
+## Before you start
+
+You need an OCI image of the Agent Skill and its digest reference. The
+reference has the form `<registry>/<repository>@sha256:<hex>`.
+
+`gibson agent-skill publish` makes this image and prints the reference. The
+command also publishes the Agent Skill in the tenant of your login session.
+For the steps, see
+[Write and publish an Agent Skill](/docs/agent-skills/write-and-publish#3-publish-the-folder).
+
+## 1. Add the Agent Skill to the configuration
+
+Each entry has a `name` and a `reference`. The name must be equal to the name
+in `SKILL.md`. The reference must hold a digest. The daemon refuses a tag.
+
+### With the chart
+
+Set `gibson.config.sharedAgentSkills` in the values of the `gibson-workloads`
+chart:
+
+```yaml
+gibson:
+  config:
+    sharedAgentSkills:
+      - name: check-tls-config
+        reference: registry.example.com/platform/agent-skills@sha256:4f0c…
+```
+
+The render fails if an entry has no name or no reference. The render also
+fails if a reference does not end in `@sha256:` and 64 hex characters.
+
+### With the daemon configuration file
+
+The chart writes the list to the `shared_agent_skills` key of the daemon
+configuration:
+
+```yaml
+shared_agent_skills:
+  - name: check-tls-config
+    reference: registry.example.com/platform/agent-skills@sha256:4f0c…
+```
+
+## 2. Restart the daemon
+
+The daemon pulls each Shared Agent Skill at start. It uses the registry
+credential of the daemon process. The pull uses HTTPS only. A private
+registry address is allowed on this path, because the operator names the
+registry.
+
+The daemon validates each folder with the same rules as a tenant publish. If
+a pull or a validation fails, the daemon logs `shared Agent Skill not offered`
+with the name. The daemon then starts without that Agent Skill.
+
+If you remove an entry from the list, tenants can no longer enable it after
+the next start.
+
+## How a tenant enables a Shared Agent Skill
+
+A tenant admin does these steps:
+
+1. Open **Agent Skills** in the dashboard.
+2. Open the **Shared Agent Skills** tab.
+3. Select **Enable** next to the Agent Skill.
+4. Open the Agent Skill in **Your Agent Skills**.
+5. In **Grants**, grant it to an agent or a mission.
+
+The enable copies the Shared Agent Skill into the tenant and makes it the
+current version. Its source shows as **Shared**. The enable grants nothing.
+No agent can load it before step 5.
+
+The tenant copy has the digest that the operator configured. If the operator
+changes the digest, the tab shows the Agent Skill as **Not enabled** again.
+The tenant admin selects **Enable** again to get the new digest.
