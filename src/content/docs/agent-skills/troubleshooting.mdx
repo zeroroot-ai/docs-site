@@ -1,0 +1,166 @@
+---
+title: Limits and troubleshooting
+description: The size limits of an Agent Skill, each validation message of the CLI and the daemon, and the cause of each common load problem.
+---
+
+**Not yet released.** Agent Skills are in build. This page describes the code
+on the release branches. The names can change before the release.
+
+## Size limits
+
+| Limit | Value |
+|---|---|
+| The body of `SKILL.md`, after the frontmatter | 64 KiB (65,536 bytes) |
+| One file | 1 MiB (1,048,576 bytes) |
+| All files of the folder together | 8 MiB (8,388,608 bytes) |
+| Number of files | 200 |
+| `name` | 64 characters |
+| `description` | 1,024 characters |
+| `compatibility` | 500 characters |
+
+The CLI and the daemon apply the same limits. Neither cuts a file to fit.
+
+## Validation messages
+
+`gibson agent-skill validate` and `gibson agent-skill publish` check the folder
+on your machine first. The CLI prints each problem on an `error:` line and
+exits with code 2.
+
+The daemon checks the folder again after the pull. It stops at the first
+problem. The CLI shows the daemon message after `PublishAgentSkill:`. A rule
+problem starts with `invalid Agent Skill folder:`. A limit problem starts with
+`Agent Skill folder is over a size limit:`.
+
+In the messages below, `%q` is a quoted value and `%d` is a number.
+
+### The name
+
+| Problem | CLI message | Daemon message |
+|---|---|---|
+| The folder name breaks the name rule. | `the folder name %q is not a valid Agent Skill name` | `folder name %q is not a valid Agent Skill name` |
+| The `name` field breaks the name rule or is empty. | `the name %q in the frontmatter is not a valid Agent Skill name` | `name %q is not a valid Agent Skill name` |
+| The `name` field is not equal to the folder name. | `the name %q in the frontmatter does not match the folder name %q` | `name %q in the frontmatter does not match the folder name %q` |
+
+To fix a name problem, use lowercase letters, digits and single hyphens.
+Then rename the folder to the same name.
+
+### SKILL.md and the frontmatter
+
+| Problem | Message (CLI and daemon) |
+|---|---|
+| No `SKILL.md` at the root of the folder. | `the folder has no SKILL.md at its root` |
+| `SKILL.md` is not UTF-8. | `SKILL.md is not valid UTF-8` |
+| The first line of `SKILL.md` is not `---`. | `SKILL.md does not start with a frontmatter` |
+| The frontmatter has no closing `---` line. | `the frontmatter of SKILL.md has no closing line` |
+| The frontmatter is not valid YAML. | `the frontmatter of SKILL.md is not valid: <YAML error>` |
+| The `description` field is empty. | `the description is required` |
+| The `description` field is too long. | `the description has %d characters, the limit is 1024` |
+| The `compatibility` field is too long. | `compatibility has %d characters, the limit is 500` |
+| The body is too long. | `the body of SKILL.md has %d bytes, the limit is 65536` |
+
+### The files and the paths
+
+| Problem | CLI message | Daemon message |
+|---|---|---|
+| An entry is a link or another special file. | `the entry %q is not a regular file` | `the layer entry %q is not a regular file` |
+| A path is empty. | `a file has an empty path` | the same |
+| A path is not UTF-8. | `the path %q is not valid UTF-8` | the same |
+| A path has a backslash or a NUL byte. | `the path %q has a backslash or a NUL byte` | the same |
+| A path starts with `/`. | `the path %q is absolute` | the same |
+| A path is not in clean form. | `the path %q is not in clean form` | the same |
+| A path holds `..`, `.` or an empty segment. | `the path %q leaves the folder or has an empty segment` | the same |
+| A path appears two times. | `the path %q appears twice` | the same |
+
+### The size limits
+
+| Problem | CLI message | Daemon message |
+|---|---|---|
+| Too many files. | `the folder has %d files, the limit is 200` or `the folder has more than 200 files` | `the folder has %d files, the limit is 200` or `the folder has more than 200 files` |
+| One file is too large. | `the file %q has %d bytes and is over a size limit` or `the file %q has %d bytes, the limit is 1048576` | `the file %q has %d bytes, the limit is 1048576` |
+| The folder is too large. | `the folder has %d bytes, the limit is 8388608` | `the folder is over 8388608 bytes` |
+
+## Publish problems
+
+Each message can appear inside a longer error text.
+
+| Message | Cause | Fix |
+|---|---|---|
+| `repository %q must not have a tag or a digest` | `--repository` holds a tag or a digest. | Give `<registry>/<repository>` only. |
+| `connect to the daemon: …` | The CLI has no login session, or the daemon is not reachable. | Run `gibson login`. The CLI checks this before the push. |
+| `push to <repository>: …` | The registry refused the push. | Sign in to the registry with docker. Check the repository name. |
+| `PublishAgentSkill: read the registry secret %q: …` | The tenant has no secret with that name. | Store the secret with `gibson secret set`. Check the name in `--registry-secret`. |
+| `PublishAgentSkill: agentskill: pull <reference>: …` | The daemon could not pull the image. | Check that the registry allows the pull with the credential in the secret. |
+| `agentskill: refusing a "http" request to <host>: HTTPS only` | The registry does not serve HTTPS. | Use a registry with HTTPS. |
+| `netguard: refusing to connect to <address>: …` | The registry host resolves to a loopback, private or link-local address. | Use a registry with a public address. The hint about `allow_private_llm_endpoints` in this message does not apply to Agent Skills. |
+| `the daemon stored the digest %q, but the command pushed %q` | The daemon stored a different digest. | Publish again. If the problem stays, report it. |
+
+## Grant and enable problems
+
+| Message | Cause | Fix |
+|---|---|---|
+| `GrantAgentSkill: agent_principal:<id> is not of this tenant` | The agent id is wrong, or the agent is in a different tenant. | Select the agent from the list in the dashboard. |
+| `GrantAgentSkill: mission:<id> is not of this tenant` | The mission id is wrong, or the mission is in a different tenant. | Check the mission id. |
+| `GrantAgentSkill: agentskillstore: not found: <name>` | The tenant has no version of this name. | Publish or enable the Agent Skill first. |
+| `EnableSharedAgentSkill: the operator offers no Agent Skill %q` | The operator does not offer this name. | Ask the operator to add it. See [Offer a Shared Agent Skill](/docs/agent-skills/shared). |
+| `You do not have permission to manage Agent Skills.` | Your role is not tenant admin. | Ask a tenant admin. |
+
+## Load problems
+
+### The agent does not find the Agent Skill
+
+Check these causes in this order:
+
+1. **No grant.** An agent with no grant does not see the Agent Skill. Grant it
+   to the agent or to the mission.
+2. **A deny.** The mission lists the id in `constraints.blocked_tools`. Remove
+   the id, or use a different mission.
+3. **No mission.** Only an agent in a mission can load an Agent Skill. The
+   dashboard chat and a coding agent session cannot.
+4. **A weak description.** The search compares the query with the name and the
+   description. Write a description that names the task.
+5. **No search.** An agent that never calls `search_tools` never finds an Agent
+   Skill. Pin it in the mission definition to make the agent load it.
+
+### The load returns an error
+
+The agent gets the error as the result of `invoke_tool`.
+
+| Message | Cause |
+|---|---|
+| `metatool: not authorized to invoke tool: skill:<name>` | The agent and the mission have no grant. |
+| `metatool: the tool is blocked by mission policy: skill:<name>` | The mission denies the Agent Skill. |
+| `metatool: an Agent Skill loads only in a mission` | The call has no mission. |
+| `metatool: the file is not inside the folder of the Agent Skill: %q` | `args.file` is not a clean path inside the folder. |
+| `metatool: the file %q of %q is not text` | The file is not UTF-8 text. The agent cannot read a binary file. |
+| `metatool: Agent Skills are not configured` | The daemon serves no Agent Skill. Ask the operator. |
+
+### A mission fails before it starts
+
+The mission definition pins an Agent Skill in `dependencies.tools`, and the
+tenant has no Agent Skill with that name. The error starts with
+`pin the Agent Skill skill:<name>`. Publish or enable the Agent Skill. Then
+start the mission again.
+
+### The run of an agent stops at the start
+
+The load of a pinned Agent Skill failed, so the agent stopped the run with
+the code `PINNED_SKILL_LOAD_FAILED`. The usual cause is a missing grant or a
+deny. A pin does not grant the Agent Skill.
+
+### The mission loads an old version
+
+This is the expected behavior. A mission keeps the digest that it fixed at
+its start or at its first load. A new publish changes the content only for
+missions that fix a digest after the publish.
+
+## Scripts
+
+A script of an Agent Skill runs only through the normal execution tool of the
+agent, in the sandbox of the agent. The script has the grants and the egress
+limit of the agent. If the egress limit refuses a host, the script cannot
+reach it.
+
+Gibson does not copy the files of an Agent Skill into the sandbox yet. To run
+a script, the agent reads it with `invoke_tool` and `args.file`. It then runs
+the text with its execution tool. A file that is not UTF-8 text cannot be
+read this way.

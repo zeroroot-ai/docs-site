@@ -1,0 +1,322 @@
+---
+title: Write and publish an Agent Skill
+description: Write an Agent Skill folder, validate it, publish it to your tenant, grant it, pin or deny it in a mission, publish a new version, and delete it.
+---
+
+**Not yet released.** Agent Skills are in build. This page describes the code
+on the release branches. The names can change before the release.
+
+This page takes you from an empty folder to an Agent Skill that a mission
+agent loads. The example is a method that checks the TLS configuration of a
+host. For the concepts, read [Agent Skills](/docs/agent-skills) first.
+
+## Prerequisites
+
+| You need | Why |
+|---|---|
+| **`gibson`** | The CLI validates and publishes the folder. See [Install](/docs/install). |
+| **The tenant admin role** | Each Agent Skill call needs the admin relation on the tenant. |
+| **An OCI registry that your tenant owns** | The CLI pushes the folder there as an OCI image. The daemon pulls it from there. |
+| **A docker credential for that registry** | The CLI uses your local docker credential for the push. |
+
+The daemon pulls the image over HTTPS only. The registry host must resolve to
+a public address. The daemon refuses a loopback, private or link-local
+address for a tenant publish.
+
+## 1. Write the folder
+
+Make a folder with the name of the Agent Skill. Put one `SKILL.md` at its
+root. This example also has one reference file.
+
+```text
+check-tls-config/
+├── SKILL.md
+└── references/
+    └── weak-ciphers.md
+```
+
+`check-tls-config/SKILL.md`:
+
+```markdown
+---
+name: check-tls-config
+description: >-
+  Check the TLS configuration of one host and port. Use it to find old
+  protocol versions, weak cipher suites and certificate problems.
+license: Apache-2.0
+compatibility: Needs nmap with the ssl-enum-ciphers script.
+metadata:
+  author: security-team
+  version: "1.0"
+allowed-tools: nmap
+---
+
+# Check the TLS configuration of a host
+
+Use this method when the target is a host with a TLS port, for example 443.
+
+## Steps
+
+1. Get the cipher list of the port:
+   `nmap --script ssl-enum-ciphers -p 443 <host>`
+2. Record each protocol version that the host accepts.
+3. Record each cipher suite that has a grade below A.
+4. Compare the cipher suites with the list in references/weak-ciphers.md.
+5. Read the certificate: the subject, the issuer and the expiry date.
+
+## How to read the result
+
+- TLS 1.0 or TLS 1.1 accepted: report a finding of medium severity.
+- SSLv3 accepted: report a finding of high severity.
+- A cipher suite from the weak list: report one finding for each suite.
+- A certificate that expires in less than 30 days: report a low finding.
+
+Attach the nmap output to each finding as evidence.
+```
+
+`check-tls-config/references/weak-ciphers.md`:
+
+```markdown
+# Weak cipher suites
+
+Report a finding when the host accepts one of these:
+
+- A suite with RC4
+- A suite with 3DES
+- A suite with NULL encryption
+- A suite with EXPORT in the name
+- A suite with anonymous key exchange (anon)
+```
+
+### The frontmatter fields
+
+| Field | Required | Rule |
+|---|---|---|
+| `name` | Yes | 1 to 64 characters. Lowercase letters, digits and single hyphens. No hyphen at the start or the end. Must be equal to the folder name. |
+| `description` | Yes | 1 to 1,024 characters. Not only spaces. |
+| `license` | No | Free text. |
+| `compatibility` | No | At most 500 characters. |
+| `metadata` | No | A map of string keys to string values. |
+| `allowed-tools` | No | Tool names with spaces between them. It can only narrow what the agent uses. It gives the agent no tool. |
+
+Gibson ignores an unknown field in the frontmatter.
+
+### The size limits
+
+| Limit | Value |
+|---|---|
+| The body of `SKILL.md`, after the frontmatter | 64 KiB |
+| One file | 1 MiB |
+| All files of the folder together | 8 MiB |
+| Number of files | 200 |
+
+Gibson refuses a folder that is over a limit. It never cuts a file or a
+folder to fit.
+
+### The path rules
+
+Each entry in the folder must be a regular file. A link is refused. Each path
+must be a clean relative path inside the folder. Gibson refuses an absolute
+path, a path with `..` or `.`, a backslash, or a path that is not UTF-8.
+
+## 2. Validate the folder
+
+1. Run the validate command on the folder:
+
+   ```bash
+   gibson agent-skill validate ./check-tls-config
+   ```
+
+2. Read the output.
+
+If the folder is valid, the command prints `ok` and exits with code 0. The
+command makes no network call.
+
+If the folder has a problem, the command prints one `error:` line for each
+problem. It then exits with code 2:
+
+```text
+error: the description is required
+error: the name "check-tls" in the frontmatter does not match the folder name "check-tls-config"
+
+validation failed: 2 error(s)
+```
+
+For each message, see [Limits and troubleshooting](/docs/agent-skills/troubleshooting).
+
+## 3. Publish the folder
+
+The publish command does these steps:
+
+1. It validates the folder, as `gibson agent-skill validate` does.
+2. It packs the folder as one OCI image. The digest depends on the content only.
+3. It pushes the image by digest to the repository that you name. It sets no tag.
+4. It asks the daemon to pull the image by digest and store it in your tenant.
+5. It prints the digest.
+
+Do these steps:
+
+1. Sign in to Gibson:
+
+   ```bash
+   gibson login
+   ```
+
+2. Sign in to your registry with docker, so the CLI has a credential for the push.
+3. Publish the folder:
+
+   ```bash
+   gibson agent-skill publish ./check-tls-config \
+     --repository registry.example.com/team/agent-skills
+   ```
+
+4. Record the digest from the output:
+
+   ```text
+   name:      check-tls-config
+   digest:    sha256:4f0c…
+   reference: registry.example.com/team/agent-skills@sha256:4f0c…
+   ```
+
+The `--repository` value is `<registry>/<repository>`. Do not add a tag or a
+digest. The command refuses both.
+
+| Flag | Meaning |
+|---|---|
+| `--repository` | Required. The repository for the push, with no tag. |
+| `--registry-secret` | The name of a tenant secret that holds the registry credential for the daemon pull. |
+| `--gibson-url` | The daemon URL. The default comes from the login session. |
+| `--timeout` | The deadline for the push and the daemon call. The default is 2 minutes. |
+
+After the publish, the daemon reads the content from the database of your
+tenant. It does not read the registry again.
+
+### A registry that needs a credential for a pull
+
+If your registry allows an anonymous pull, do not set `--registry-secret`.
+The daemon never uses its own credential for a tenant publish.
+
+If your registry needs a credential for a pull, do these steps:
+
+1. Make a docker config file that holds the credential for this registry.
+2. Store the file as a tenant secret:
+
+   ```bash
+   gibson secret set cred:agent-skills-registry --from-file ./registry-config.json
+   ```
+
+3. Publish with the name of the secret:
+
+   ```bash
+   gibson agent-skill publish ./check-tls-config \
+     --repository registry.example.com/team/agent-skills \
+     --registry-secret cred:agent-skills-registry
+   ```
+
+The daemon reads the secret for this call only. It does not store the value.
+
+### Publish from the dashboard
+
+You can also publish an image that is already in the registry.
+
+1. Open **Agent Skills** in the dashboard.
+2. Select **Publish an Agent Skill**.
+3. In **Name**, enter the name of the Agent Skill.
+4. In **OCI reference**, enter the reference with its digest.
+5. In **Registry secret**, select the secret, or keep **None (pull without a credential)**.
+6. Select **Publish**.
+
+The reference must name a digest. A tag is not valid.
+
+## 4. Grant the Agent Skill
+
+A publish grants nothing. No agent and no mission can load the Agent Skill
+until a tenant admin grants it.
+
+1. Open **Agent Skills** in the dashboard.
+2. Select the name of the Agent Skill.
+3. In **Grants**, set **Grant to** to **An agent** or **A mission**.
+4. Select the agent or the mission from the list, or enter its id.
+5. Select **Grant**.
+
+A grant to an agent lets that agent identity load the Agent Skill in each
+mission. A grant to a mission lets each agent of that mission load it. The
+agent or the mission must be in your tenant.
+
+To remove a grant, select **Revoke** next to it in **Present grants**.
+
+## 5. Pin an Agent Skill in a mission
+
+A pin makes the agents of a mission load the Agent Skill before the first
+model call. It also fixes the digest at the mission start.
+
+Add the id to `dependencies.tools` in the mission definition:
+
+```yaml
+dependencies:
+  tools:
+    - "skill:check-tls-config"
+```
+
+At the mission start, Gibson fixes the current digest of each listed Agent
+Skill. If the tenant has no Agent Skill with that name, the mission fails
+before it starts.
+
+A pin does not grant the Agent Skill. The agent or the mission still needs a
+grant. If the load of a pinned Agent Skill fails, the run of the agent stops.
+
+For the other fields of a mission definition, see [Missions](/docs/missions).
+
+## 6. Deny an Agent Skill in a mission
+
+Add the id to `constraints.blocked_tools` in the mission definition:
+
+```yaml
+constraints:
+  blocked_tools:
+    - "skill:check-tls-config"
+```
+
+The search of an agent in this mission does not return the Agent Skill.
+A direct load with `invoke_tool` is refused. A deny wins over a grant.
+
+## 7. Publish a new version
+
+1. Change the files in the folder.
+2. Run `gibson agent-skill validate` on the folder.
+3. Run `gibson agent-skill publish` with the same folder and the same repository.
+
+The new publish adds a version with a new digest. The new version becomes
+the current version. A mission that already fixed a digest keeps its digest.
+A mission that starts after the publish gets the new digest.
+
+To compare two versions, open the Agent Skill in the dashboard. In
+**Compare two versions**, select the two digests and select **Compare**.
+The dashboard shows the line changes in the body of `SKILL.md`.
+
+## 8. Delete the Agent Skill
+
+1. Open the Agent Skill in the dashboard.
+2. Select **Delete Agent Skill**.
+3. Select **Delete** to confirm.
+
+The delete removes each version and each grant of the Agent Skill. A mission
+that loads it after the delete gets an error. If you publish the same name
+again, the new Agent Skill has no grant.
+
+## The API
+
+The dashboard uses the `gibson.tenant.v1.AgentSkillService` API. Each call
+needs the admin relation on the tenant.
+
+| Call | What it does |
+|---|---|
+| `PublishAgentSkill` | Pulls the image by digest, validates the folder, and makes the version current. |
+| `ListAgentSkills` | Lists the current version of each Agent Skill. With `all_versions`, lists each version. |
+| `GetAgentSkill` | Returns one version with its body and its file list. An empty digest means the current version. |
+| `DeleteAgentSkill` | Removes each version of a name and its grants. |
+| `GrantAgentSkill` | Lets one agent or one mission load an Agent Skill. |
+| `RevokeAgentSkill` | Removes a grant. |
+| `ListAgentSkillGrants` | Lists the agents and the missions that have a grant. |
+| `ListSharedAgentSkills` | Lists the Shared Agent Skills that the operator offers. |
+| `EnableSharedAgentSkill` | Copies one Shared Agent Skill into the tenant. It grants nothing. |
