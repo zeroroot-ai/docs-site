@@ -1,17 +1,20 @@
 ---
-title: Attack-path belief field
-description: How Gibson picks the next host and the three components it scores per host. Why the math is a Bayesian network and not a language model, and what you can see and control.
+title: Belief field
+description: How Gibson ranks the targets of its findings, how it picks the next host, and the three components it scores per host. Why the math is a Bayesian network and not a language model, and what you can see and control.
 ---
 
-A scan hands you a list. Gibson hands you an ordering, and then acts
-on it.
+The finding is the main object in Gibson. A finding ranks by its
+priority first, and then by the belief of its target. This page
+explains that belief.
 
-Behind that ordering is the **attack-path belief field**. The field is
-a set of probabilities that Gibson holds about every host it has
-discovered. Gibson updates the field as evidence arrives. The field is
-not a report. It is what the engine reads when it picks its next move.
-That is why "thinks in paths, not checklists" is a claim about the
-engine's behavior, not about the report format.
+The **belief field** is a set of probabilities that Gibson holds about
+every host it has discovered. Gibson updates the field as evidence
+arrives. The field is not a report. It is what the engine reads when it
+picks its next move.
+
+An attack path is a view that starts from a finding: the chain of
+findings and techniques that reaches a target. It is a query result. It
+has no status and no rank of its own.
 
 This page explains what the field computes and why the math is a
 Bayesian network, not a language model. It also explains why a run

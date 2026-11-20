@@ -1,0 +1,111 @@
+---
+title: Mission catalog
+description: The missions that ship with Gibson. The daemon holds each definition in its own binary, and each mission declares a closed set of parameters.
+---
+
+A **catalog mission** is a mission definition that ships with Gibson.
+The daemon holds each definition in its own binary. When you run a
+catalog mission, the daemon renders the definition that it holds, and
+not a copy that a caller sends.
+
+The catalog holds two missions today.
+
+| Mission | Version | What it does |
+|---|---|---|
+| [`scan`](#scan) | 1.0.0 | Scans one application from three sides: its image, its source, and what it runs. |
+| [`cluster-assessment`](#cluster-assessment) | 1.0.0 | Assesses one Kubernetes cluster, proves what is exploitable, and opens a merge request for each finding that it fixes. |
+
+The catalog has no incident response mission yet.
+
+The source of each mission is in
+[`internal/platform/missioncatalog/missions/`](https://github.com/zeroroot-ai/gibson/tree/main/internal/platform/missioncatalog/missions)
+in `gibson`.
+
+## Run a catalog mission
+
+1. List the missions and their parameters.
+
+   ```bash
+   gibson mission catalog list
+   ```
+
+2. Show one mission.
+
+   ```bash
+   gibson mission catalog show scan
+   ```
+
+3. Submit the mission. Give the target and each parameter.
+
+   ```bash
+   gibson mission submit --catalog scan --target <target-id> \
+     --param application=<name> --param repositoryUrl=<url>
+   ```
+
+   The example shows two of the seven parameters of `scan`. Give all
+   seven.
+
+A catalog mission declares no target, so `--target` is required. The
+parameters of a mission are a closed set. The daemon refuses an unknown
+parameter, and it refuses a request that omits one. No parameter names
+a host. The target of the run comes only from `--target`.
+
+A catalog mission adds no permission. Each node that the mission
+dispatches needs the same grant as a node of a mission that you wrote.
+
+## scan
+
+The `scan` mission scans one application from three sides. The three
+branches are independent, and the runtime schedules them together. A
+`report` node joins them, so the mission has one completion.
+
+| Branch | Components | What it writes to the knowledge graph |
+|---|---|---|
+| `image` | `trivy` | Image, package, vulnerability and finding nodes |
+| `source` | `zerocool` | Finding nodes |
+| `runtime` | `naabu`, `httpx`, `nuclei`, `tlsx` | Host, port, service and finding nodes |
+
+| Parameter | Meaning |
+|---|---|
+| `application` | The key of the application. Each observation links to it. |
+| `repositoryUrl` | The Git remote that the source branch clones. |
+| `ref` | The branch that the pipeline built. |
+| `commit` | The commit that the pipeline built. |
+| `pipelineId` | The pipeline that started this scan. |
+| `pipelineUrl` | The URL of that pipeline. |
+| `imageRef` | The image that the pipeline published, by digest. |
+
+## cluster-assessment
+
+The `cluster-assessment` mission assesses one Kubernetes cluster and
+fixes what it finds. The mission names no host and no cluster. The
+cluster is the target that you give at submit.
+
+| Branch | Component | What it does |
+|---|---|---|
+| `benchmark` | `kube-bench` | Checks the policies section of the CIS benchmark through the Kubernetes API. |
+| `workloads` | `trivy-k8s` | Finds wrong settings of the workloads through the same API. |
+| `exploit` | a job | Proves which open findings are exploitable. |
+| `fix` | a job | Opens a merge request for each finding that it fixes. |
+
+The two tool branches are independent. The two job branches start
+after the tools, because a job needs findings to work on. A `report`
+node joins the branches.
+
+| Parameter | Meaning |
+|---|---|
+| `kubeconfigSecret` | The name of the tenant secret that holds the kubeconfig of the cluster. The value never goes into the mission. |
+| `bank` | The bank of agents that the two jobs run on. |
+| `forgeConnector` | The connector that holds the credential of the Git host. |
+| `manifestsProject` | The project path that holds the manifests of the cluster. |
+
+A later run of the mission verifies a fix. When the later run looks for
+a `fixed` finding and does not find it, the finding becomes `verified`.
+See [Findings](/docs/findings).
+
+## Related
+
+- [Missions](/docs/missions): the mission model and the file formats.
+- [Job node](/docs/missions/job-node): the node kind of the two jobs.
+- [Connectors](/docs/connectors): the catalog of connectors.
+- [CLI reference](/docs/cli-reference): each `gibson mission` command.

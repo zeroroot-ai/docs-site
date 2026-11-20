@@ -1,14 +1,15 @@
 ---
 title: Runtime
-description: How an always-on agent runs. A persistent event-sourced loop, goal missions that never finish on their own, mission constraints as the stop button, and no human approval mid-run.
+description: How an always-on agent runs. A persistent event-sourced loop, goal missions that never finish on their own, mission constraints as the stop button, and one approval gate, for a destructive action.
 ---
 
 This page answers the question that a reviewer really has: *once I start
 this thing, what stops it?*
 
-The answer is not an approval queue. It is a set of limits that you
-declare before the mission starts. This page states those limits,
-including the one that surprises people.
+The answer is a set of limits that you declare before the mission
+starts, and one approval gate. The gate applies to one kind of action:
+a destructive action. This page states the limits and the gate,
+including the limit that surprises people.
 
 ## The runtime is a loop, not a job runner
 
@@ -53,25 +54,43 @@ agent" here means a mission that stays alive and reacts to evidence. It
 does not mean a scheduler that wakes things up. If you want a nightly
 sweep, you own the nightly trigger.
 
-## No human approves an action mid-run
+## One approval gate: a destructive action
 
-After a mission starts inside its declared bounds, it runs to completion
-with no human checkpoint. There is no approval step and no escalation
-step. The runtime removed them deliberately and recorded the reasoning
-in an ADR.
+After a mission starts inside its declared bounds, it runs with no
+approval step for its work. An agent reads, scans, writes a fix and
+opens a merge request without a wait for a person. The runtime removed
+the general approval step deliberately and recorded the reasoning in an
+ADR.
 
-The argument has two parts. Runtime gates contradict an autonomous
-Decider. Bounds that you declare up front express safety better than a
-prompt that somebody clicks through at 2am. The ADR states the
-consequence without softening: **a mission launched inside its Rules of
-Engagement can run to completion with no human checkpoint. Safety rests
-entirely on those bounds, the grants, and the budget being correct.**
+The argument has two parts. A gate on each action contradicts an
+autonomous Decider. Bounds that you declare up front express safety
+better than a prompt that somebody clicks through at 2am.
 
-Say that out loud in your review. This page exists to prevent one
-outcome: a reviewer assumes there is an approval step and discovers
-otherwise later.
+One gate stays. **A destructive action waits for a person first.** A
+destructive action is an action that a person cannot undo.
 
-A human still controls three things at any time: the grants (see
+1. Before the action, the agent calls `RequestDestructiveAuthorization`.
+   The call records the request and returns immediately. The fleet
+   continues its other work.
+2. A tenant admin approves or denies the request. The first decision is
+   final. A request that no tenant admin approves never runs.
+3. The request and the decision are events on the timeline. They
+   survive a restart and a replay.
+4. A proof for a destructive predicate settles only after an approval.
+
+The Domain Pack names its non-destructive predicates. A predicate that
+the pack does not name is destructive. The agent does not select the
+gate. See `RequestDestructiveAuthorization` in the
+[API reference](/docs/api-reference).
+
+State the limit of the gate in your review. **The gate cannot stop an
+action that an agent does with its own shell.** The gate controls what
+the runtime records as proven. The network scope of the mission node
+limits what that shell can reach. See
+[Mission traffic](/docs/security/network-policy#mission-traffic).
+
+For all other work, safety rests on the bounds, the grants and the
+budget. A human controls three things at any time: the grants (see
 [Authorization](/docs/security/authorization)), whether the component is
 enabled at all, and the constraints below.
 
@@ -107,6 +126,6 @@ and stops the mission when the mission exceeds it.
 
 1. A mission with a goal does not complete mechanically.
 2. Nothing in the platform starts a mission on a timer.
-3. There is no approval or escalation step at runtime.
+3. One approval gate exists at runtime, for a destructive action. No other action waits for a person.
 4. Constraints live on the mission definition, and zero means unlimited.
 5. The daemon enforces `blocked_tools` at dispatch, not the agent.
