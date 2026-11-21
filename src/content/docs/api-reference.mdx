@@ -8,87 +8,6 @@ description: The Gibson SDK proto surface — every service, message, field, and
 
 This is the machine-generated reference for the Gibson SDK proto surface — the services, messages, fields, and enums a component developer compiles against. It is exhaustive; the guides walk you through the common workflows. Every symbol below is grouped by its proto package.
 
-## Package `gibson.agent.v1`
-
-### Services
-
-#### `AgentService`
-
-##### `Execute`
-
-`ExecuteRequest` → `ExecuteResponse`
-
-##### `GetDescriptor`
-
-`GetDescriptorRequest` → `GetDescriptorResponse`
-
-##### `Health`
-
-`HealthRequest` → `HealthResponse`
-
-### Messages
-
-#### `ExecuteRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `task` | 1 | `gibson.types.v1.Task` | — |
-| `timeout_ms` | 2 | `int64` | — |
-| `callback_endpoint` | 3 | `string` | Callback endpoint for the orchestrator's HarnessCallbackService. When provided, the agent will connect to this endpoint to access harness operations (LLM, tools, memory, etc.). |
-| `callback_token` | 4 | `string` | Optional authentication token for the callback connection. |
-| `mission` | 5 | `gibson.common.v1.TypedMap` | Mission context for this execution. |
-| `target` | 6 | `gibson.common.v1.TypedMap` | Target information for this execution. |
-| `trace_id` | 7 | `string` | Trace ID for distributed tracing (propagated from orchestrator). |
-| `parent_span_id` | 8 | `string` | Parent span ID for distributed tracing (propagated from orchestrator). |
-| `mission_run_id` | 9 | `string` | Mission run ID - unique identifier for this specific mission execution. Created by MissionGraphManager.CreateMissionRunNode at mission start. Used for mission-scoped GraphRAG storage. |
-| `agent_run_id` | 10 | `string` | Agent run ID - unique identifier for this specific agent execution. Used for DISCOVERED relationships and provenance tracking. |
-| `run_number` | 11 | `int32` | Run number - sequential number for this mission (1, 2, 3...). Used for mission memory queries and historical comparisons. |
-| `job_id` | 12 | `string` | job_id names the job this execution serves. A one-shot dispatch and a bank job then share one result path. Empty for a dispatch that opens no job. |
-
-#### `ExecuteResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result` | 1 | `gibson.types.v1.Result` | — |
-| `error` | 2 | `gibson.common.v1.Error` | — |
-| `deliverables` | 3 | `repeated gibson.job.v1.Deliverable` | deliverables lists what left the sandbox for this execution: a pushed branch, an opened merge request. Empty when nothing left. |
-| `claude_session_id` | 4 | `string` | claude_session_id is the coding-agent session that ran this execution, so a later turn resumes the same conversation. Empty for an agent that holds no session. |
-
-#### `GetDescriptorRequest`
-
-_No fields._
-
-#### `GetDescriptorResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `version` | 2 | `string` | — |
-| `description` | 3 | `string` | — |
-| `capabilities` | 4 | `repeated string` | — |
-| `target_schemas` | 5 | `repeated TargetSchemaProto` | — |
-| `technique_types` | 6 | `repeated string` | — |
-| `target_types` | 7 | `repeated string` | Deprecated: v0.8.0. Use target_schemas (field 5) instead. Will be removed in v0.10.0. |
-
-#### `HealthRequest`
-
-_No fields._
-
-#### `HealthResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `status` | 1 | `gibson.common.v1.HealthStatus` | — |
-
-#### `TargetSchemaProto`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `type` | 1 | `string` | — |
-| `version` | 2 | `string` | — |
-| `schema_json` | 3 | `string` | — |
-| `description` | 4 | `string` | — |
-
 ## Package `gibson.agentidentity.v1`
 
 Package gibson.agentidentity.v1 — AgentIdentityService: customer-callable
@@ -905,43 +824,11 @@ progress, partial results, warnings, and the final output.
 
 CancelMission requests cancellation of a running mission.
 
-##### `Complete`
-
-`CompleteRequest` → `CompleteResponse`
-
-Complete proxies an LLM completion request through the agent harness.
-
-##### `CompleteStream`
-
-`CompleteStreamRequest` → `stream CompleteStreamResponse`
-
-CompleteStream proxies a streaming LLM completion request through the agent harness.
-
-##### `CompleteStructured`
-
-`CompleteStructuredRequest` → `CompleteStructuredResponse`
-
-CompleteStructured proxies an LLM completion requesting JSON output
-conforming to the supplied schema.
-
-##### `CompleteWithTools`
-
-`CompleteWithToolsRequest` → `CompleteWithToolsResponse`
-
-CompleteWithTools proxies an LLM completion with tool definitions for
-function-calling support. Returns the response including any tool calls.
-
 ##### `CreateMission`
 
 `CreateMissionRequest` → `CreateMissionResponse`
 
 CreateMission creates a new sub-mission.
-
-##### `DelegateToAgent`
-
-`DelegateToAgentRequest` → `DelegateToAgentResponse`
-
-DelegateToAgent dispatches a sub-task to another agent and returns its result.
 
 ##### `DisablePlugin`
 
@@ -1047,12 +934,6 @@ GetTaxonomySchema returns the current taxonomy definition.
 Heartbeat sends a periodic health pulse. The response indicates whether
 the component is still considered registered and may carry config updates.
 
-##### `ListAgents`
-
-`ListAgentsRequest` → `ListAgentsResponse`
-
-ListAgents returns descriptors for all agents visible to the caller's tenant.
-
 ##### `ListAvailablePlugins`
 
 `ListAvailablePluginsRequest` → `ListAvailablePluginsResponse`
@@ -1124,6 +1005,31 @@ configuration including heartbeat and poll intervals.
 
 ReportStepHints reports planning step hints from an agent back to the orchestrator.
 
+##### `ResolveAgent`
+
+`ResolveAgentRequest` → `ResolveAgentResponse`
+
+ResolveAgent finds the route of an agent on the Agent gateway (A2A). The
+caller then sends an A2A SendMessage (JSON-RPC binding) to gateway_url
+with the A2A client of the SDK. It sends the task grant in the header
+x-capability-grant and each route header of the response unchanged.
+This is the same call as HarnessCallbackService.ResolveAgent, for an
+agent that polls for work. It replaces DelegateToAgent and ListAgents.
+
+Errors: NotFound (no agent of this name), PermissionDenied (the grant
+does not allow the delegation), InvalidArgument.
+
+##### `ResolveModel`
+
+`ResolveModelRequest` → `ResolveModelResponse`
+
+ResolveModel turns a slot into one exact model name (ADR-0172). The agent
+then calls the model gateway with the Open Responses client of the SDK.
+The agent sends the task grant in the header x-capability-grant and sends
+each route header of the response unchanged. The gateway never sees a
+slot name. This is the same call as HarnessCallbackService.ResolveModel,
+for an agent that polls for work.
+
 ##### `RunMission`
 
 `RunMissionRequest` → `RunMissionResponse`
@@ -1182,18 +1088,6 @@ watch another component. The stream stays open until the client cancels.
 
 ### Messages
 
-#### `AgentDescriptorProto`
-
-AgentDescriptorProto describes a registered agent.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `version` | 2 | `string` | — |
-| `description` | 3 | `string` | — |
-| `capabilities` | 4 | `repeated string` | — |
-| `target_types` | 5 | `repeated string` | — |
-
 #### `AuthorizeRequest`
 
 AuthorizeRequest asks whether a work item may do an action on a resource.
@@ -1232,6 +1126,7 @@ CallToolResponse carries the tool execution result.
 |---|---|---|---|
 | `output_json` | 1 | `string` | output_json is the JSON-encoded tool output matching the tool's output schema. |
 | `error` | 2 | `ComponentError` | — |
+| `tool_call_id` | 3 | `string` | tool_call_id is the id that the daemon recorded for this call. An agent cites it in the tool_call_ids of a finding or a proof (CiteToolCalls in the SDK). For the meta-tool invoke_tool it is the id of the recorded call of the invoked tool. Empty when the daemon recorded none, and from a daemon that does not send it. |
 
 #### `CallToolStreamRequest`
 
@@ -1254,6 +1149,7 @@ CallToolStreamResponse is a single event in a streaming tool execution.
 | `payload_json` | 2 | `string` | payload_json carries event-specific data. |
 | `done` | 3 | `bool` | done is true on the final event. |
 | `error` | 4 | `ComponentError` | — |
+| `tool_call_id` | 5 | `string` | tool_call_id is the id that the daemon recorded for this call, as in CallToolResponse.tool_call_id. The daemon sets it on the last event (done is true). Empty on the other events, and from a daemon that does not send it. |
 
 #### `CancelMissionRequest`
 
@@ -1270,90 +1166,20 @@ CancelMissionResponse is returned after cancellation is requested.
 
 _No fields._
 
-#### `CompleteRequest`
+#### `CardSkill`
 
-CompleteRequest is a harness proxy request for a non-streaming LLM completion.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | work_id ties this request to the active work item for authorization and billing. |
-| `slot` | 2 | `string` | slot is the named LLM slot defined by the agent (e.g. "primary"). |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `timeout_ms` | 4 | `int64` | timeout_ms is the maximum time to wait for the completion. |
-
-#### `CompleteResponse`
-
-CompleteResponse carries the LLM's reply to a non-streaming completion.
+CardSkill is one A2A AgentSkill: a capability entry of an Agent Card. It is
+not an Agent Skill in the SKILL.md format.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `response` | 1 | `LLMMessage` | — |
-| `usage` | 2 | `TokenUsage` | — |
-
-#### `CompleteStreamRequest`
-
-CompleteStreamRequest is a harness proxy request for a streaming LLM completion.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | work_id ties this request to the active work item for authorization and billing. |
-| `slot` | 2 | `string` | slot is the named LLM slot defined by the agent (e.g. "primary"). |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `timeout_ms` | 4 | `int64` | timeout_ms is the maximum time to wait for the completion. |
-
-#### `CompleteStreamResponse`
-
-CompleteStreamResponse is a single chunk in a streaming LLM completion response.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `content` | 1 | `string` | — |
-| `done` | 2 | `bool` | done is true on the final chunk; usage is only populated on the final chunk. |
-| `usage` | 3 | `TokenUsage` | — |
-
-#### `CompleteStructuredRequest`
-
-CompleteStructuredRequest is a harness proxy request for structured JSON output.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `schema_json` | 4 | `string` | schema_json is a JSON Schema the LLM output must conform to. |
-| `timeout_ms` | 5 | `int64` | — |
-
-#### `CompleteStructuredResponse`
-
-CompleteStructuredResponse carries the validated structured output.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result_json` | 1 | `string` | result_json is the JSON output conforming to the requested schema. |
-| `usage` | 2 | `TokenUsage` | — |
-
-#### `CompleteWithToolsRequest`
-
-CompleteWithToolsRequest is a harness proxy request for LLM completion with tool definitions.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `tools` | 4 | `repeated ToolDefinition` | — |
-| `timeout_ms` | 5 | `int64` | — |
-
-#### `CompleteWithToolsResponse`
-
-CompleteWithToolsResponse carries the LLM's reply including any tool calls.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `response` | 1 | `LLMMessage` | — |
-| `usage` | 2 | `TokenUsage` | — |
-| `tool_calls` | 3 | `repeated ToolCallResult` | — |
-| `finish_reason` | 4 | `string` | — |
+| `id` | 1 | `string` | — |
+| `name` | 2 | `string` | — |
+| `description` | 3 | `string` | — |
+| `tags` | 4 | `repeated string` | — |
+| `examples` | 5 | `repeated string` | — |
+| `input_modes` | 6 | `repeated string` | input_modes override default_input_modes for this card skill. |
+| `output_modes` | 7 | `repeated string` | output_modes override default_output_modes for this card skill. |
 
 #### `ComponentError`
 
@@ -1407,24 +1233,6 @@ CreateMissionResponse carries the created mission info.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `mission_json` | 1 | `bytes` | mission_json is the JSON-encoded mission.MissionInfo. |
-
-#### `DelegateToAgentRequest`
-
-DelegateToAgentRequest dispatches a sub-task to another agent.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-| `agent_name` | 2 | `string` | — |
-| `task_json` | 3 | `bytes` | task_json is the JSON-encoded agent.Task to delegate. |
-
-#### `DelegateToAgentResponse`
-
-DelegateToAgentResponse carries the delegated agent's result.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result_json` | 1 | `bytes` | result_json is the JSON-encoded agent.Result. |
 
 #### `DisablePluginRequest`
 
@@ -1708,48 +1516,6 @@ HeartbeatResponse is returned by the server after each heartbeat.
 |---|---|---|---|
 | `registered` | 1 | `bool` | registered indicates whether the server still considers this instance registered. A false value means the component must re-register before polling for work. |
 
-#### `LLMMessage`
-
-LLMMessage represents a single message in an LLM conversation.
-
-Tool-call round trips are represented with two message shapes so a
-multi-turn conversation can replay the full tool history structurally
-(instead of flattening it into `content` text):
-
- 1. An assistant turn that requested tool calls sets `role` to
- "assistant" and carries the calls in `tool_calls` (typically copied
- verbatim from a prior `CompleteWithToolsResponse.tool_calls`).
- `content` holds any accompanying assistant text and may be empty.
- 2. A tool-result turn sets `role` to "tool", `tool_call_id` to the
- `ToolCallResult.id` it answers, and `content` to the tool's output.
- One message per tool call; a turn with N tool calls is followed by
- N tool-result messages.
-
-Both fields are optional: plain role+content messages are unchanged.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `role` | 1 | `string` | role is "system", "user", "assistant", or "tool". |
-| `content` | 2 | `string` | — |
-| `tool_calls` | 3 | `repeated ToolCallResult` | tool_calls carries the tool calls an assistant turn requested. Set only when role is "assistant"; empty for all other roles. |
-| `tool_call_id` | 4 | `string` | tool_call_id identifies which requested tool call this message answers. Set only when role is "tool", in which case `content` carries the tool's output and this matches the `ToolCallResult.id` of the corresponding entry in the preceding assistant turn's `tool_calls`. Empty for all other roles. |
-
-#### `ListAgentsRequest`
-
-ListAgentsRequest requests descriptors for all available agents.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-
-#### `ListAgentsResponse`
-
-ListAgentsResponse carries all agent descriptors visible to the caller.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `agents` | 1 | `repeated AgentDescriptorProto` | — |
-
 #### `ListAvailablePluginsRequest`
 
 ListAvailablePluginsRequest is an empty request; filtering may be added in future fields.
@@ -1859,6 +1625,7 @@ When work_id is empty the poll timed out without available work.
 | `payload` | 3 | `bytes` | payload is the serialized work payload; interpretation depends on work_type. |
 | `context` | 4 | `map<string, string>` | context carries arbitrary key-value metadata associated with this work item. |
 | `timeout_ms` | 5 | `int64` | timeout_ms is the maximum time allowed to complete and submit the result. |
+| `task_grant` | 6 | `string` | task_grant is the task grant of this work item (the compact JWT that the daemon mints for the task, with the tenant, mission and task claims). The agent sends it in the header x-capability-grant on each call to a gateway: the model gateway and the Agent gateway. It is a secret. Empty means the work item has no grant, and the agent then cannot call a gateway. The agent renews it with DaemonService.RenewCapabilityGrant before it expires. |
 
 #### `QueryNodesRequest`
 
@@ -1935,6 +1702,9 @@ itself and declare its capabilities.
 | `config_schema_json` | 10 | `string` | config_schema_json is the JSON Schema document describing the plugin's configuration surface (used when kind == "plugin"). |
 | `ontology_extension` | 11 | `gibson.graphrag.v1.OntologyExtension` | ontology_extension carries the component's contribution to the daemon's ontology reasoner (hierarchies, equivalences, IFPs, prefixes). Optional; components that do not author an `ontology.yaml` leave this unset and the daemon's reasoner is unaffected. Mirrors `graphrag.OntologyExtension` on the Go side; populated automatically by `serve.Tool` / `serve.Agent` when the component implements the optional `serve.OntologyContributor` interface. |
 | `method_descriptors` | 12 | `repeated ComponentMethod` | method_descriptors carries per-method metadata (name + human-readable description + optional JSON-Schema input) for plugin methods. It is the rich superset of `methods` (which stays for back-compat): `methods` carries names only; `method_descriptors` carries the descriptions an agent reads to disambiguate tools in the catalog (SearchTools). Used when kind == "plugin". Empty is valid (older SDKs populate only `methods`). |
+| `card_skills` | 13 | `repeated CardSkill` | card_skills are the entries of the "skills" list of the A2A Agent Card of this agent (used when kind == "agent"). The daemon serves the card from the catalog, and it builds the card from this registration. Naming: an A2A AgentSkill is a capability entry of a card. It is NOT an Agent Skill in the SKILL.md format (the "skill:&lt;name>" ids of the catalog). The field says card_skills so the two never mix. |
+| `default_input_modes` | 14 | `repeated string` | default_input_modes are the media types that the agent accepts, as the defaultInputModes of the Agent Card (used when kind == "agent"). |
+| `default_output_modes` | 15 | `repeated string` | default_output_modes are the media types that the agent returns, as the defaultOutputModes of the Agent Card (used when kind == "agent"). |
 
 #### `RegisterComponentResponse`
 
@@ -1963,6 +1733,52 @@ ReportStepHintsRequest reports planning step hints from an agent.
 ReportStepHintsResponse is returned after hints are accepted.
 
 _No fields._
+
+#### `ResolveAgentRequest`
+
+ResolveAgentRequest asks the daemon for the Agent gateway route of an agent.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `work_id` | 1 | `string` | work_id ties this request to the active work item for authorization. |
+| `name` | 2 | `string` | name is the name of the agent. |
+| `bank_id` | 3 | `optional string` | bank_id names a bank of always-on agents. When it is set, the route is the route of a member of that bank, and name is the agent that the bank runs. Unset means an ephemeral agent. |
+
+#### `ResolveAgentResponse`
+
+ResolveAgentResponse holds what the caller needs to send an A2A message to
+an agent through the Agent gateway.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `gateway_url` | 1 | `string` | gateway_url is the JSON-RPC interface URL of the agent on the Agent gateway. The caller sends A2A SendMessage to this URL. |
+| `route_headers` | 2 | `map<string, string>` | route_headers are the headers that the gateway route matches on. The caller sends each one unchanged. |
+| `gateway_ca_pem` | 3 | `string` | gateway_ca_pem is the PEM bundle of the private CA of the Agent gateway. The caller trusts exactly this bundle for gateway_url, which must use https. Empty means the system roots. |
+| `agent_card_url` | 4 | `string` | agent_card_url is the URL of the Agent Card of the agent on the gateway. |
+
+#### `ResolveModelRequest`
+
+ResolveModelRequest asks the daemon for the model of a slot.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `work_id` | 1 | `string` | work_id ties this request to the active work item for authorization. |
+| `slot` | 2 | `string` | slot is the named LLM slot defined by the agent (e.g. "primary"). |
+
+#### `ResolveModelResponse`
+
+ResolveModelResponse names the one model that the slot resolves to, and the
+facts that the agent needs to call the model gateway.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `model` | 1 | `string` | model is the exact model name for the model field of the request. |
+| `provider` | 2 | `string` | provider is the name of the model provider of the tenant. |
+| `gateway_url` | 3 | `string` | gateway_url is the base URL of the model gateway. The agent calls POST &#123;gateway_url}/v1/responses. |
+| `route_headers` | 4 | `map<string, string>` | route_headers are the headers that the gateway route matches on. The agent sends each one unchanged. |
+| `context_window` | 5 | `int32` | context_window is the size of the context window in tokens. 0 means unknown. |
+| `max_output_tokens` | 6 | `int32` | max_output_tokens is the output limit of the model in tokens. 0 means unknown. |
+| `gateway_ca_pem` | 7 | `string` | gateway_ca_pem is the PEM bundle of the private CA that signed the certificate of the model gateway. The agent trusts exactly this bundle for calls to gateway_url, which must use https. Empty means the system roots. |
 
 #### `RunMissionRequest`
 
@@ -2036,35 +1852,6 @@ TestPluginConnectionResponse reports the result of a connectivity test.
 | `message` | 2 | `string` | — |
 | `latency_ms` | 3 | `int64` | latency_ms is the round-trip time of the test probe in milliseconds. |
 
-#### `TokenUsage`
-
-TokenUsage reports token consumption for an LLM call.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `input_tokens` | 1 | `int32` | — |
-| `output_tokens` | 2 | `int32` | — |
-
-#### `ToolCallResult`
-
-ToolCallResult represents a tool call made by the LLM.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | — |
-| `arguments_json` | 3 | `string` | arguments is the JSON-encoded arguments the LLM generated for this tool call. |
-
-#### `ToolDefinition`
-
-ToolDefinition describes a tool available for LLM function calling.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `description` | 2 | `string` | — |
-| `input_schema_json` | 3 | `string` | input_schema is a JSON Schema describing the tool's input parameters. |
-
 #### `ToolDescriptorProto`
 
 ToolDescriptorProto describes a registered tool.
@@ -2097,6 +1884,7 @@ ToolResultsResponse is a single result from a queued tool batch.
 | `output_json` | 2 | `string` | output_json is the JSON-encoded tool output. |
 | `error` | 3 | `ComponentError` | — |
 | `done` | 4 | `bool` | done is true on the final result. |
+| `tool_call_id` | 5 | `string` | tool_call_id is the id that the daemon recorded for the call of this input, as in CallToolResponse.tool_call_id. Empty when the daemon recorded none, and from a daemon that does not send it. |
 
 #### `UpdatePluginConfigRequest`
 
@@ -2276,8 +2064,8 @@ GetAgentStatus returns the current status of a specific agent.
 GetCapabilityManifest returns the signed, versioned capability manifest
 for the calling principal in their resolved tenant. SDKs call this on
 session start and on invalidation events. The ADK calls it at scaffold
-time to discover what components, permissions, cross-component rules,
-and runtime limits apply.
+time to discover what components, permissions and cross-component rules
+apply.
 
 ##### `GetComponentLogs`
 
@@ -2667,21 +2455,6 @@ render it.
 | `description` | 2 | `string` | description is the one-line description from the mission's own definition. |
 | `version` | 3 | `string` | version is the mission's declared version. |
 | `declared_params` | 4 | `repeated string` | declared_params names every parameter this mission requires, sorted. The set is closed: RenderCatalogMission refuses a key that is not here, and refuses a render that omits one. |
-
-#### `CheckpointMetadata`
-
-CheckpointMetadata is the summary of a source checkpoint on a
-ResumeMission response. The daemon does not send it today: see
-ResumeMissionResponse.checkpoint_metadata. The checkpoints of a run are listed by
-GetMissionCheckpoints (ADR-0170).
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `checkpoint_id` | 1 | `string` | checkpoint_id is the identifier of the source checkpoint. |
-| `saved_at_unix_seconds` | 2 | `int64` | saved_at_unix_seconds is when the checkpoint was captured (Unix epoch seconds). |
-| `super_step_number` | 3 | `int32` | super_step_number identifies which super-step boundary this checkpoint captured (1-based; 0 if not super-step-aligned). |
-| `cadence_reason` | 4 | `string` | cadence_reason is a free-form classifier for why the checkpoint was taken. Recognized values per R9.1: "super_step", "parallel_group_complete", "approval_required", "graceful_shutdown". Promoted to enum at v1.0.0. |
-| `size_bytes` | 5 | `int64` | size_bytes is the wire size of the checkpoint payload (advisory). |
 
 #### `CompleteMissionCUERequest`
 
@@ -3347,7 +3120,6 @@ PauseMissionResponse confirms the mission pause request.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `success` | 1 | `bool` | success indicates if the pause request was accepted |
-| `checkpoint_id` | 2 | `string` | checkpoint_id is empty. A pause does not make a checkpoint: a checkpoint is the end of a node in a run (ADR-0170). Use GetMissionCheckpoints to list the checkpoints of a run. |
 | `message` | 3 | `string` | message provides additional context about the pause operation |
 
 #### `PermissionComponentGrant`
@@ -3475,7 +3247,6 @@ ResumeMissionResponse wraps a MissionEvent for the ResumeMission streaming RPC.
 | `data` | 6 | `gibson.common.v1.TypedMap` | data contains event-specific data (typed map) |
 | `error` | 7 | `string` | error contains error information if the event represents an error |
 | `result` | 8 | `OperationResult` | result contains typed operation metrics (for mission.completed events) |
-| `checkpoint_metadata` | 9 | `CheckpointMetadata` | checkpoint_metadata is not set by the daemon. A resume continues the same run, so a resume stream has no source checkpoint. A run that starts at a checkpoint is a new run from RewindMission, and it records the checkpoint in parent_checkpoint_id (ADR-0170). |
 
 #### `RewindMissionRequest`
 
@@ -3729,12 +3500,13 @@ MissionStatus represents the execution status of a mission.
 | Value | # | Description |
 |---|---|---|
 | `MISSION_STATUS_UNSPECIFIED` | 0 | — |
-| `MISSION_STATUS_PENDING` | 1 | — |
-| `MISSION_STATUS_RUNNING` | 2 | — |
 | `MISSION_STATUS_PAUSED` | 3 | — |
 | `MISSION_STATUS_COMPLETED` | 4 | — |
 | `MISSION_STATUS_FAILED` | 5 | — |
-| `MISSION_STATUS_CANCELLED` | 6 | — |
+| `MISSION_STATUS_INPUT_REQUIRED` | 7 | — |
+| `MISSION_STATUS_SUBMITTED` | 8 | — |
+| `MISSION_STATUS_WORKING` | 9 | — |
+| `MISSION_STATUS_CANCELED` | 10 | — |
 
 ## Package `gibson.graph.v1`
 
@@ -4182,9 +3954,9 @@ Tools populate this message and Gibson automatically persists to the graph.
 | `technologies` | 7 | `repeated Technology` | — |
 | `certificates` | 8 | `repeated Certificate` | — |
 | `findings` | 9 | `repeated Finding` | Security findings |
-| `evidence` | 10 | `repeated Evidence` | — |
 | `custom_nodes` | 20 | `repeated CustomNode` | Custom extensions |
 | `explicit_relationships` | 21 | `repeated ExplicitRelationship` | — |
+| `finding_evidence` | 23 | `repeated FindingEvidence` | finding_evidence is evidence that a parser read from tool output, for a finding of this result. Each item names its finding by finding_id. A parser fills the type, the title, the content and the metadata of the evidence. It never sets the tier or the tool call id: the daemon sets both. The number 10 stays reserved. This is a new field with a new number. |
 
 #### `Domain`
 
@@ -4208,18 +3980,6 @@ Endpoint (URL) on a service.
 | `status_code` | 5 | `optional int32` | — |
 | `content_type` | 6 | `optional string` | — |
 | `title` | 8 | `optional string` | — |
-
-#### `Evidence`
-
-Evidence for a finding.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `optional string` | — |
-| `finding_id` | 2 | `string` | — |
-| `type` | 3 | `string` | — |
-| `content` | 4 | `optional string` | — |
-| `url` | 5 | `optional string` | — |
 
 #### `ExplicitRelationship`
 
@@ -4249,6 +4009,17 @@ Finding (vulnerability or security issue).
 | `remediation` | 7 | `optional string` | — |
 | `cve_ids` | 9 | `optional string` | — |
 | `parent_id` | 10 | `optional string` | Parent entity reference (optional - finding can be associated with various entities) |
+
+#### `FindingEvidence`
+
+FindingEvidence ties one evidence item to a finding of the same
+DiscoveryResult. The evidence shape is gibson.types.v1.Evidence, the one
+evidence shape (gibson#1365).
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `finding_id` | 1 | `string` | finding_id is the id of an entry of DiscoveryResult.findings. |
+| `evidence` | 2 | `gibson.types.v1.Evidence` | evidence is the item. The tier and the tool_call_id of it are set by the daemon, and the daemon ignores a value that a parser sends. |
 
 #### `FindingNode`
 
@@ -4555,12 +4326,6 @@ mirrors gibson.job.v1.JobService.CloseJob.
 Mission Management Operations
 These enable agents to autonomously create, run, and manage missions
 
-##### `DelegateToAgent`
-
-`DelegateToAgentRequest` → `DelegateToAgentResponse`
-
-Agent Operations
-
 ##### `DeleteSessionContext`
 
 `DeleteSessionContextRequest` → `DeleteSessionContextResponse`
@@ -4638,28 +4403,6 @@ Planning Operations
 `GetTaxonomySchemaRequest` → `GetTaxonomySchemaResponse`
 
 Taxonomy Operations
-
-##### `LLMComplete`
-
-`LLMCompleteRequest` → `LLMCompleteResponse`
-
-LLM Operations
-
-##### `LLMCompleteStructured`
-
-`LLMCompleteStructuredRequest` → `LLMCompleteStructuredResponse`
-
-##### `LLMCompleteWithTools`
-
-`LLMCompleteWithToolsRequest` → `LLMCompleteWithToolsResponse`
-
-##### `LLMStream`
-
-`LLMStreamRequest` → `stream LLMStreamResponse`
-
-##### `ListAgents`
-
-`ListAgentsRequest` → `ListAgentsResponse`
 
 ##### `ListMissions`
 
@@ -4795,6 +4538,33 @@ demonstration BEFORE the agent performs it (ADR-0132). It returns
 immediately with a pending request id — the fleet keeps working while
 the decision is pending. The agent performs the destructive act only
 after it reads back an approval, then calls SubmitProof.
+
+##### `ResolveAgent`
+
+`ResolveAgentRequest` → `ResolveAgentResponse`
+
+ResolveAgent finds the route of an agent on the Agent gateway (A2A). The
+caller then sends an A2A SendMessage (JSON-RPC binding) to gateway_url
+with the A2A client of the SDK. It sends the task grant in the header
+x-capability-grant and each route header of the response unchanged.
+This call replaces DelegateToAgent and ListAgents. An agent finds other
+agents through the Agent Cards that the daemon serves.
+
+Errors: NotFound (no agent of this name), PermissionDenied (the grant
+does not allow the delegation), InvalidArgument.
+
+##### `ResolveModel`
+
+`ResolveModelRequest` → `ResolveModelResponse`
+
+ResolveModel turns a slot into one exact model name (ADR-0172, decision 4).
+The agent then calls the model gateway with the Open Responses client of
+the SDK. The gateway never sees a slot name. The agent sends the task
+grant in the header x-capability-grant and sends each route header of
+the response unchanged.
+
+Errors: NotFound (the slot has no model), PermissionDenied (the task
+grant does not allow the slot), InvalidArgument.
 
 ##### `RunMission`
 
@@ -5093,6 +4863,7 @@ CallToolProtoResponse returns the tool output as proto-serialized JSON.
 |---|---|---|---|
 | `output_json` | 1 | `bytes` | JSON-serialized proto response message |
 | `error` | 2 | `HarnessError` | — |
+| `tool_call_id` | 3 | `string` | tool_call_id is the id that the daemon recorded for this call. An agent cites it in the tool_call_ids of a finding or a proof (CiteToolCalls in the SDK). It is the same id as ContextInfo.tool_execution_id of the work that the call started. For the meta-tool invoke_tool it is the id of the recorded call of the invoked tool. Empty when the daemon recorded none, and from a daemon that does not send it. |
 
 #### `CallToolProtoStreamRequest`
 
@@ -5121,6 +4892,7 @@ CallToolProtoStreamResponse streams tool execution events back to the agent.
 | `trace_id` | 10 | `string` | — |
 | `span_id` | 11 | `string` | — |
 | `sequence` | 12 | `int64` | — |
+| `tool_call_id` | 14 | `string` | tool_call_id is the id that the daemon recorded for this call, as in CallToolProtoResponse.tool_call_id. The daemon sets it on the last message of the stream (the complete event or the error event). Empty on the other messages, and from a daemon that does not send it. |
 
 **oneof `payload`** — one of: `progress`, `partial`, `warning`, `complete`, `error`.
 
@@ -5260,35 +5032,6 @@ CredentialObservation reports a discovered credential (identity: secret hash).
 | `secret_hash` | 1 | `string` | — |
 | `username` | 2 | `string` | — |
 | `kind` | 3 | `string` | — |
-
-#### `DelegateToAgentRequest`
-
-DelegateToAgentRequest dispatches a task to another agent. The target
-selector says WHERE the task runs. Absent means an ephemeral launch, which
-is the behavior every caller had before banks existed.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `name` | 2 | `string` | — |
-| `task` | 3 | `gibson.types.v1.Task` | — |
-| `ephemeral` | 10 | `bool` | ephemeral launches a new sandbox for this task and tears it down when the task ends. Setting it to true is the same as leaving the oneof unset; it lets a caller say so out loud. |
-| `bank_id` | 11 | `string` | bank_id opens a new job on that bank. A member with a free slot takes it, or the bank queues it, per the bank spill policy. |
-| `job_id` | 12 | `string` | job_id sends the task as the next input to a job that is already open, so the agent keeps its conversation and its worktrees. |
-
-**oneof `target`** — one of: `ephemeral`, `bank_id`, `job_id`.
-
-#### `DelegateToAgentResponse`
-
-DelegateToAgentResponse carries the delegated task's result, and the job
-the task ran as when the target was a bank or a job.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result` | 1 | `gibson.types.v1.Result` | — |
-| `error` | 2 | `HarnessError` | — |
-| `job_id` | 3 | `string` | job_id names the job the task ran as. Empty for an ephemeral launch. |
-| `member_id` | 4 | `string` | member_id names the bank member that ran the job. Empty for an ephemeral launch. |
 
 #### `DeleteSessionContextRequest`
 
@@ -5616,17 +5359,6 @@ GetRunFindingsResponse carries findings from the selected runs.
 | `capabilities` | 7 | `repeated TaxonomyCapability` | — |
 | `error` | 8 | `HarnessError` | — |
 
-#### `HarnessAgentDescriptor`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `version` | 2 | `string` | — |
-| `description` | 3 | `string` | — |
-| `capabilities` | 4 | `repeated string` | — |
-| `target_types` | 5 | `repeated string` | — |
-| `technique_types` | 6 | `repeated string` | — |
-
 #### `HarnessError`
 
 Error represents an error response from a callback operation.
@@ -5714,96 +5446,6 @@ KeyValue represents a key-value pair used in span attributes.
 | `key` | 1 | `string` | — |
 | `value` | 2 | `AnyValue` | — |
 
-#### `LLMCompleteRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `temperature` | 4 | `optional double` | Completion options |
-| `max_tokens` | 5 | `optional int32` | — |
-| `top_p` | 6 | `optional double` | — |
-| `stop` | 7 | `repeated string` | — |
-
-#### `LLMCompleteResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `content` | 1 | `string` | — |
-| `tool_calls` | 2 | `repeated ToolCall` | — |
-| `finish_reason` | 3 | `string` | — |
-| `usage` | 4 | `TokenUsage` | — |
-| `error` | 5 | `HarnessError` | — |
-
-#### `LLMCompleteStructuredRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `schema_json` | 4 | `string` | — |
-
-#### `LLMCompleteStructuredResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result` | 1 | `gibson.common.v1.TypedValue` | — |
-| `usage` | 3 | `TokenUsage` | — |
-| `error` | 4 | `HarnessError` | — |
-
-#### `LLMCompleteWithToolsRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `tools` | 4 | `repeated ToolDef` | — |
-
-#### `LLMCompleteWithToolsResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `content` | 1 | `string` | — |
-| `tool_calls` | 2 | `repeated ToolCall` | — |
-| `finish_reason` | 3 | `string` | — |
-| `usage` | 4 | `TokenUsage` | — |
-| `error` | 5 | `HarnessError` | — |
-
-#### `LLMMessage`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `role` | 1 | `string` | — |
-| `content` | 2 | `string` | — |
-| `tool_calls` | 3 | `repeated ToolCall` | — |
-| `tool_results` | 4 | `repeated ToolResult` | — |
-| `name` | 5 | `string` | — |
-
-#### `LLMStreamRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `temperature` | 4 | `optional double` | Completion options |
-| `max_tokens` | 5 | `optional int32` | — |
-| `top_p` | 6 | `optional double` | — |
-| `stop` | 7 | `repeated string` | — |
-
-#### `LLMStreamResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `delta` | 1 | `string` | — |
-| `tool_calls` | 2 | `repeated ToolCall` | — |
-| `finish_reason` | 3 | `string` | — |
-| `usage` | 4 | `TokenUsage` | — |
-| `error` | 5 | `HarnessError` | — |
-
 #### `LifecycleEntityEdge`
 
 LifecycleEntityEdge is one outgoing relationship to another typed entity,
@@ -5838,19 +5480,6 @@ existing node's identity enriches that node rather than creating a second one.
 | `id_properties` | 2 | `map<string, string>` | id_properties identify the entity. One property is the identity; several are folded into a composite key in sorted order, so the same entity observed twice resolves to the same node whatever order the map came in. An entity with no identity property records nothing — there would be no stable node to project. |
 | `properties` | 3 | `map<string, string>` | properties are the entity's non-identifying facts. A later sighting's properties take precedence over an earlier one's; a sighting that omits a property never erases what an earlier one established. |
 | `edges` | 4 | `repeated LifecycleEntityEdge` | edges are the outgoing relationships seen in this sighting. Both ends and the relationship type must be admitted by the Taxonomy, or the edge is skipped while the entity itself still lands. |
-
-#### `ListAgentsRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-
-#### `ListAgentsResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `agents` | 1 | `repeated HarnessAgentDescriptor` | — |
-| `error` | 2 | `HarnessError` | — |
 
 #### `ListMissionsRequest`
 
@@ -6359,6 +5988,52 @@ keeps working while the human decision is pending (ADR-0132).
 |---|---|---|---|
 | `error` | 2 | `HarnessError` | — |
 
+#### `ResolveAgentRequest`
+
+ResolveAgentRequest asks the daemon for the Agent gateway route of an agent.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `name` | 2 | `string` | name is the name of the agent. |
+| `bank_id` | 3 | `optional string` | bank_id names a bank of always-on agents. When it is set, the route is the route of a member of that bank, and name is the agent that the bank runs. Unset means an ephemeral agent. |
+
+#### `ResolveAgentResponse`
+
+ResolveAgentResponse holds what the caller needs to send an A2A message to
+an agent through the Agent gateway.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `gateway_url` | 1 | `string` | gateway_url is the JSON-RPC interface URL of the agent on the Agent gateway. The caller sends A2A SendMessage to this URL. |
+| `route_headers` | 2 | `map<string, string>` | route_headers are the headers that the gateway route matches on. The caller sends each one unchanged. |
+| `gateway_ca_pem` | 3 | `string` | gateway_ca_pem is the PEM bundle of the private CA of the Agent gateway. The caller trusts exactly this bundle for gateway_url, which must use https. Empty means the system roots. |
+| `agent_card_url` | 4 | `string` | agent_card_url is the URL of the Agent Card of the agent on the gateway. |
+
+#### `ResolveModelRequest`
+
+ResolveModelRequest asks the daemon for the model of a slot.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `slot` | 2 | `string` | slot is the name of the slot, for example "primary". |
+
+#### `ResolveModelResponse`
+
+ResolveModelResponse names the one model that the slot resolves to, and
+the facts that the agent needs to call the model gateway.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `model` | 1 | `string` | model is the exact model name. The agent puts it in the model field of the Open Responses request. |
+| `provider` | 2 | `string` | provider is the name of the model provider of the tenant. |
+| `gateway_url` | 3 | `string` | gateway_url is the base URL of the model gateway. The agent calls POST &#123;gateway_url}/v1/responses. |
+| `route_headers` | 4 | `map<string, string>` | route_headers are the headers that the gateway route matches on, for example the tenant and the provider. The agent sends each one unchanged. |
+| `context_window` | 5 | `int32` | context_window is the size of the context window in tokens. 0 means unknown. |
+| `max_output_tokens` | 6 | `int32` | max_output_tokens is the output limit of the model in tokens. 0 means unknown. |
+| `gateway_ca_pem` | 7 | `string` | gateway_ca_pem is the PEM bundle of the private CA that signed the certificate of the model gateway. The agent trusts exactly this bundle for calls to gateway_url, which must use https. Empty means the system roots. |
+
 #### `RunMissionRequest`
 
 RunMissionRequest queues a mission for execution.
@@ -6487,6 +6162,7 @@ SubdomainObservation reports an FQDN, its parent domain, and resolved addresses.
 | `context` | 1 | `ContextInfo` | — |
 | `finding` | 2 | `gibson.types.v1.Finding` | — |
 | `idempotency_key` | 3 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
+| `tool_call_ids` | 4 | `repeated string` | tool_call_ids names the tool calls whose recorded results are the recorded evidence of this finding. Each id is the ContextInfo.tool_execution_id of a tool call that the daemon recorded in this mission. The daemon reads the recorded result of each call. If an id names no record of this mission and tenant, the whole request fails. Evidence in finding.evidence that no tool call id backs is typed by the agent. |
 
 #### `SubmitFindingResponse`
 
@@ -6639,22 +6315,6 @@ TechnologyObservation is a technology fingerprinted on a service.
 | `name` | 1 | `string` | — |
 | `version` | 2 | `string` | — |
 
-#### `TokenUsage`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `input_tokens` | 1 | `int32` | — |
-| `output_tokens` | 2 | `int32` | — |
-| `total_tokens` | 3 | `int32` | — |
-
-#### `ToolCall`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | — |
-| `arguments` | 3 | `string` | — |
-
 #### `ToolCompleteEvent`
 
 ToolCompleteEvent signals successful completion with final output
@@ -6662,14 +6322,6 @@ ToolCompleteEvent signals successful completion with final output
 | Field | # | Type | Description |
 |---|---|---|---|
 | `output_json` | 1 | `bytes` | — |
-
-#### `ToolDef`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `description` | 2 | `string` | — |
-| `parameters` | 3 | `JSONSchemaNode` | — |
 
 #### `ToolErrorEvent`
 
@@ -6699,14 +6351,6 @@ ToolProgressEvent indicates progress during tool execution
 | `stage` | 2 | `string` | — |
 | `message` | 3 | `string` | — |
 
-#### `ToolResult`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `tool_call_id` | 1 | `string` | — |
-| `content` | 2 | `string` | — |
-| `is_error` | 3 | `bool` | — |
-
 #### `ToolResultsRequest`
 
 ToolResultsRequest requests streaming results for a queued job.
@@ -6727,6 +6371,7 @@ ToolResultsResponse streams individual results as tool executions complete.
 | `output_type` | 3 | `string` | — |
 | `error` | 4 | `HarnessError` | — |
 | `is_final` | 5 | `bool` | — |
+| `tool_call_id` | 6 | `string` | tool_call_id is the id that the daemon recorded for the call of this input, as in CallToolProtoResponse.tool_call_id. Empty when the daemon recorded none, and from a daemon that does not send it. |
 
 #### `ToolWarningEvent`
 
@@ -7004,12 +6649,13 @@ MissionStatus represents the current state of a mission.
 | Value | # | Description |
 |---|---|---|
 | `MISSION_STATUS_UNSPECIFIED` | 0 | — |
-| `MISSION_STATUS_PENDING` | 1 | — |
-| `MISSION_STATUS_RUNNING` | 2 | — |
 | `MISSION_STATUS_PAUSED` | 3 | — |
 | `MISSION_STATUS_COMPLETED` | 4 | — |
 | `MISSION_STATUS_FAILED` | 5 | — |
-| `MISSION_STATUS_CANCELLED` | 6 | — |
+| `MISSION_STATUS_INPUT_REQUIRED` | 7 | — |
+| `MISSION_STATUS_SUBMITTED` | 8 | — |
+| `MISSION_STATUS_WORKING` | 9 | — |
+| `MISSION_STATUS_CANCELED` | 10 | — |
 
 #### `OntologyExtensionKind`
 
@@ -7607,7 +7253,6 @@ applies to the calling principal in their resolved tenant. Both SDKs
 | `agents` | 11 | `repeated ComponentCapability` | — |
 | `tools` | 12 | `repeated ComponentCapability` | — |
 | `plugins` | 13 | `repeated ComponentCapability` | — |
-| `limits` | 30 | `LimitsAndQuotas` | — |
 | `memory` | 32 | `MemoryPermissions` | — |
 | `signature` | 200 | `bytes` | Signature payload (Ed25519 over body with signature/kid cleared). |
 
@@ -7666,16 +7311,6 @@ wire format of the manifest body itself.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `manifest` | 1 | `CapabilityManifest` | — |
-
-#### `LimitsAndQuotas`
-
-LimitsAndQuotas carries the tier-derived resource ceilings applied to
-the subject's session. max_spend_usd is a decimal string to avoid
-floating-point rounding at quota boundaries.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `max_tokens_per_call` | 1 | `uint64` | — |
 
 #### `ManifestInvalidationEvent`
 
@@ -8963,6 +8598,8 @@ Evidence represents supporting evidence for a finding.
 | `type` | 2 | `EvidenceType` | — |
 | `content` | 3 | `string` | — |
 | `metadata` | 4 | `map<string, string>` | — |
+| `tier` | 5 | `EvidenceTier` | tier is set by the daemon. The daemon ignores a value that an agent sends. |
+| `tool_call_id` | 6 | `string` | tool_call_id is set by the daemon on a tier 1 item. It is the id of the recorded tool call that backs the item. It is empty on a tier 2 item. The daemon ignores a value that an agent sends. An agent names a tool call in the tool_call_ids field of the request. |
 
 #### `Finding`
 
@@ -9091,9 +8728,21 @@ TaskConstraints represents execution constraints for a task.
 
 ### Enums
 
+#### `EvidenceTier`
+
+EvidenceTier tells a reader how much to trust an evidence item. The daemon
+sets the tier. An agent cannot set it.
+
+| Value | # | Description |
+|---|---|---|
+| `EVIDENCE_TIER_UNSPECIFIED` | 0 | — |
+| `EVIDENCE_TIER_RECORDED` | 1 | EVIDENCE_TIER_RECORDED is tier 1. A tool call id backs the item, and the daemon built the content from its own record of that tool call. |
+| `EVIDENCE_TIER_TYPED` | 2 | EVIDENCE_TIER_TYPED is tier 2. The agent typed the content. |
+
 #### `EvidenceType`
 
-EvidenceType represents the type of evidence collected.
+EvidenceType is the one list of evidence types. Each evidence shape in the
+platform uses this list.
 
 | Value | # | Description |
 |---|---|---|
@@ -9104,6 +8753,9 @@ EvidenceType represents the type of evidence collected.
 | `EVIDENCE_TYPE_CODE` | 4 | — |
 | `EVIDENCE_TYPE_LOG` | 5 | — |
 | `EVIDENCE_TYPE_OTHER` | 6 | — |
+| `EVIDENCE_TYPE_PAYLOAD` | 7 | — |
+| `EVIDENCE_TYPE_CONVERSATION` | 8 | EVIDENCE_TYPE_CONVERSATION is a dialogue with a target. Gibson tests targets that are models, so a dialogue is evidence. |
+| `EVIDENCE_TYPE_NETWORK_TRACE` | 9 | — |
 
 #### `FindingSeverity`
 

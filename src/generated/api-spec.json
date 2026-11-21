@@ -3,252 +3,6 @@
   "generator": "scripts/regen-api-reference.mjs",
   "packages": [
     {
-      "name": "gibson.agent.v1",
-      "services": [
-        {
-          "name": "AgentService",
-          "comment": "",
-          "methods": [
-            {
-              "name": "Execute",
-              "input": "ExecuteRequest",
-              "output": "ExecuteResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": ""
-            },
-            {
-              "name": "GetDescriptor",
-              "input": "GetDescriptorRequest",
-              "output": "GetDescriptorResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": ""
-            },
-            {
-              "name": "Health",
-              "input": "HealthRequest",
-              "output": "HealthResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": ""
-            }
-          ]
-        }
-      ],
-      "messages": [
-        {
-          "name": "ExecuteRequest",
-          "comment": "",
-          "fields": [
-            {
-              "name": "task",
-              "number": 1,
-              "type": "gibson.types.v1.Task",
-              "comment": ""
-            },
-            {
-              "name": "timeout_ms",
-              "number": 2,
-              "type": "int64",
-              "comment": ""
-            },
-            {
-              "name": "callback_endpoint",
-              "number": 3,
-              "type": "string",
-              "comment": "Callback endpoint for the orchestrator's HarnessCallbackService.\nWhen provided, the agent will connect to this endpoint to access\nharness operations (LLM, tools, memory, etc.)."
-            },
-            {
-              "name": "callback_token",
-              "number": 4,
-              "type": "string",
-              "comment": "Optional authentication token for the callback connection."
-            },
-            {
-              "name": "mission",
-              "number": 5,
-              "type": "gibson.common.v1.TypedMap",
-              "comment": "Mission context for this execution."
-            },
-            {
-              "name": "target",
-              "number": 6,
-              "type": "gibson.common.v1.TypedMap",
-              "comment": "Target information for this execution."
-            },
-            {
-              "name": "trace_id",
-              "number": 7,
-              "type": "string",
-              "comment": "Trace ID for distributed tracing (propagated from orchestrator)."
-            },
-            {
-              "name": "parent_span_id",
-              "number": 8,
-              "type": "string",
-              "comment": "Parent span ID for distributed tracing (propagated from orchestrator)."
-            },
-            {
-              "name": "mission_run_id",
-              "number": 9,
-              "type": "string",
-              "comment": "Mission run ID - unique identifier for this specific mission execution.\nCreated by MissionGraphManager.CreateMissionRunNode at mission start.\nUsed for mission-scoped GraphRAG storage."
-            },
-            {
-              "name": "agent_run_id",
-              "number": 10,
-              "type": "string",
-              "comment": "Agent run ID - unique identifier for this specific agent execution.\nUsed for DISCOVERED relationships and provenance tracking."
-            },
-            {
-              "name": "run_number",
-              "number": 11,
-              "type": "int32",
-              "comment": "Run number - sequential number for this mission (1, 2, 3...).\nUsed for mission memory queries and historical comparisons."
-            },
-            {
-              "name": "job_id",
-              "number": 12,
-              "type": "string",
-              "comment": "job_id names the job this execution serves. A one-shot\ndispatch and a bank job then share one result path. Empty for a\ndispatch that opens no job."
-            }
-          ]
-        },
-        {
-          "name": "ExecuteResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "result",
-              "number": 1,
-              "type": "gibson.types.v1.Result",
-              "comment": ""
-            },
-            {
-              "name": "error",
-              "number": 2,
-              "type": "gibson.common.v1.Error",
-              "comment": ""
-            },
-            {
-              "name": "deliverables",
-              "number": 3,
-              "type": "repeated gibson.job.v1.Deliverable",
-              "comment": "deliverables lists what left the sandbox for this execution: a pushed\nbranch, an opened merge request. Empty when nothing left."
-            },
-            {
-              "name": "claude_session_id",
-              "number": 4,
-              "type": "string",
-              "comment": "claude_session_id is the coding-agent session that ran this execution,\nso a later turn resumes the same conversation. Empty for an agent that\nholds no session."
-            }
-          ]
-        },
-        {
-          "name": "GetDescriptorRequest",
-          "comment": "",
-          "fields": []
-        },
-        {
-          "name": "GetDescriptorResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "name",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "version",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "capabilities",
-              "number": 4,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "target_schemas",
-              "number": 5,
-              "type": "repeated TargetSchemaProto",
-              "comment": ""
-            },
-            {
-              "name": "technique_types",
-              "number": 6,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "target_types",
-              "number": 7,
-              "type": "repeated string",
-              "comment": "Deprecated: v0.8.0. Use target_schemas (field 5) instead. Will be removed in v0.10.0."
-            }
-          ]
-        },
-        {
-          "name": "HealthRequest",
-          "comment": "",
-          "fields": []
-        },
-        {
-          "name": "HealthResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "status",
-              "number": 1,
-              "type": "gibson.common.v1.HealthStatus",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "TargetSchemaProto",
-          "comment": "",
-          "fields": [
-            {
-              "name": "type",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "version",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "schema_json",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        }
-      ],
-      "enums": []
-    },
-    {
       "name": "gibson.agentidentity.v1",
       "comment": "Package gibson.agentidentity.v1 — AgentIdentityService: customer-callable\nmachine-identity provisioning surface and the developer enrollment dev-loop\n(`gibson agent`). Re-homed out of\ngibson.tenant.v1 into its own wire package so it can stay in the OSS SDK\nwhile the nine tenant-administration services move to the gibson platform\nprotos under the unchanged gibson.tenant.v1 package — keeping both in one\npackage would link two generated Go homes for gibson.tenant.v1 into the\ndaemon (proto: duplicate registration). See ADR-0058 (amended 2026-06-22).",
       "services": [
@@ -1877,52 +1631,12 @@
               "comment": "CancelMission requests cancellation of a running mission."
             },
             {
-              "name": "Complete",
-              "input": "CompleteRequest",
-              "output": "CompleteResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "Complete proxies an LLM completion request through the agent harness."
-            },
-            {
-              "name": "CompleteStream",
-              "input": "CompleteStreamRequest",
-              "output": "CompleteStreamResponse",
-              "clientStreaming": false,
-              "serverStreaming": true,
-              "comment": "CompleteStream proxies a streaming LLM completion request through the agent harness."
-            },
-            {
-              "name": "CompleteStructured",
-              "input": "CompleteStructuredRequest",
-              "output": "CompleteStructuredResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "CompleteStructured proxies an LLM completion requesting JSON output\nconforming to the supplied schema."
-            },
-            {
-              "name": "CompleteWithTools",
-              "input": "CompleteWithToolsRequest",
-              "output": "CompleteWithToolsResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "CompleteWithTools proxies an LLM completion with tool definitions for\nfunction-calling support. Returns the response including any tool calls."
-            },
-            {
               "name": "CreateMission",
               "input": "CreateMissionRequest",
               "output": "CreateMissionResponse",
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "CreateMission creates a new sub-mission."
-            },
-            {
-              "name": "DelegateToAgent",
-              "input": "DelegateToAgentRequest",
-              "output": "DelegateToAgentResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "DelegateToAgent dispatches a sub-task to another agent and returns its result."
             },
             {
               "name": "DisablePlugin",
@@ -2053,14 +1767,6 @@
               "comment": "Heartbeat sends a periodic health pulse. The response indicates whether\nthe component is still considered registered and may carry config updates."
             },
             {
-              "name": "ListAgents",
-              "input": "ListAgentsRequest",
-              "output": "ListAgentsResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "ListAgents returns descriptors for all agents visible to the caller's tenant."
-            },
-            {
               "name": "ListAvailablePlugins",
               "input": "ListAvailablePluginsRequest",
               "output": "ListAvailablePluginsResponse",
@@ -2141,6 +1847,22 @@
               "comment": "ReportStepHints reports planning step hints from an agent back to the orchestrator."
             },
             {
+              "name": "ResolveAgent",
+              "input": "ResolveAgentRequest",
+              "output": "ResolveAgentResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ResolveAgent finds the route of an agent on the Agent gateway (A2A). The\ncaller then sends an A2A SendMessage (JSON-RPC binding) to gateway_url\nwith the A2A client of the SDK. It sends the task grant in the header\nx-capability-grant and each route header of the response unchanged.\nThis is the same call as HarnessCallbackService.ResolveAgent, for an\nagent that polls for work. It replaces DelegateToAgent and ListAgents.\n\nErrors: NotFound (no agent of this name), PermissionDenied (the grant\ndoes not allow the delegation), InvalidArgument."
+            },
+            {
+              "name": "ResolveModel",
+              "input": "ResolveModelRequest",
+              "output": "ResolveModelResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ResolveModel turns a slot into one exact model name (ADR-0172). The agent\nthen calls the model gateway with the Open Responses client of the SDK.\nThe agent sends the task grant in the header x-capability-grant and sends\neach route header of the response unchanged. The gateway never sees a\nslot name. This is the same call as HarnessCallbackService.ResolveModel,\nfor an agent that polls for work."
+            },
+            {
               "name": "RunMission",
               "input": "RunMissionRequest",
               "output": "RunMissionResponse",
@@ -2208,42 +1930,6 @@
         }
       ],
       "messages": [
-        {
-          "name": "AgentDescriptorProto",
-          "comment": "AgentDescriptorProto describes a registered agent.",
-          "fields": [
-            {
-              "name": "name",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "version",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "capabilities",
-              "number": 4,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "target_types",
-              "number": 5,
-              "type": "repeated string",
-              "comment": ""
-            }
-          ]
-        },
         {
           "name": "AuthorizeRequest",
           "comment": "AuthorizeRequest asks whether a work item may do an action on a resource.",
@@ -2331,6 +2017,12 @@
               "number": 2,
               "type": "ComponentError",
               "comment": ""
+            },
+            {
+              "name": "tool_call_id",
+              "number": 3,
+              "type": "string",
+              "comment": "tool_call_id is the id that the daemon recorded for this call. An agent\ncites it in the tool_call_ids of a finding or a proof (CiteToolCalls in the\nSDK). For the meta-tool invoke_tool it is the id of the recorded call of\nthe invoked tool. Empty when the daemon recorded none, and from a daemon\nthat does not send it."
             }
           ]
         },
@@ -2391,6 +2083,12 @@
               "number": 4,
               "type": "ComponentError",
               "comment": ""
+            },
+            {
+              "name": "tool_call_id",
+              "number": 5,
+              "type": "string",
+              "comment": "tool_call_id is the id that the daemon recorded for this call, as in\nCallToolResponse.tool_call_id. The daemon sets it on the last event\n(done is true). Empty on the other events, and from a daemon that does\nnot send it."
             }
           ]
         },
@@ -2418,224 +2116,50 @@
           "fields": []
         },
         {
-          "name": "CompleteRequest",
-          "comment": "CompleteRequest is a harness proxy request for a non-streaming LLM completion.",
+          "name": "CardSkill",
+          "comment": "CardSkill is one A2A AgentSkill: a capability entry of an Agent Card. It is\nnot an Agent Skill in the SKILL.md format.",
           "fields": [
             {
-              "name": "work_id",
+              "name": "id",
               "number": 1,
               "type": "string",
-              "comment": "work_id ties this request to the active work item for authorization and billing."
-            },
-            {
-              "name": "slot",
-              "number": 2,
-              "type": "string",
-              "comment": "slot is the named LLM slot defined by the agent (e.g. \"primary\")."
-            },
-            {
-              "name": "messages",
-              "number": 3,
-              "type": "repeated LLMMessage",
               "comment": ""
             },
             {
-              "name": "timeout_ms",
+              "name": "name",
+              "number": 2,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "description",
+              "number": 3,
+              "type": "string",
+              "comment": ""
+            },
+            {
+              "name": "tags",
               "number": 4,
-              "type": "int64",
-              "comment": "timeout_ms is the maximum time to wait for the completion."
-            }
-          ]
-        },
-        {
-          "name": "CompleteResponse",
-          "comment": "CompleteResponse carries the LLM's reply to a non-streaming completion.",
-          "fields": [
-            {
-              "name": "response",
-              "number": 1,
-              "type": "LLMMessage",
+              "type": "repeated string",
               "comment": ""
             },
             {
-              "name": "usage",
-              "number": 2,
-              "type": "TokenUsage",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "CompleteStreamRequest",
-          "comment": "CompleteStreamRequest is a harness proxy request for a streaming LLM completion.",
-          "fields": [
-            {
-              "name": "work_id",
-              "number": 1,
-              "type": "string",
-              "comment": "work_id ties this request to the active work item for authorization and billing."
-            },
-            {
-              "name": "slot",
-              "number": 2,
-              "type": "string",
-              "comment": "slot is the named LLM slot defined by the agent (e.g. \"primary\")."
-            },
-            {
-              "name": "messages",
-              "number": 3,
-              "type": "repeated LLMMessage",
-              "comment": ""
-            },
-            {
-              "name": "timeout_ms",
-              "number": 4,
-              "type": "int64",
-              "comment": "timeout_ms is the maximum time to wait for the completion."
-            }
-          ]
-        },
-        {
-          "name": "CompleteStreamResponse",
-          "comment": "CompleteStreamResponse is a single chunk in a streaming LLM completion response.",
-          "fields": [
-            {
-              "name": "content",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "done",
-              "number": 2,
-              "type": "bool",
-              "comment": "done is true on the final chunk; usage is only populated on the final chunk."
-            },
-            {
-              "name": "usage",
-              "number": 3,
-              "type": "TokenUsage",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "CompleteStructuredRequest",
-          "comment": "CompleteStructuredRequest is a harness proxy request for structured JSON output.",
-          "fields": [
-            {
-              "name": "work_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "slot",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "messages",
-              "number": 3,
-              "type": "repeated LLMMessage",
-              "comment": ""
-            },
-            {
-              "name": "schema_json",
-              "number": 4,
-              "type": "string",
-              "comment": "schema_json is a JSON Schema the LLM output must conform to."
-            },
-            {
-              "name": "timeout_ms",
+              "name": "examples",
               "number": 5,
-              "type": "int64",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "CompleteStructuredResponse",
-          "comment": "CompleteStructuredResponse carries the validated structured output.",
-          "fields": [
-            {
-              "name": "result_json",
-              "number": 1,
-              "type": "string",
-              "comment": "result_json is the JSON output conforming to the requested schema."
-            },
-            {
-              "name": "usage",
-              "number": 2,
-              "type": "TokenUsage",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "CompleteWithToolsRequest",
-          "comment": "CompleteWithToolsRequest is a harness proxy request for LLM completion with tool definitions.",
-          "fields": [
-            {
-              "name": "work_id",
-              "number": 1,
-              "type": "string",
+              "type": "repeated string",
               "comment": ""
             },
             {
-              "name": "slot",
-              "number": 2,
-              "type": "string",
-              "comment": ""
+              "name": "input_modes",
+              "number": 6,
+              "type": "repeated string",
+              "comment": "input_modes override default_input_modes for this card skill."
             },
             {
-              "name": "messages",
-              "number": 3,
-              "type": "repeated LLMMessage",
-              "comment": ""
-            },
-            {
-              "name": "tools",
-              "number": 4,
-              "type": "repeated ToolDefinition",
-              "comment": ""
-            },
-            {
-              "name": "timeout_ms",
-              "number": 5,
-              "type": "int64",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "CompleteWithToolsResponse",
-          "comment": "CompleteWithToolsResponse carries the LLM's reply including any tool calls.",
-          "fields": [
-            {
-              "name": "response",
-              "number": 1,
-              "type": "LLMMessage",
-              "comment": ""
-            },
-            {
-              "name": "usage",
-              "number": 2,
-              "type": "TokenUsage",
-              "comment": ""
-            },
-            {
-              "name": "tool_calls",
-              "number": 3,
-              "type": "repeated ToolCallResult",
-              "comment": ""
-            },
-            {
-              "name": "finish_reason",
-              "number": 4,
-              "type": "string",
-              "comment": ""
+              "name": "output_modes",
+              "number": 7,
+              "type": "repeated string",
+              "comment": "output_modes override default_output_modes for this card skill."
             }
           ]
         },
@@ -2768,42 +2292,6 @@
               "number": 1,
               "type": "bytes",
               "comment": "mission_json is the JSON-encoded mission.MissionInfo."
-            }
-          ]
-        },
-        {
-          "name": "DelegateToAgentRequest",
-          "comment": "DelegateToAgentRequest dispatches a sub-task to another agent.",
-          "fields": [
-            {
-              "name": "work_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "agent_name",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "task_json",
-              "number": 3,
-              "type": "bytes",
-              "comment": "task_json is the JSON-encoded agent.Task to delegate."
-            }
-          ]
-        },
-        {
-          "name": "DelegateToAgentResponse",
-          "comment": "DelegateToAgentResponse carries the delegated agent's result.",
-          "fields": [
-            {
-              "name": "result_json",
-              "number": 1,
-              "type": "bytes",
-              "comment": "result_json is the JSON-encoded agent.Result."
             }
           ]
         },
@@ -3335,60 +2823,6 @@
           ]
         },
         {
-          "name": "LLMMessage",
-          "comment": "LLMMessage represents a single message in an LLM conversation.\n\nTool-call round trips are represented with two message shapes so a\nmulti-turn conversation can replay the full tool history structurally\n(instead of flattening it into `content` text):\n\n 1. An assistant turn that requested tool calls sets `role` to\n \"assistant\" and carries the calls in `tool_calls` (typically copied\n verbatim from a prior `CompleteWithToolsResponse.tool_calls`).\n `content` holds any accompanying assistant text and may be empty.\n 2. A tool-result turn sets `role` to \"tool\", `tool_call_id` to the\n `ToolCallResult.id` it answers, and `content` to the tool's output.\n One message per tool call; a turn with N tool calls is followed by\n N tool-result messages.\n\nBoth fields are optional: plain role+content messages are unchanged.",
-          "fields": [
-            {
-              "name": "role",
-              "number": 1,
-              "type": "string",
-              "comment": "role is \"system\", \"user\", \"assistant\", or \"tool\"."
-            },
-            {
-              "name": "content",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "tool_calls",
-              "number": 3,
-              "type": "repeated ToolCallResult",
-              "comment": "tool_calls carries the tool calls an assistant turn requested.\nSet only when role is \"assistant\"; empty for all other roles."
-            },
-            {
-              "name": "tool_call_id",
-              "number": 4,
-              "type": "string",
-              "comment": "tool_call_id identifies which requested tool call this message\nanswers. Set only when role is \"tool\", in which case `content`\ncarries the tool's output and this matches the `ToolCallResult.id`\nof the corresponding entry in the preceding assistant turn's\n`tool_calls`. Empty for all other roles."
-            }
-          ]
-        },
-        {
-          "name": "ListAgentsRequest",
-          "comment": "ListAgentsRequest requests descriptors for all available agents.",
-          "fields": [
-            {
-              "name": "work_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ListAgentsResponse",
-          "comment": "ListAgentsResponse carries all agent descriptors visible to the caller.",
-          "fields": [
-            {
-              "name": "agents",
-              "number": 1,
-              "type": "repeated AgentDescriptorProto",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "ListAvailablePluginsRequest",
           "comment": "ListAvailablePluginsRequest is an empty request; filtering may be added in future fields.",
           "fields": []
@@ -3617,6 +3051,12 @@
               "number": 5,
               "type": "int64",
               "comment": "timeout_ms is the maximum time allowed to complete and submit the result."
+            },
+            {
+              "name": "task_grant",
+              "number": 6,
+              "type": "string",
+              "comment": "task_grant is the task grant of this work item (the compact JWT that the\ndaemon mints for the task, with the tenant, mission and task claims). The\nagent sends it in the header x-capability-grant on each call to a gateway:\nthe model gateway and the Agent gateway. It is a secret. Empty means the\nwork item has no grant, and the agent then cannot call a gateway. The\nagent renews it with DaemonService.RenewCapabilityGrant before it expires."
             }
           ]
         },
@@ -3815,6 +3255,24 @@
               "number": 12,
               "type": "repeated ComponentMethod",
               "comment": "method_descriptors carries per-method metadata (name + human-readable\ndescription + optional JSON-Schema input) for plugin methods. It is the\nrich superset of `methods` (which stays for back-compat): `methods` carries\nnames only; `method_descriptors` carries the descriptions an agent reads to\ndisambiguate tools in the catalog (SearchTools). Used when kind == \"plugin\".\nEmpty is valid (older SDKs populate only `methods`)."
+            },
+            {
+              "name": "card_skills",
+              "number": 13,
+              "type": "repeated CardSkill",
+              "comment": "card_skills are the entries of the \"skills\" list of the A2A Agent Card\nof this agent (used when kind == \"agent\"). The daemon serves the card\nfrom the catalog, and it builds the card from this registration.\n\nNaming: an A2A AgentSkill is a capability entry of a card. It is NOT an\nAgent Skill in the SKILL.md format (the \"skill:<name>\" ids of the\ncatalog). The field says card_skills so the two never mix."
+            },
+            {
+              "name": "default_input_modes",
+              "number": 14,
+              "type": "repeated string",
+              "comment": "default_input_modes are the media types that the agent accepts, as the\ndefaultInputModes of the Agent Card (used when kind == \"agent\")."
+            },
+            {
+              "name": "default_output_modes",
+              "number": 15,
+              "type": "repeated string",
+              "comment": "default_output_modes are the media types that the agent returns, as the\ndefaultOutputModes of the Agent Card (used when kind == \"agent\")."
             }
           ]
         },
@@ -3876,6 +3334,126 @@
           "name": "ReportStepHintsResponse",
           "comment": "ReportStepHintsResponse is returned after hints are accepted.",
           "fields": []
+        },
+        {
+          "name": "ResolveAgentRequest",
+          "comment": "ResolveAgentRequest asks the daemon for the Agent gateway route of an agent.",
+          "fields": [
+            {
+              "name": "work_id",
+              "number": 1,
+              "type": "string",
+              "comment": "work_id ties this request to the active work item for authorization."
+            },
+            {
+              "name": "name",
+              "number": 2,
+              "type": "string",
+              "comment": "name is the name of the agent."
+            },
+            {
+              "name": "bank_id",
+              "number": 3,
+              "type": "optional string",
+              "comment": "bank_id names a bank of always-on agents. When it is set, the route is\nthe route of a member of that bank, and name is the agent that the bank\nruns. Unset means an ephemeral agent."
+            }
+          ]
+        },
+        {
+          "name": "ResolveAgentResponse",
+          "comment": "ResolveAgentResponse holds what the caller needs to send an A2A message to\nan agent through the Agent gateway.",
+          "fields": [
+            {
+              "name": "gateway_url",
+              "number": 1,
+              "type": "string",
+              "comment": "gateway_url is the JSON-RPC interface URL of the agent on the Agent\ngateway. The caller sends A2A SendMessage to this URL."
+            },
+            {
+              "name": "route_headers",
+              "number": 2,
+              "type": "map<string, string>",
+              "comment": "route_headers are the headers that the gateway route matches on. The\ncaller sends each one unchanged."
+            },
+            {
+              "name": "gateway_ca_pem",
+              "number": 3,
+              "type": "string",
+              "comment": "gateway_ca_pem is the PEM bundle of the private CA of the Agent gateway.\nThe caller trusts exactly this bundle for gateway_url, which must use\nhttps. Empty means the system roots."
+            },
+            {
+              "name": "agent_card_url",
+              "number": 4,
+              "type": "string",
+              "comment": "agent_card_url is the URL of the Agent Card of the agent on the gateway."
+            }
+          ]
+        },
+        {
+          "name": "ResolveModelRequest",
+          "comment": "ResolveModelRequest asks the daemon for the model of a slot.",
+          "fields": [
+            {
+              "name": "work_id",
+              "number": 1,
+              "type": "string",
+              "comment": "work_id ties this request to the active work item for authorization."
+            },
+            {
+              "name": "slot",
+              "number": 2,
+              "type": "string",
+              "comment": "slot is the named LLM slot defined by the agent (e.g. \"primary\")."
+            }
+          ]
+        },
+        {
+          "name": "ResolveModelResponse",
+          "comment": "ResolveModelResponse names the one model that the slot resolves to, and the\nfacts that the agent needs to call the model gateway.",
+          "fields": [
+            {
+              "name": "model",
+              "number": 1,
+              "type": "string",
+              "comment": "model is the exact model name for the model field of the request."
+            },
+            {
+              "name": "provider",
+              "number": 2,
+              "type": "string",
+              "comment": "provider is the name of the model provider of the tenant."
+            },
+            {
+              "name": "gateway_url",
+              "number": 3,
+              "type": "string",
+              "comment": "gateway_url is the base URL of the model gateway. The agent calls\nPOST {gateway_url}/v1/responses."
+            },
+            {
+              "name": "route_headers",
+              "number": 4,
+              "type": "map<string, string>",
+              "comment": "route_headers are the headers that the gateway route matches on. The\nagent sends each one unchanged."
+            },
+            {
+              "name": "context_window",
+              "number": 5,
+              "type": "int32",
+              "comment": "context_window is the size of the context window in tokens. 0 means unknown."
+            },
+            {
+              "name": "max_output_tokens",
+              "number": 6,
+              "type": "int32",
+              "comment": "max_output_tokens is the output limit of the model in tokens. 0 means unknown."
+            },
+            {
+              "name": "gateway_ca_pem",
+              "number": 7,
+              "type": "string",
+              "comment": "gateway_ca_pem is the PEM bundle of the private CA that signed the\ncertificate of the model gateway. The agent trusts exactly this bundle\nfor calls to gateway_url, which must use https. Empty means the system\nroots."
+            }
+          ]
         },
         {
           "name": "RunMissionRequest",
@@ -4026,72 +3604,6 @@
           ]
         },
         {
-          "name": "TokenUsage",
-          "comment": "TokenUsage reports token consumption for an LLM call.",
-          "fields": [
-            {
-              "name": "input_tokens",
-              "number": 1,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "output_tokens",
-              "number": 2,
-              "type": "int32",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ToolCallResult",
-          "comment": "ToolCallResult represents a tool call made by the LLM.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "arguments_json",
-              "number": 3,
-              "type": "string",
-              "comment": "arguments is the JSON-encoded arguments the LLM generated for this tool call."
-            }
-          ]
-        },
-        {
-          "name": "ToolDefinition",
-          "comment": "ToolDefinition describes a tool available for LLM function calling.",
-          "fields": [
-            {
-              "name": "name",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "input_schema_json",
-              "number": 3,
-              "type": "string",
-              "comment": "input_schema is a JSON Schema describing the tool's input parameters."
-            }
-          ]
-        },
-        {
           "name": "ToolDescriptorProto",
           "comment": "ToolDescriptorProto describes a registered tool.",
           "fields": [
@@ -4178,6 +3690,12 @@
               "number": 4,
               "type": "bool",
               "comment": "done is true on the final result."
+            },
+            {
+              "name": "tool_call_id",
+              "number": 5,
+              "type": "string",
+              "comment": "tool_call_id is the id that the daemon recorded for the call of this\ninput, as in CallToolResponse.tool_call_id. Empty when the daemon recorded\nnone, and from a daemon that does not send it."
             }
           ]
         },
@@ -4410,7 +3928,7 @@
               "output": "gibson.manifest.v1.GetCapabilityManifestResponse",
               "clientStreaming": false,
               "serverStreaming": false,
-              "comment": "GetCapabilityManifest returns the signed, versioned capability manifest\nfor the calling principal in their resolved tenant. SDKs call this on\nsession start and on invalidation events. The ADK calls it at scaffold\ntime to discover what components, permissions, cross-component rules,\nand runtime limits apply."
+              "comment": "GetCapabilityManifest returns the signed, versioned capability manifest\nfor the calling principal in their resolved tenant. SDKs call this on\nsession start and on invalidation events. The ADK calls it at scaffold\ntime to discover what components, permissions and cross-component rules\napply."
             },
             {
               "name": "GetComponentLogs",
@@ -4879,42 +4397,6 @@
               "number": 4,
               "type": "repeated string",
               "comment": "declared_params names every parameter this mission requires, sorted. The\nset is closed: RenderCatalogMission refuses a key that is not here, and\nrefuses a render that omits one."
-            }
-          ]
-        },
-        {
-          "name": "CheckpointMetadata",
-          "comment": "CheckpointMetadata is the summary of a source checkpoint on a\nResumeMission response. The daemon does not send it today: see\nResumeMissionResponse.checkpoint_metadata. The checkpoints of a run are listed by\nGetMissionCheckpoints (ADR-0170).",
-          "fields": [
-            {
-              "name": "checkpoint_id",
-              "number": 1,
-              "type": "string",
-              "comment": "checkpoint_id is the identifier of the source checkpoint."
-            },
-            {
-              "name": "saved_at_unix_seconds",
-              "number": 2,
-              "type": "int64",
-              "comment": "saved_at_unix_seconds is when the checkpoint was captured (Unix epoch seconds)."
-            },
-            {
-              "name": "super_step_number",
-              "number": 3,
-              "type": "int32",
-              "comment": "super_step_number identifies which super-step boundary this checkpoint\ncaptured (1-based; 0 if not super-step-aligned)."
-            },
-            {
-              "name": "cadence_reason",
-              "number": 4,
-              "type": "string",
-              "comment": "cadence_reason is a free-form classifier for why the checkpoint was\ntaken. Recognized values per R9.1: \"super_step\",\n\"parallel_group_complete\", \"approval_required\", \"graceful_shutdown\".\nPromoted to enum at v1.0.0."
-            },
-            {
-              "name": "size_bytes",
-              "number": 5,
-              "type": "int64",
-              "comment": "size_bytes is the wire size of the checkpoint payload (advisory)."
             }
           ]
         },
@@ -6455,12 +5937,6 @@
               "comment": "success indicates if the pause request was accepted"
             },
             {
-              "name": "checkpoint_id",
-              "number": 2,
-              "type": "string",
-              "comment": "checkpoint_id is empty. A pause does not make a checkpoint: a\ncheckpoint is the end of a node in a run (ADR-0170). Use\nGetMissionCheckpoints to list the checkpoints of a run."
-            },
-            {
               "name": "message",
               "number": 3,
               "type": "string",
@@ -6746,12 +6222,6 @@
               "number": 8,
               "type": "OperationResult",
               "comment": "result contains typed operation metrics (for mission.completed events)"
-            },
-            {
-              "name": "checkpoint_metadata",
-              "number": 9,
-              "type": "CheckpointMetadata",
-              "comment": "checkpoint_metadata is not set by the daemon. A resume continues the\nsame run, so a resume stream has no source checkpoint. A run that\nstarts at a checkpoint is a new run from RewindMission, and it records\nthe checkpoint in parent_checkpoint_id (ADR-0170)."
             }
           ]
         },
@@ -7356,16 +6826,6 @@
               "comment": ""
             },
             {
-              "name": "MISSION_STATUS_PENDING",
-              "number": 1,
-              "comment": ""
-            },
-            {
-              "name": "MISSION_STATUS_RUNNING",
-              "number": 2,
-              "comment": ""
-            },
-            {
               "name": "MISSION_STATUS_PAUSED",
               "number": 3,
               "comment": ""
@@ -7381,8 +6841,23 @@
               "comment": ""
             },
             {
-              "name": "MISSION_STATUS_CANCELLED",
-              "number": 6,
+              "name": "MISSION_STATUS_INPUT_REQUIRED",
+              "number": 7,
+              "comment": ""
+            },
+            {
+              "name": "MISSION_STATUS_SUBMITTED",
+              "number": 8,
+              "comment": ""
+            },
+            {
+              "name": "MISSION_STATUS_WORKING",
+              "number": 9,
+              "comment": ""
+            },
+            {
+              "name": "MISSION_STATUS_CANCELED",
+              "number": 10,
               "comment": ""
             }
           ]
@@ -8509,12 +7984,6 @@
               "comment": "Security findings"
             },
             {
-              "name": "evidence",
-              "number": 10,
-              "type": "repeated Evidence",
-              "comment": ""
-            },
-            {
               "name": "custom_nodes",
               "number": 20,
               "type": "repeated CustomNode",
@@ -8525,6 +7994,12 @@
               "number": 21,
               "type": "repeated ExplicitRelationship",
               "comment": ""
+            },
+            {
+              "name": "finding_evidence",
+              "number": 23,
+              "type": "repeated FindingEvidence",
+              "comment": "finding_evidence is evidence that a parser read from tool output, for a\nfinding of this result. Each item names its finding by finding_id. A parser\nfills the type, the title, the content and the metadata of the evidence. It\nnever sets the tier or the tool call id: the daemon sets both. The number 10\nstays reserved. This is a new field with a new number."
             }
           ]
         },
@@ -8589,42 +8064,6 @@
             {
               "name": "title",
               "number": 8,
-              "type": "optional string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "Evidence",
-          "comment": "Evidence for a finding.",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "finding_id",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "type",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "content",
-              "number": 4,
-              "type": "optional string",
-              "comment": ""
-            },
-            {
-              "name": "url",
-              "number": 5,
               "type": "optional string",
               "comment": ""
             }
@@ -8729,6 +8168,24 @@
               "number": 10,
               "type": "optional string",
               "comment": "Parent entity reference (optional - finding can be associated with various entities)"
+            }
+          ]
+        },
+        {
+          "name": "FindingEvidence",
+          "comment": "FindingEvidence ties one evidence item to a finding of the same\nDiscoveryResult. The evidence shape is gibson.types.v1.Evidence, the one\nevidence shape (gibson#1365).",
+          "fields": [
+            {
+              "name": "finding_id",
+              "number": 1,
+              "type": "string",
+              "comment": "finding_id is the id of an entry of DiscoveryResult.findings."
+            },
+            {
+              "name": "evidence",
+              "number": 2,
+              "type": "gibson.types.v1.Evidence",
+              "comment": "evidence is the item. The tier and the tool_call_id of it are set by the\ndaemon, and the daemon ignores a value that a parser sends."
             }
           ]
         },
@@ -9455,14 +8912,6 @@
               "comment": "Mission Management Operations\nThese enable agents to autonomously create, run, and manage missions"
             },
             {
-              "name": "DelegateToAgent",
-              "input": "DelegateToAgentRequest",
-              "output": "DelegateToAgentResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "Agent Operations"
-            },
-            {
               "name": "DeleteSessionContext",
               "input": "DeleteSessionContextRequest",
               "output": "DeleteSessionContextResponse",
@@ -9589,46 +9038,6 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "Taxonomy Operations"
-            },
-            {
-              "name": "LLMComplete",
-              "input": "LLMCompleteRequest",
-              "output": "LLMCompleteResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": "LLM Operations"
-            },
-            {
-              "name": "LLMCompleteStructured",
-              "input": "LLMCompleteStructuredRequest",
-              "output": "LLMCompleteStructuredResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": ""
-            },
-            {
-              "name": "LLMCompleteWithTools",
-              "input": "LLMCompleteWithToolsRequest",
-              "output": "LLMCompleteWithToolsResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": ""
-            },
-            {
-              "name": "LLMStream",
-              "input": "LLMStreamRequest",
-              "output": "LLMStreamResponse",
-              "clientStreaming": false,
-              "serverStreaming": true,
-              "comment": ""
-            },
-            {
-              "name": "ListAgents",
-              "input": "ListAgentsRequest",
-              "output": "ListAgentsResponse",
-              "clientStreaming": false,
-              "serverStreaming": false,
-              "comment": ""
             },
             {
               "name": "ListMissions",
@@ -9773,6 +9182,22 @@
               "clientStreaming": false,
               "serverStreaming": false,
               "comment": "RequestDestructiveAuthorization asks a human to approve an irreversible\ndemonstration BEFORE the agent performs it (ADR-0132). It returns\nimmediately with a pending request id — the fleet keeps working while\nthe decision is pending. The agent performs the destructive act only\nafter it reads back an approval, then calls SubmitProof."
+            },
+            {
+              "name": "ResolveAgent",
+              "input": "ResolveAgentRequest",
+              "output": "ResolveAgentResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ResolveAgent finds the route of an agent on the Agent gateway (A2A). The\ncaller then sends an A2A SendMessage (JSON-RPC binding) to gateway_url\nwith the A2A client of the SDK. It sends the task grant in the header\nx-capability-grant and each route header of the response unchanged.\nThis call replaces DelegateToAgent and ListAgents. An agent finds other\nagents through the Agent Cards that the daemon serves.\n\nErrors: NotFound (no agent of this name), PermissionDenied (the grant\ndoes not allow the delegation), InvalidArgument."
+            },
+            {
+              "name": "ResolveModel",
+              "input": "ResolveModelRequest",
+              "output": "ResolveModelResponse",
+              "clientStreaming": false,
+              "serverStreaming": false,
+              "comment": "ResolveModel turns a slot into one exact model name (ADR-0172, decision 4).\nThe agent then calls the model gateway with the Open Responses client of\nthe SDK. The gateway never sees a slot name. The agent sends the task\ngrant in the header x-capability-grant and sends each route header of\nthe response unchanged.\n\nErrors: NotFound (the slot has no model), PermissionDenied (the task\ngrant does not allow the slot), InvalidArgument."
             },
             {
               "name": "RunMission",
@@ -10299,6 +9724,12 @@
               "number": 2,
               "type": "HarnessError",
               "comment": ""
+            },
+            {
+              "name": "tool_call_id",
+              "number": 3,
+              "type": "string",
+              "comment": "tool_call_id is the id that the daemon recorded for this call. An agent\ncites it in the tool_call_ids of a finding or a proof (CiteToolCalls in the\nSDK). It is the same id as ContextInfo.tool_execution_id of the work that\nthe call started. For the meta-tool invoke_tool it is the id of the\nrecorded call of the invoked tool. Empty when the daemon recorded none,\nand from a daemon that does not send it."
             }
           ]
         },
@@ -10395,6 +9826,12 @@
               "number": 12,
               "type": "int64",
               "comment": ""
+            },
+            {
+              "name": "tool_call_id",
+              "number": 14,
+              "type": "string",
+              "comment": "tool_call_id is the id that the daemon recorded for this call, as in\nCallToolProtoResponse.tool_call_id. The daemon sets it on the last message\nof the stream (the complete event or the error event). Empty on the other\nmessages, and from a daemon that does not send it."
             }
           ],
           "oneofs": [
@@ -10815,88 +10252,6 @@
               "number": 3,
               "type": "string",
               "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "DelegateToAgentRequest",
-          "comment": "DelegateToAgentRequest dispatches a task to another agent. The target\nselector says WHERE the task runs. Absent means an ephemeral launch, which\nis the behavior every caller had before banks existed.",
-          "fields": [
-            {
-              "name": "context",
-              "number": 1,
-              "type": "ContextInfo",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "task",
-              "number": 3,
-              "type": "gibson.types.v1.Task",
-              "comment": ""
-            },
-            {
-              "name": "ephemeral",
-              "number": 10,
-              "type": "bool",
-              "comment": "ephemeral launches a new sandbox for this task and tears it down\nwhen the task ends. Setting it to true is the same as leaving the\noneof unset; it lets a caller say so out loud."
-            },
-            {
-              "name": "bank_id",
-              "number": 11,
-              "type": "string",
-              "comment": "bank_id opens a new job on that bank. A member with a free slot\ntakes it, or the bank queues it, per the bank spill policy."
-            },
-            {
-              "name": "job_id",
-              "number": 12,
-              "type": "string",
-              "comment": "job_id sends the task as the next input to a job that is already\nopen, so the agent keeps its conversation and its worktrees."
-            }
-          ],
-          "oneofs": [
-            {
-              "name": "target",
-              "fields": [
-                "ephemeral",
-                "bank_id",
-                "job_id"
-              ]
-            }
-          ]
-        },
-        {
-          "name": "DelegateToAgentResponse",
-          "comment": "DelegateToAgentResponse carries the delegated task's result, and the job\nthe task ran as when the target was a bank or a job.",
-          "fields": [
-            {
-              "name": "result",
-              "number": 1,
-              "type": "gibson.types.v1.Result",
-              "comment": ""
-            },
-            {
-              "name": "error",
-              "number": 2,
-              "type": "HarnessError",
-              "comment": ""
-            },
-            {
-              "name": "job_id",
-              "number": 3,
-              "type": "string",
-              "comment": "job_id names the job the task ran as. Empty for an ephemeral launch."
-            },
-            {
-              "name": "member_id",
-              "number": 4,
-              "type": "string",
-              "comment": "member_id names the bank member that ran the job. Empty for an\nephemeral launch."
             }
           ]
         },
@@ -11632,48 +10987,6 @@
           ]
         },
         {
-          "name": "HarnessAgentDescriptor",
-          "comment": "",
-          "fields": [
-            {
-              "name": "name",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "version",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "capabilities",
-              "number": 4,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "target_types",
-              "number": 5,
-              "type": "repeated string",
-              "comment": ""
-            },
-            {
-              "name": "technique_types",
-              "number": 6,
-              "type": "repeated string",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "HarnessError",
           "comment": "Error represents an error response from a callback operation.",
           "fields": [
@@ -11932,330 +11245,6 @@
           ]
         },
         {
-          "name": "LLMCompleteRequest",
-          "comment": "",
-          "fields": [
-            {
-              "name": "context",
-              "number": 1,
-              "type": "ContextInfo",
-              "comment": ""
-            },
-            {
-              "name": "slot",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "messages",
-              "number": 3,
-              "type": "repeated LLMMessage",
-              "comment": ""
-            },
-            {
-              "name": "temperature",
-              "number": 4,
-              "type": "optional double",
-              "comment": "Completion options"
-            },
-            {
-              "name": "max_tokens",
-              "number": 5,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "top_p",
-              "number": 6,
-              "type": "optional double",
-              "comment": ""
-            },
-            {
-              "name": "stop",
-              "number": 7,
-              "type": "repeated string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LLMCompleteResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "content",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "tool_calls",
-              "number": 2,
-              "type": "repeated ToolCall",
-              "comment": ""
-            },
-            {
-              "name": "finish_reason",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "usage",
-              "number": 4,
-              "type": "TokenUsage",
-              "comment": ""
-            },
-            {
-              "name": "error",
-              "number": 5,
-              "type": "HarnessError",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LLMCompleteStructuredRequest",
-          "comment": "",
-          "fields": [
-            {
-              "name": "context",
-              "number": 1,
-              "type": "ContextInfo",
-              "comment": ""
-            },
-            {
-              "name": "slot",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "messages",
-              "number": 3,
-              "type": "repeated LLMMessage",
-              "comment": ""
-            },
-            {
-              "name": "schema_json",
-              "number": 4,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LLMCompleteStructuredResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "result",
-              "number": 1,
-              "type": "gibson.common.v1.TypedValue",
-              "comment": ""
-            },
-            {
-              "name": "usage",
-              "number": 3,
-              "type": "TokenUsage",
-              "comment": ""
-            },
-            {
-              "name": "error",
-              "number": 4,
-              "type": "HarnessError",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LLMCompleteWithToolsRequest",
-          "comment": "",
-          "fields": [
-            {
-              "name": "context",
-              "number": 1,
-              "type": "ContextInfo",
-              "comment": ""
-            },
-            {
-              "name": "slot",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "messages",
-              "number": 3,
-              "type": "repeated LLMMessage",
-              "comment": ""
-            },
-            {
-              "name": "tools",
-              "number": 4,
-              "type": "repeated ToolDef",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LLMCompleteWithToolsResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "content",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "tool_calls",
-              "number": 2,
-              "type": "repeated ToolCall",
-              "comment": ""
-            },
-            {
-              "name": "finish_reason",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "usage",
-              "number": 4,
-              "type": "TokenUsage",
-              "comment": ""
-            },
-            {
-              "name": "error",
-              "number": 5,
-              "type": "HarnessError",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LLMMessage",
-          "comment": "",
-          "fields": [
-            {
-              "name": "role",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "content",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "tool_calls",
-              "number": 3,
-              "type": "repeated ToolCall",
-              "comment": ""
-            },
-            {
-              "name": "tool_results",
-              "number": 4,
-              "type": "repeated ToolResult",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 5,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LLMStreamRequest",
-          "comment": "",
-          "fields": [
-            {
-              "name": "context",
-              "number": 1,
-              "type": "ContextInfo",
-              "comment": ""
-            },
-            {
-              "name": "slot",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "messages",
-              "number": 3,
-              "type": "repeated LLMMessage",
-              "comment": ""
-            },
-            {
-              "name": "temperature",
-              "number": 4,
-              "type": "optional double",
-              "comment": "Completion options"
-            },
-            {
-              "name": "max_tokens",
-              "number": 5,
-              "type": "optional int32",
-              "comment": ""
-            },
-            {
-              "name": "top_p",
-              "number": 6,
-              "type": "optional double",
-              "comment": ""
-            },
-            {
-              "name": "stop",
-              "number": 7,
-              "type": "repeated string",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LLMStreamResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "delta",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "tool_calls",
-              "number": 2,
-              "type": "repeated ToolCall",
-              "comment": ""
-            },
-            {
-              "name": "finish_reason",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "usage",
-              "number": 4,
-              "type": "TokenUsage",
-              "comment": ""
-            },
-            {
-              "name": "error",
-              "number": 5,
-              "type": "HarnessError",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "LifecycleEntityEdge",
           "comment": "LifecycleEntityEdge is one outgoing relationship to another typed entity,\nnamed by its label and identity rather than by a node id — the emitter does\nnot know node ids, and must not be able to guess them.",
           "fields": [
@@ -12306,36 +11295,6 @@
               "number": 4,
               "type": "repeated LifecycleEntityEdge",
               "comment": "edges are the outgoing relationships seen in this sighting. Both ends and\nthe relationship type must be admitted by the Taxonomy, or the edge is\nskipped while the entity itself still lands."
-            }
-          ]
-        },
-        {
-          "name": "ListAgentsRequest",
-          "comment": "",
-          "fields": [
-            {
-              "name": "context",
-              "number": 1,
-              "type": "ContextInfo",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ListAgentsResponse",
-          "comment": "",
-          "fields": [
-            {
-              "name": "agents",
-              "number": 1,
-              "type": "repeated HarnessAgentDescriptor",
-              "comment": ""
-            },
-            {
-              "name": "error",
-              "number": 2,
-              "type": "HarnessError",
-              "comment": ""
             }
           ]
         },
@@ -13587,6 +12546,126 @@
           ]
         },
         {
+          "name": "ResolveAgentRequest",
+          "comment": "ResolveAgentRequest asks the daemon for the Agent gateway route of an agent.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "name",
+              "number": 2,
+              "type": "string",
+              "comment": "name is the name of the agent."
+            },
+            {
+              "name": "bank_id",
+              "number": 3,
+              "type": "optional string",
+              "comment": "bank_id names a bank of always-on agents. When it is set, the route is\nthe route of a member of that bank, and name is the agent that the bank\nruns. Unset means an ephemeral agent."
+            }
+          ]
+        },
+        {
+          "name": "ResolveAgentResponse",
+          "comment": "ResolveAgentResponse holds what the caller needs to send an A2A message to\nan agent through the Agent gateway.",
+          "fields": [
+            {
+              "name": "gateway_url",
+              "number": 1,
+              "type": "string",
+              "comment": "gateway_url is the JSON-RPC interface URL of the agent on the Agent\ngateway. The caller sends A2A SendMessage to this URL."
+            },
+            {
+              "name": "route_headers",
+              "number": 2,
+              "type": "map<string, string>",
+              "comment": "route_headers are the headers that the gateway route matches on. The\ncaller sends each one unchanged."
+            },
+            {
+              "name": "gateway_ca_pem",
+              "number": 3,
+              "type": "string",
+              "comment": "gateway_ca_pem is the PEM bundle of the private CA of the Agent gateway.\nThe caller trusts exactly this bundle for gateway_url, which must use\nhttps. Empty means the system roots."
+            },
+            {
+              "name": "agent_card_url",
+              "number": 4,
+              "type": "string",
+              "comment": "agent_card_url is the URL of the Agent Card of the agent on the gateway."
+            }
+          ]
+        },
+        {
+          "name": "ResolveModelRequest",
+          "comment": "ResolveModelRequest asks the daemon for the model of a slot.",
+          "fields": [
+            {
+              "name": "context",
+              "number": 1,
+              "type": "ContextInfo",
+              "comment": ""
+            },
+            {
+              "name": "slot",
+              "number": 2,
+              "type": "string",
+              "comment": "slot is the name of the slot, for example \"primary\"."
+            }
+          ]
+        },
+        {
+          "name": "ResolveModelResponse",
+          "comment": "ResolveModelResponse names the one model that the slot resolves to, and\nthe facts that the agent needs to call the model gateway.",
+          "fields": [
+            {
+              "name": "model",
+              "number": 1,
+              "type": "string",
+              "comment": "model is the exact model name. The agent puts it in the model field of\nthe Open Responses request."
+            },
+            {
+              "name": "provider",
+              "number": 2,
+              "type": "string",
+              "comment": "provider is the name of the model provider of the tenant."
+            },
+            {
+              "name": "gateway_url",
+              "number": 3,
+              "type": "string",
+              "comment": "gateway_url is the base URL of the model gateway. The agent calls\nPOST {gateway_url}/v1/responses."
+            },
+            {
+              "name": "route_headers",
+              "number": 4,
+              "type": "map<string, string>",
+              "comment": "route_headers are the headers that the gateway route matches on, for\nexample the tenant and the provider. The agent sends each one unchanged."
+            },
+            {
+              "name": "context_window",
+              "number": 5,
+              "type": "int32",
+              "comment": "context_window is the size of the context window in tokens. 0 means unknown."
+            },
+            {
+              "name": "max_output_tokens",
+              "number": 6,
+              "type": "int32",
+              "comment": "max_output_tokens is the output limit of the model in tokens. 0 means unknown."
+            },
+            {
+              "name": "gateway_ca_pem",
+              "number": 7,
+              "type": "string",
+              "comment": "gateway_ca_pem is the PEM bundle of the private CA that signed the\ncertificate of the model gateway. The agent trusts exactly this bundle\nfor calls to gateway_url, which must use https. Empty means the system\nroots."
+            }
+          ]
+        },
+        {
           "name": "RunMissionRequest",
           "comment": "RunMissionRequest queues a mission for execution.",
           "fields": [
@@ -13931,6 +13010,12 @@
               "number": 3,
               "type": "string",
               "comment": "idempotency_key makes a retry safe (ADR-0028). A second request with the\nsame key returns the result of the first request and does the work one\ntime. An empty key turns the protection off for the call."
+            },
+            {
+              "name": "tool_call_ids",
+              "number": 4,
+              "type": "repeated string",
+              "comment": "tool_call_ids names the tool calls whose recorded results are the\nrecorded evidence of this finding. Each id is the\nContextInfo.tool_execution_id of a tool call that the daemon recorded in\nthis mission. The daemon reads the recorded result of each call. If an id\nnames no record of this mission and tenant, the whole request fails.\nEvidence in finding.evidence that no tool call id backs is typed by the\nagent."
             }
           ]
         },
@@ -14391,54 +13476,6 @@
           ]
         },
         {
-          "name": "TokenUsage",
-          "comment": "",
-          "fields": [
-            {
-              "name": "input_tokens",
-              "number": 1,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "output_tokens",
-              "number": 2,
-              "type": "int32",
-              "comment": ""
-            },
-            {
-              "name": "total_tokens",
-              "number": 3,
-              "type": "int32",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ToolCall",
-          "comment": "",
-          "fields": [
-            {
-              "name": "id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "name",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "arguments",
-              "number": 3,
-              "type": "string",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "ToolCompleteEvent",
           "comment": "ToolCompleteEvent signals successful completion with final output",
           "fields": [
@@ -14446,30 +13483,6 @@
               "name": "output_json",
               "number": 1,
               "type": "bytes",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "ToolDef",
-          "comment": "",
-          "fields": [
-            {
-              "name": "name",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "description",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "parameters",
-              "number": 3,
-              "type": "JSONSchemaNode",
               "comment": ""
             }
           ]
@@ -14535,30 +13548,6 @@
           ]
         },
         {
-          "name": "ToolResult",
-          "comment": "",
-          "fields": [
-            {
-              "name": "tool_call_id",
-              "number": 1,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "content",
-              "number": 2,
-              "type": "string",
-              "comment": ""
-            },
-            {
-              "name": "is_error",
-              "number": 3,
-              "type": "bool",
-              "comment": ""
-            }
-          ]
-        },
-        {
           "name": "ToolResultsRequest",
           "comment": "ToolResultsRequest requests streaming results for a queued job.",
           "fields": [
@@ -14609,6 +13598,12 @@
               "number": 5,
               "type": "bool",
               "comment": ""
+            },
+            {
+              "name": "tool_call_id",
+              "number": 6,
+              "type": "string",
+              "comment": "tool_call_id is the id that the daemon recorded for the call of this\ninput, as in CallToolProtoResponse.tool_call_id. Empty when the daemon\nrecorded none, and from a daemon that does not send it."
             }
           ]
         },
@@ -15216,16 +14211,6 @@
               "comment": ""
             },
             {
-              "name": "MISSION_STATUS_PENDING",
-              "number": 1,
-              "comment": ""
-            },
-            {
-              "name": "MISSION_STATUS_RUNNING",
-              "number": 2,
-              "comment": ""
-            },
-            {
               "name": "MISSION_STATUS_PAUSED",
               "number": 3,
               "comment": ""
@@ -15241,8 +14226,23 @@
               "comment": ""
             },
             {
-              "name": "MISSION_STATUS_CANCELLED",
-              "number": 6,
+              "name": "MISSION_STATUS_INPUT_REQUIRED",
+              "number": 7,
+              "comment": ""
+            },
+            {
+              "name": "MISSION_STATUS_SUBMITTED",
+              "number": 8,
+              "comment": ""
+            },
+            {
+              "name": "MISSION_STATUS_WORKING",
+              "number": 9,
+              "comment": ""
+            },
+            {
+              "name": "MISSION_STATUS_CANCELED",
+              "number": 10,
               "comment": ""
             }
           ]
@@ -16505,12 +15505,6 @@
               "comment": ""
             },
             {
-              "name": "limits",
-              "number": 30,
-              "type": "LimitsAndQuotas",
-              "comment": ""
-            },
-            {
               "name": "memory",
               "number": 32,
               "type": "MemoryPermissions",
@@ -16616,18 +15610,6 @@
               "name": "manifest",
               "number": 1,
               "type": "CapabilityManifest",
-              "comment": ""
-            }
-          ]
-        },
-        {
-          "name": "LimitsAndQuotas",
-          "comment": "LimitsAndQuotas carries the tier-derived resource ceilings applied to\nthe subject's session. max_spend_usd is a decimal string to avoid\nfloating-point rounding at quota boundaries.",
-          "fields": [
-            {
-              "name": "max_tokens_per_call",
-              "number": 1,
-              "type": "uint64",
               "comment": ""
             }
           ]
@@ -19400,6 +18382,18 @@
               "number": 4,
               "type": "map<string, string>",
               "comment": ""
+            },
+            {
+              "name": "tier",
+              "number": 5,
+              "type": "EvidenceTier",
+              "comment": "tier is set by the daemon. The daemon ignores a value that an agent sends."
+            },
+            {
+              "name": "tool_call_id",
+              "number": 6,
+              "type": "string",
+              "comment": "tool_call_id is set by the daemon on a tier 1 item. It is the id of the\nrecorded tool call that backs the item. It is empty on a tier 2 item. The\ndaemon ignores a value that an agent sends. An agent names a tool call in\nthe tool_call_ids field of the request."
             }
           ]
         },
@@ -19808,8 +18802,29 @@
       ],
       "enums": [
         {
+          "name": "EvidenceTier",
+          "comment": "EvidenceTier tells a reader how much to trust an evidence item. The daemon\nsets the tier. An agent cannot set it.",
+          "values": [
+            {
+              "name": "EVIDENCE_TIER_UNSPECIFIED",
+              "number": 0,
+              "comment": ""
+            },
+            {
+              "name": "EVIDENCE_TIER_RECORDED",
+              "number": 1,
+              "comment": "EVIDENCE_TIER_RECORDED is tier 1. A tool call id backs the item, and the\ndaemon built the content from its own record of that tool call."
+            },
+            {
+              "name": "EVIDENCE_TIER_TYPED",
+              "number": 2,
+              "comment": "EVIDENCE_TIER_TYPED is tier 2. The agent typed the content."
+            }
+          ]
+        },
+        {
           "name": "EvidenceType",
-          "comment": "EvidenceType represents the type of evidence collected.",
+          "comment": "EvidenceType is the one list of evidence types. Each evidence shape in the\nplatform uses this list.",
           "values": [
             {
               "name": "EVIDENCE_TYPE_UNSPECIFIED",
@@ -19844,6 +18859,21 @@
             {
               "name": "EVIDENCE_TYPE_OTHER",
               "number": 6,
+              "comment": ""
+            },
+            {
+              "name": "EVIDENCE_TYPE_PAYLOAD",
+              "number": 7,
+              "comment": ""
+            },
+            {
+              "name": "EVIDENCE_TYPE_CONVERSATION",
+              "number": 8,
+              "comment": "EVIDENCE_TYPE_CONVERSATION is a dialogue with a target. Gibson tests\ntargets that are models, so a dialogue is evidence."
+            },
+            {
+              "name": "EVIDENCE_TYPE_NETWORK_TRACE",
+              "number": 9,
               "comment": ""
             }
           ]
