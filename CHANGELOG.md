@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.21](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.20...docs-site-v0.6.21) (2026-11-21)
+
+
+### Bug Fixes
+
+* **build:** allow the esbuild install script in pnpm-workspace.yaml ([#127](https://github.com/zeroroot-ai/docs-site/issues/127)) ([08b2d3f](https://github.com/zeroroot-ai/docs-site/commit/08b2d3f626654b73c9c0fd0af9aa20ad1f2449f7))
+
+
+### Documentation
+
+* one hosted plan and no limits ([#149](https://github.com/zeroroot-ai/docs-site/issues/149)) ([246e8c6](https://github.com/zeroroot-ai/docs-site/commit/246e8c6d222fd455529be41ebcce68b7a39f8962))
+
 ## [0.6.20](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.19...docs-site-v0.6.20) (2026-10-25)
 
 
