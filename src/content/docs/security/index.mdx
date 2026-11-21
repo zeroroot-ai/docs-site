@@ -15,8 +15,9 @@ and we will fix the page.
 
 An agent that runs on its own, holds credentials, and calls tools is a process
 your organization must approve. The usual answer is an approval queue: a human
-agrees to each action. Gibson does not do that. This section explains what
-Gibson does instead.
+agrees to each action. Gibson keeps that queue for one kind of action only: a
+destructive action, which a person cannot undo. This section explains what
+Gibson does for all other actions.
 
 In Gibson, control is **declared before the agent runs**, not requested while it
 runs:
@@ -27,8 +28,10 @@ runs:
   declares about its own input.
 - The mission itself carries the limits that decide how far it may go.
 
-Once a mission starts inside those bounds, it runs to the end with no approval
-prompt. That is a decision, not an omission. See [Runtime](/docs/security/runtime).
+Once a mission starts inside those bounds, its work needs no approval. That is
+a decision, not an omission. The one approval gate is for a destructive action:
+a tenant admin approves or denies it before the agent does it. See
+[Runtime](/docs/security/runtime).
 
 ## Controls
 

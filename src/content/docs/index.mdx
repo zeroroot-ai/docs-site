@@ -1,16 +1,38 @@
 ---
 title: Gibson ADK
-description: Build agents, tools, and plugins on zeroroot.ai, the zero-trust agent factory. Run them on Gibson, the flagship security engine. Your first agent runs in under an hour.
+description: Gibson is a runtime and an ADK for agents that find, fix and verify security flaws inside grants that your security team sets.
 ---
 
-Gibson is **zeroroot.ai's** autonomous security engine, the flagship of
-the zero-trust agent factory. You build agents, tools, and plugins.
-Gibson runs them as missions. It builds a living model of your
-environment in a knowledge graph. It gives your team a dashboard to
-monitor, replay, and act on what it finds.
+Gibson is a runtime and an ADK for agents that find, fix and verify
+security flaws inside grants that your security team sets.
+
+You build agents, tools, and plugins with the ADK. The runtime runs
+them as missions. It builds a model of your environment in a knowledge
+graph. It gives your team a dashboard to monitor, replay, and act on
+what the agents find.
 
 These docs are for builders, engineers, and security teams who use
 Gibson to ship autonomous workflows.
+
+## Three jobs come first
+
+The runtime is general. The agents are the tools of a security team,
+and three jobs of that team come first.
+
+| Job | What the agents do |
+|---|---|
+| **CVE response** | A scan raises each flaw as a finding. Agents rank the findings and fix them. The scan that raised a finding runs again and verifies the fix. |
+| **Security testing** | An agent proves that an attack works. An agent fixes the flaw. The same attack runs again and fails. |
+| **Incident response** | Agents read the alerts of your detection tools and contain an incident inside their grant. |
+
+CI/CD work and coding agents run on the same runtime. They are the
+second level.
+
+Not all of this is in the product today. The
+[mission catalog](/docs/missions/catalog) lists the missions that ship.
+No incident response mission ships yet. An agent opens a merge request
+for its fix, and it does not merge that request yet. See
+[Findings](/docs/findings) for the finding statuses.
 
 ## What you build
 
@@ -21,7 +43,7 @@ of work:
 |---|---|
 | **Agent** | You want autonomous reasoning. Agents pick what to do next, call tools, query the knowledge graph, and submit findings. They run inside a mission. |
 | **Tool** | You have a stateless capability with a fixed input/output contract, for example a port scan, an HTTP probe, or a CVE lookup. Agents call tools. |
-| **Plugin** | You need a long-running, stateful integration, for example a Shodan client, a SIEM connector, or a custom database. Plugins hold credentials. Tools call plugins. |
+| **Plugin** | You need a long-running, stateful integration, for example a GitLab client or a custom database. Plugins hold credentials. Tools call plugins. |
 
 You write components against the **Gibson SDK** (Go). A component enrolls
 on its first start with a one-time token. It then connects to your tenant
@@ -83,17 +105,19 @@ These pages go deep. Read them when you need them:
 
 - **[Missions](/docs/missions)**: DAG model, lifecycle, replay, supported
   file formats.
+- **[Mission catalog](/docs/missions/catalog)**: the missions that ship
+  with Gibson.
 - **[Tools](/docs/tools)**: define and call a stateless capability.
 - **[Plugins](/docs/plugins)**: build a stateful integration with secret
   bindings.
 - **[Connectors](/docs/connectors)**: enable an agent-driven MCP
   integration from a short declaration.
 - **[Secrets management](/docs/secrets-management)**: bind, rotate, audit.
-- **[Findings](/docs/findings)**: submit, triage, export.
+- **[Findings](/docs/findings)**: submit, the four statuses, export.
 - **[Knowledge graph](/docs/knowledge-graph)**: how Gibson populates the
   graph, and how to query it from the Harness API.
-- **[Attack-path belief field](/docs/belief-field)**: how Gibson ranks
-  what it has found and decides what to look at next.
+- **[Belief field](/docs/belief-field)**: how Gibson ranks the targets
+  of its findings and decides what to look at next.
 - **[Taxonomy](/docs/taxonomy)**: the standard entity types Gibson
   recognizes, and how to extend them.
 - **[Ontology](/docs/ontology)**: industry-vocab mappings on top of the

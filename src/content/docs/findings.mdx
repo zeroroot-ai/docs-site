@@ -1,6 +1,6 @@
 ---
 title: Findings
-description: Submit, triage, and export security findings, the structured output of every Gibson mission.
+description: Submit, track, and export security findings. A finding has four statuses, and the check that raised it verifies its fix.
 ---
 
 A **finding** is the unit of work output that matters. Your agents can
@@ -9,8 +9,33 @@ durable record is a list of findings. Each finding states what the
 agent discovered, where, with what evidence, and how serious it is.
 
 This page covers the full finding lifecycle: how an agent submits
-one, what appears in the dashboard, how your team triages, and how
-to export.
+one, the four statuses, what appears in the dashboard, and how to
+export.
+
+## Finding status
+
+A finding has one of four statuses. An event sets each status, and each
+change is an event on the timeline of the tenant.
+
+| Status | What sets it |
+|---|---|
+| `open` | A check raises the finding. The check is an attack proof, a scan, or a read of one of your tools. A finding also returns to `open` when a later check finds the flaw again. |
+| `fixing` | An agent opens a merge request with the fix. |
+| `fixed` | The merge request merges. |
+| `verified` | The check that raised the finding runs again on evidence that is newer than the deploy of the fix, and it finds no flaw. |
+
+The check that raised a finding is the check that verifies its fix. A
+stronger check can verify the finding of a weaker check, and never the
+reverse. The order is attack proof, then scan, then a read of a tool. A
+scan never verifies an attack proof.
+
+A flaw becomes a finding. An alert from a detection tool is not a
+finding.
+
+Not all of this is in the product today. A later run of a catalog
+mission sets a `fixed` finding to `verified` when it looks for the flaw
+and does not find it. No code sets `fixing` or `fixed` yet. The health
+signal check and the revert of a merge are also not built.
 
 ## What a finding contains
 
@@ -52,8 +77,6 @@ That is all. Gibson then:
 3. Stores it in the knowledge graph as a `:finding` node, linked
    through `AFFECTS` to the host, service, or endpoint it targets.
 4. Emits a `finding.submitted` event on the mission's stream.
-5. Notifies any configured alerting destinations (Slack, email,
-   webhook) based on the severity policy in your tenant's settings.
 
 You can also call `h.GetFindings(ctx, ...)` from inside an agent. This
 call retrieves findings already submitted in the current mission. It
@@ -76,7 +99,6 @@ Click a row to open the detail page, where you can:
 
 | Action | What it does |
 |---|---|
-| **Change status** | `New → Triaging → Confirmed → Remediated → Closed` (or `False positive`). The state machine drives SLAs. |
 | **Reassign** | Move the finding to a teammate or rotation. |
 | **Add a comment** | Threaded discussion. Comments are part of the audit log. |
 | **Link related findings** | Group duplicates or cluster a campaign. |
@@ -118,7 +140,7 @@ view. There are three formats:
 
 | Format | Use it for |
 |---|---|
-| **JSON** | Programmatic intake into a SIEM / GRC tool. |
+| **JSON** | Intake by a program. |
 | **CSV** | Spreadsheet review. |
 | **SARIF** | GitHub / IDE integration. PR comment format. |
 
@@ -126,20 +148,13 @@ Exports respect your filter. You get exactly the rows you see.
 **JSON and SARIF include evidence payloads. CSV truncates evidence to
 a summary.**
 
-## Webhooks and integrations
+## Send findings to another tool
 
-Configure outbound destinations under **Settings → Integrations**:
-
-| Destination | Trigger |
-|---|---|
-| **Slack** | Post a message on every finding above a chosen severity. |
-| **Email** | Send a digest (real-time, hourly, or daily) to a distribution list. |
-| **PagerDuty** | Open an incident on `critical` findings. |
-| **Generic webhook** | POST a JSON payload, same shape as the JSON export, one finding per request. |
-| **Jira / Linear / GitHub Issues** | Auto-create an issue with title + severity + a link back to the finding. |
-
-Each destination has its own filter. You only get the noise you asked
-for.
+Gibson reaches a tool of yours through a
+[connector](/docs/connectors). The catalog holds two connectors today:
+GitLab and GitHub. No connector for a chat tool, a ticket tool or a
+paging tool is in the catalog yet. To move findings into such a tool
+today, export them as JSON.
 
 ## Relationship to the knowledge graph
 
