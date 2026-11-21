@@ -3,9 +3,6 @@ title: Write and publish an Agent Skill
 description: Write an Agent Skill folder, validate it, publish it to your tenant, grant it, pin or deny it in a mission, publish a new version, and delete it.
 ---
 
-**Not yet released.** Agent Skills are in build. This page describes the code
-on the release branches. The names can change before the release.
-
 This page takes you from an empty folder to an Agent Skill that a mission
 agent loads. The example is a method that checks the TLS configuration of a
 host. For the concepts, read [Agent Skills](/docs/agent-skills) first.
@@ -14,7 +11,7 @@ host. For the concepts, read [Agent Skills](/docs/agent-skills) first.
 
 | You need | Why |
 |---|---|
-| **`gibson`** | The CLI validates and publishes the folder. See [Install](/docs/install). |
+| **`gibson` 0.116.0 or later** | The CLI validates and publishes the folder. Earlier versions do not have `gibson agent-skill`. See [Install](/docs/install). |
 | **The tenant admin role** | Each Agent Skill call needs the admin relation on the tenant. |
 | **An OCI registry that your tenant owns** | The CLI pushes the folder there as an OCI image. The daemon pulls it from there. |
 | **A docker credential for that registry** | The CLI uses your local docker credential for the push. |

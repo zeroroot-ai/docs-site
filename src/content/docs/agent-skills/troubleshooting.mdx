@@ -3,9 +3,6 @@ title: Limits and troubleshooting
 description: The size limits of an Agent Skill, each validation message of the CLI and the daemon, and the cause of each common load problem.
 ---
 
-**Not yet released.** Agent Skills are in build. This page describes the code
-on the release branches. The names can change before the release.
-
 ## Size limits
 
 | Limit | Value |
@@ -29,7 +26,7 @@ exits with code 2.
 The daemon checks the folder again after the pull. It stops at the first
 problem. The CLI shows the daemon message after `PublishAgentSkill:`. A rule
 problem starts with `invalid Agent Skill folder:`. A limit problem starts with
-`Agent Skill folder is over a size limit:`.
+`the Agent Skill folder is over a size limit:`.
 
 In the messages below, `%q` is a quoted value and `%d` is a number.
 
