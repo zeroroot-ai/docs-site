@@ -1,0 +1,83 @@
+---
+title: Inbound A2A calls
+description: An outside A2A client can call a Gibson agent. Each message starts a mission from a mission definition that a tenant admin published, with approved targets.
+---
+
+An **inbound A2A call** is a call from an outside program to a Gibson agent.
+The outside program uses the [A2A protocol](https://a2a-protocol.org) with the
+JSON-RPC binding. Each message starts one new mission in your tenant.
+
+The caller does not select the mission. A tenant admin publishes one mission
+definition for inbound calls under one agent name. The mission definition
+fixes the budget and the scope. The tenant admin approves the targets.
+
+## The terms
+
+| Term | Meaning |
+|---|---|
+| **Publication** | One mission definition that a tenant admin published for inbound calls, under one agent name. |
+| **Agent name** | The name that the caller puts in the URL. It is the name of an agent node of the mission definition. It is a DNS label. |
+| **Approved targets** | The targets that the tenant admin selected for the publication. |
+| **Caller** | The outside program. It signs each call with one enrolled agent identity, the caller identity. |
+| **Caller identity** | An agent identity with the one ceiling `mission:originate` and a grant to one publication. |
+| **Agent Card** | The A2A description of the published agent. It lists the URL of the endpoint of the agent. |
+| **Task** | The A2A object that shows one mission to the caller. The Task ID is the mission ID. |
+
+## The path of a call
+
+A call goes from the caller to the Edge, and from the Edge to the daemon.
+
+1. The caller signs the call with a Capability Grant JWT of the caller
+   identity. The token is bound to the path of the request.
+2. The Edge asks ext-authz to check the token.
+3. ext-authz checks that the identity has the ceiling `mission:originate` and
+   no other capability.
+4. ext-authz sets the tenant from the identity. The caller cannot set the
+   tenant.
+5. The daemon reads the agent name from the path of the URL.
+6. The daemon checks the grant of the caller identity to the publication.
+7. The daemon starts a mission from the publication and returns a Task.
+
+## The rules
+
+These rules apply to each inbound A2A call.
+
+1. **Each message starts a new mission.** A message never joins a mission
+   that runs.
+2. **The publication fixes the mission.** The mission definition sets the
+   budget and the scope. The publication sets the targets.
+3. **A message can only narrow the targets.** A data part with a target list
+   selects some of the approved targets. A message can change nothing else.
+4. **The text of a message is only the task input.** The daemon never reads a
+   target from the text.
+5. **Gibson accepts one credential only.** The caller sends a Capability Grant
+   JWT in the header `x-capability-grant`. The Edge refuses a user token and
+   an API key on this path.
+6. **No default grant exists.** A tenant admin grants each caller identity to
+   one publication.
+7. **Only a caller with a grant can read the Agent Card.** No public Agent Card
+   exists.
+8. **A caller acts only on its own missions.** It cannot read or cancel the
+   mission of a different caller.
+9. **A caller cannot answer an approval.** A person in the tenant decides in
+   the dashboard.
+10. **The result holds all findings.** Each finding has all its evidence, in
+    raw form.
+
+## What a standard A2A client needs
+
+A standard A2A client cannot call Gibson with no extra code. Each request
+needs a new Capability Grant JWT for its own path. The Go SDK and the
+TypeScript SDK hold a client that signs each request. See
+[Call a published agent](/docs/a2a-inbound/call).
+
+## Inbound A2A calls and the Gibson MCP server
+
+The [Gibson MCP server](/docs/integrations/mcp) also lets an outside program
+start a mission. An inbound A2A call gives the caller less. It starts one
+published mission definition, and the caller can only narrow its targets.
+
+## Next steps
+
+- [Publish a mission definition for inbound calls](/docs/a2a-inbound/publish)
+- [Call a published agent](/docs/a2a-inbound/call)

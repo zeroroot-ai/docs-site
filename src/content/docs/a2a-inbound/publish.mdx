@@ -1,0 +1,155 @@
+---
+title: Publish a mission definition for inbound calls
+description: A tenant admin publishes a mission definition for inbound A2A calls, makes a caller identity, publishes a stale publication again, revokes a caller and unpublishes.
+---
+
+This page is for the tenant admin. It shows how to let an outside A2A client
+start a mission in your tenant. For the terms, read
+[Inbound A2A calls](/docs/a2a-inbound) first.
+
+## Prerequisites
+
+| You need | Why |
+|---|---|
+| **The admin right on the tenant** | Each call of the page needs the admin relation on the tenant. The menu entry shows only to a user with this right. |
+| **A mission definition with an agent node** | The caller addresses the name of one agent of the mission definition. See [Missions](/docs/missions). |
+| **One target or more** | You approve the targets that a call can use. |
+
+The agent name is a part of a URL. It must be a DNS label: lowercase letters,
+digits and hyphens, at most 63 characters.
+
+## 1. Prepare the mission definition
+
+The mission definition fixes the budget and the scope of each inbound
+mission. A caller cannot change them.
+
+The daemon puts the text of the message into the mission variable
+`a2a_task_input`. Use this variable as the task input of the agent. Treat the
+text as input from outside your tenant.
+
+A mission definition with no `for_each` node runs on one target. If such a
+publication has more than one approved target, the caller must name one target
+in each message. A mission definition with a `for_each` node over the target
+set runs on each target of the message.
+
+## 2. Publish the mission definition
+
+1. Open **Inbound missions** in the dashboard.
+2. Go to the form **Publish a mission definition**.
+3. Select the mission definition.
+4. Select the agent. The list shows the agents of the mission definition.
+5. Select the approved targets.
+6. Enter a name for the new caller identity.
+7. Select **Publish**.
+
+The page does three things in this order:
+
+1. It makes a new agent identity for the caller, with the one ceiling
+   `mission:originate`.
+2. It publishes the mission definition under the agent name.
+3. It grants the new identity to the publication.
+
+If a step fails after the identity exists, the page revokes the identity. The
+page then shows which step failed, and it shows no token.
+
+## 3. Give the credentials to the caller
+
+After the publish, the page shows the credentials of the caller identity.
+
+| Value | Use |
+|---|---|
+| **Platform URL** | The public API origin of your platform. The caller uses it to enroll and to call. |
+| **Bootstrap token** | The caller enrolls with this token one time. |
+
+The page shows the bootstrap token one time. Copy it before you close the
+panel. Send the two values to the operator of the outside client on a secure
+channel.
+
+Also give the operator these values:
+
+- The agent name.
+- The ID of each approved target, if the caller must name a target.
+
+The operator continues with [Call a published agent](/docs/a2a-inbound/call).
+
+## The caller identity
+
+A caller identity has the one ceiling `mission:originate` and a grant to one
+publication. It holds no other right.
+
+The page always makes a new identity for a caller. The daemon refuses a grant
+for an identity that has a grant to a different publication. To let one
+outside client call two publications, make one caller identity for each
+publication.
+
+### Add a caller
+
+1. Open **Inbound missions**.
+2. Select **Callers** on the row of the publication.
+3. Select **Add a new caller**.
+4. Enter a name for the new caller identity.
+5. Copy the credentials and send them to the operator of the outside client.
+
+## A stale publication
+
+A publication pins the mission definition and the approved targets as they
+were at the publish. A publication is **stale** when one of these events
+occurs after the publish:
+
+- A person changes the mission definition.
+- A person deletes the mission definition.
+- A person changes an approved target.
+- A person deletes an approved target.
+
+The page shows the mark **Stale** on the row. The daemon refuses each call
+that uses the stale part. The caller gets a Task in the state rejected, and
+no mission starts.
+
+To approve the new state:
+
+1. Open **Inbound missions**.
+2. Examine the change of the mission definition or the target.
+3. Select **Publish again** on the row of the publication.
+4. Confirm.
+
+The callers keep their grants.
+
+## Change a publication
+
+You cannot edit a publication. One agent name has one publication.
+
+1. Unpublish the publication.
+2. Publish it again with the new mission definition or targets.
+3. Give the new credentials to the operator of the outside client.
+
+## Approvals
+
+A mission can stop for an approval. The Task of the caller then shows the
+state input required. The caller cannot answer the approval. A person in your
+tenant decides in the dashboard, as for each other mission.
+
+## Revoke a caller or unpublish
+
+| Action | Where | What it removes | What stays |
+|---|---|---|---|
+| **Revoke** | **Inbound missions**, then **Callers**, then **Revoke** | The grant of one caller identity. | The identity, the publication and the other callers. |
+| **Unpublish** | **Inbound missions**, then **Unpublish** | The publication and the grant of each caller. | Each caller identity. |
+
+After a revoke or an unpublish, the caller identity keeps one right and loses
+three.
+
+| Call | Result |
+|---|---|
+| Read the Task of a mission that the caller started | Works. The caller can read the state and the result. |
+| Cancel a mission that the caller started | Refused. |
+| Start a new mission | Refused with a rejected Task. |
+| Read the Agent Card | Refused. |
+
+A mission that runs continues. To stop it, stop the mission in the dashboard.
+
+A revoke of the whole agent identity ends all access of the caller. The Edge
+refuses each later call of the identity, also a read of a Task.
+
+## Next steps
+
+- [Call a published agent](/docs/a2a-inbound/call)

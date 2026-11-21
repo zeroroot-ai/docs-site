@@ -1,0 +1,414 @@
+---
+title: Call a published agent
+description: Enroll a caller identity, sign each call with the Capability Grant signer of the SDK, send a message to a published Gibson agent, and read the Task and its findings.
+---
+
+This page is for the operator of the outside client. It shows how to call a
+published Gibson agent with A2A. For the terms, read
+[Inbound A2A calls](/docs/a2a-inbound) first.
+
+The steps use the Go SDK `github.com/zeroroot-ai/sdk` at `v0.212.0`. The
+TypeScript SDK `@zeroroot-ai/sdk` at `0.23.0` has the same calls. See
+[The TypeScript SDK](#the-typescript-sdk).
+
+## Prerequisites
+
+Get these values from the tenant admin. The admin gets them from the page
+**Inbound missions**. See
+[Publish a mission definition](/docs/a2a-inbound/publish#3-give-the-credentials-to-the-caller).
+
+| Value | Example |
+|---|---|
+| The platform URL | `https://api.example.com` |
+| The bootstrap token of the caller identity | Shown one time in the dashboard. |
+| The agent name | `recon` |
+| The IDs of the approved targets, if you must name a target | `<target id>` |
+
+The platform URL is an origin. It has the scheme `https`, and it has no path.
+
+## 1. Run the example program
+
+The SDK holds a full example program, `examples/a2a-inbound-client`. It
+enrolls, reads the Agent Card, sends one message and waits for the Task to
+end.
+
+1. Set the platform URL.
+2. Set the agent name.
+3. On the first run, set the bootstrap token.
+4. Run the program with the text of the message.
+
+```bash
+export GIBSON_PLATFORM_URL=https://api.example.com
+export GIBSON_INBOUND_AGENT=recon
+export GIBSON_BOOTSTRAP_TOKEN='<the bootstrap token>'   # first run only
+go run github.com/zeroroot-ai/sdk/examples/a2a-inbound-client@v0.212.0 "scan the staging hosts"
+```
+
+To name targets, set `GIBSON_INBOUND_TARGETS` to a list of target IDs with
+commas between them. To keep the host key in a different file, set
+`GIBSON_HOST_KEY_PATH`.
+
+The program prints the agent, the first state of the Task and the last state
+of the Task:
+
+```text
+agent recon: <the description of the agent>
+task <task id>: TASK_STATE_SUBMITTED
+task <task id>: TASK_STATE_COMPLETED, 1 artifacts
+```
+
+The program waits at most 10 minutes. After that time, it cancels the Task.
+
+The next steps show each call of the program in your own code.
+
+## 2. Enroll the caller identity
+
+Add the SDK to your module.
+
+```bash
+go get github.com/zeroroot-ai/sdk@v0.212.0
+```
+
+Make a `capabilitygrant.Client`, then call `Discover` and `Register`.
+
+```go
+import (
+    "github.com/zeroroot-ai/sdk/a2ainbound"
+    "github.com/zeroroot-ai/sdk/capabilitygrant"
+)
+
+identity, err := capabilitygrant.NewClient(capabilitygrant.ClientConfig{
+    PlatformURL: "https://api.example.com",
+    AgentName:   "my-caller",
+})
+if err != nil {
+    return err
+}
+defer identity.Close()
+
+if err := identity.Discover(ctx); err != nil {
+    return err
+}
+if err := identity.Register(ctx); err != nil {
+    return err
+}
+```
+
+On the first run, `Register` sends the bootstrap token. It reads the token
+from `ClientConfig.BootstrapToken` or from the environment variable
+`GIBSON_BOOTSTRAP_TOKEN`. The client does not store the token.
+
+The client keeps a host key on disk. The default file is
+`~/.gibson/host_key.json`. To use a different file, set
+`ClientConfig.HostKeyPath`. A later run signs with the host key and needs no
+bootstrap token. Keep the host key file. If you lose it, ask the tenant admin
+for a new caller.
+
+## 3. Sign each call
+
+Each request needs a new Capability Grant JWT in the header
+`x-capability-grant`. The token is bound to the path of the request. It lives
+55 seconds, and the platform accepts it one time.
+
+`a2ainbound.Client` signs each request for you. Give it the identity as the
+signer.
+
+```go
+client, err := a2ainbound.NewClient(a2ainbound.Config{
+    BaseURL: "https://api.example.com",
+    Signer:  identity,
+})
+if err != nil {
+    return err
+}
+```
+
+`BaseURL` must be the platform URL, with the scheme `https` and no path. The
+client never follows a redirect.
+
+If your edge uses a private CA, set `Config.CAPEM` to the PEM bundle of the
+CA. The client then trusts exactly that bundle. With no bundle, the client
+uses the system roots. No option skips the verification.
+
+### Sign a call with your own HTTP client
+
+If you send the HTTP request yourself, sign the token with `SignPath`. The
+path is the exact path of the request.
+
+```go
+token, err := identity.SignPath("/a2a/inbound/recon")
+if err != nil {
+    return err
+}
+req.Header.Set(capabilitygrant.MetadataHeaderCapabilityGrant, token)
+```
+
+Sign a new token for each request. Never log a token.
+
+## 4. Read the Agent Card
+
+```go
+card, err := client.AgentCard(ctx, "recon")
+```
+
+The Agent Card is at this path:
+
+```text
+GET /a2a/inbound/<agent>/.well-known/agent-card.json
+```
+
+The platform serves the card only to a caller with a grant to the agent. A
+caller with no grant gets the answer of an agent that is not published, HTTP
+404. The caller cannot tell which agents exist.
+
+## 5. Send a message
+
+```go
+task, err := client.SendMessage(ctx, "recon", "scan the staging hosts", "<target id>")
+if err != nil {
+    return err
+}
+fmt.Println(task.ID, task.Status.State)
+```
+
+The text is the task input of the mission. The target IDs are optional. They
+narrow the approved targets of the publication. With no target ID, the mission
+uses all approved targets.
+
+The SDK puts the target IDs in a data part under the key `targets`. The
+daemon reads a target from this data part only. It never reads a target from
+the text.
+
+A new mission starts in the state `TASK_STATE_SUBMITTED`. The Task ID is the
+mission ID. Keep it to read or cancel the Task.
+
+### A rejected message
+
+The platform can refuse a message that is well formed. Then the Task has the
+state `TASK_STATE_REJECTED`, and no mission starts. The status message of the
+Task holds the reason. `SendMessage` returns this Task as a value, not as an error.
+
+| Reason in the status message | Cause |
+|---|---|
+| `the agent is not available for inbound calls` | The agent is not published, or the caller has no grant to it. The two causes get the same answer. |
+| `a target is outside the published definition: <id>` | The message names a target that the admin did not approve. |
+| `the definition has no for_each node, so one message can use one target only. Name one target in a data part` | The publication has more than one approved target, and the message names none or more than one. |
+| `the mission definition changed after it was published. An admin of the tenant must publish it again` | The publication is stale. The tenant admin must publish it again. |
+| `the mission definition was deleted. An admin of the tenant must publish it again` | The publication is stale. |
+| `the mission definition is not valid. An admin of the tenant must publish it again` | The mission definition is no longer valid. |
+| `an approved target changed after it was published. An admin of the tenant must publish it again` | The publication is stale. |
+| `an approved target was deleted. An admin of the tenant must publish it again` | The publication is stale. |
+| `the mission cannot start now: <reason>` | The daemon refused to start the mission, for example for a suspended tenant. |
+
+## 6. Read the Task
+
+```go
+task, err = client.GetTask(ctx, "recon", task.ID)
+```
+
+Read the Task again until its state is final. The function
+`task.Status.State.Terminal()` reports a final state.
+
+| Task state | Mission state | Final |
+|---|---|---|
+| `TASK_STATE_SUBMITTED` | Submitted | No |
+| `TASK_STATE_WORKING` | Working or paused | No |
+| `TASK_STATE_INPUT_REQUIRED` | Waits for an approval | No |
+| `TASK_STATE_COMPLETED` | Completed | Yes |
+| `TASK_STATE_FAILED` | Failed | Yes |
+| `TASK_STATE_CANCELED` | Canceled | Yes |
+
+A Task in the state `TASK_STATE_INPUT_REQUIRED` waits for a person in the
+tenant. The caller cannot answer the approval. A message that names a Task
+gets the error permission denied. Read the Task again later.
+
+A failed or canceled Task can hold the reason in its status message.
+
+A caller reads only the missions that it started, through the path of the
+agent that started them. A Task of a different caller is not found.
+
+## 7. Read the result
+
+A Task in a final state holds one artifact with the name `findings`. The
+artifact has one data part. The data part holds all findings of the mission,
+with all of their evidence.
+
+```json
+{
+  "mission_id": "<mission id>",
+  "findings": [
+    {
+      "id": "<finding id>",
+      "title": "TLS 1.0 is enabled",
+      "description": "<description>",
+      "severity": "high",
+      "target": "<target id>",
+      "evidence": [
+        {
+          "tier": "EVIDENCE_TIER_RECORDED",
+          "tool_call_id": "<tool call id>",
+          "type": "<evidence type>",
+          "title": "<title>",
+          "content": "<raw output of the tool call>",
+          "metadata": {}
+        }
+      ],
+      "reproduction_steps": [
+        {
+          "step": 1,
+          "description": "<description>",
+          "expected_result": "<expected result>",
+          "evidence_ref": "<reference>"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "by_severity": { "high": 1 }
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `mission_id` | The ID of the mission. It is equal to the Task ID. |
+| `findings[].target` | The ID of the target of the finding. It is empty when the finding names no target. |
+| `findings[].evidence[].tier` | Who made the item. `EVIDENCE_TIER_RECORDED` is the output of a tool call that the daemon recorded. `EVIDENCE_TIER_TYPED` is text that the agent typed. |
+| `findings[].evidence[].content` | The raw content of the item. The daemon adds no filter, no summary and no redaction. |
+| `summary.total` | The number of findings of this one mission. |
+| `summary.by_severity` | The number of findings for each severity. |
+
+Read the data part in Go:
+
+```go
+for _, artifact := range task.Artifacts {
+    if artifact.Name != "findings" {
+        continue
+    }
+    raw, err := json.Marshal(artifact.Parts[0].Data())
+    if err != nil {
+        return err
+    }
+    fmt.Println(string(raw))
+}
+```
+
+## 8. Cancel the Task
+
+```go
+task, err = client.CancelTask(ctx, "recon", task.ID)
+```
+
+A cancel ends a mission that this caller started. The answer has the state
+`TASK_STATE_CANCELED`. A cancel needs the grant of the caller to the agent at
+the time of the call. A Task in a final state cannot be canceled.
+
+## The JSON-RPC calls
+
+Use this section if you write your own A2A client. The endpoint of an agent
+is at this path:
+
+```text
+POST /a2a/inbound/<agent>
+```
+
+The endpoint serves three JSON-RPC methods: `SendMessage`, `GetTask` and
+`CancelTask`. Each request has the header `x-capability-grant` with a token
+for the path of the request.
+
+A `SendMessage` request with one target:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "SendMessage",
+  "params": {
+    "message": {
+      "messageId": "m-1",
+      "role": "ROLE_USER",
+      "parts": [
+        { "text": "scan the staging hosts" },
+        { "data": { "targets": ["<target id>"] } }
+      ]
+    }
+  }
+}
+```
+
+The answer of `SendMessage` holds the Task under `result.task`:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "task": {
+      "id": "<task id>",
+      "contextId": "<task id>",
+      "status": { "state": "TASK_STATE_SUBMITTED" }
+    }
+  }
+}
+```
+
+A `GetTask` request and a `CancelTask` request name the Task:
+
+```json
+{ "jsonrpc": "2.0", "id": 2, "method": "GetTask", "params": { "id": "<task id>" } }
+```
+
+The answer of `GetTask` and of `CancelTask` holds the Task directly under
+`result`.
+
+The data part with `targets` must hold a list of target ID strings. An empty
+list, a list with a value that is not a string, and two lists in one message
+get the error invalid params.
+
+## Errors
+
+The Edge refuses a call before the daemon sees it with an HTTP status. The
+daemon answers with HTTP 200 and a JSON-RPC error.
+
+| Answer | Go SDK error | Cause | What to do |
+|---|---|---|---|
+| HTTP 401 | `a2a.ErrUnauthenticated` | The request has no token, the token is not valid, or the identity is revoked. | Sign a new token for the exact path. If the identity is revoked, ask the tenant admin for a new caller. |
+| HTTP 403 | `a2a.ErrUnauthorized` | The identity does not have the ceiling `mission:originate`, or it holds another capability. | Use a caller identity that the page **Inbound missions** made. |
+| HTTP 404 on the Agent Card | Not one of the two above | The agent is not published, or the caller has no grant to it. | Check the agent name. Ask the tenant admin for a grant. |
+| JSON-RPC `-32602` invalid params | `a2a.ErrInvalidParams` | The request holds no message, names no Task, or has a target list that is not valid. | Correct the request. |
+| JSON-RPC `-32001` task not found | `a2a.ErrTaskNotFound` | The Task does not exist, a different caller started it, or it started through a different agent. | Use the Task ID and the agent name of your own `SendMessage` call. |
+| JSON-RPC `-32002` task not cancelable | `a2a.ErrTaskNotCancelable` | The Task is in a final state. | Read the Task. |
+| JSON-RPC `-31403` permission denied | `a2a.ErrUnauthorized` | A cancel with no grant to the agent, or a message that names a Task. | Ask the tenant admin for a grant. Do not answer an approval. |
+| JSON-RPC `-32000` server error | `a2a.ErrServerError` | The daemon cannot build the result now. | Read the Task again later. |
+
+## The TypeScript SDK
+
+The package `@zeroroot-ai/sdk` at `0.23.0` holds the same client,
+`InboundA2AClient`. Its signer is `CapabilityGrantClient`.
+
+```ts
+import { CapabilityGrantClient, InboundA2AClient } from "@zeroroot-ai/sdk"
+
+const identity = new CapabilityGrantClient({
+  platformURL: "https://api.example.com",
+  agentName: "my-caller",
+  hostKeyPath: "/var/lib/my-caller/host_key.pem",
+})
+await identity.register() // the first run reads GIBSON_BOOTSTRAP_TOKEN
+
+const client = new InboundA2AClient({ baseUrl: "https://api.example.com", signer: identity })
+const card = await client.agentCard("recon")
+let task = await client.sendMessage("recon", "scan the staging hosts", { targets: ["<target id>"] })
+task = await client.getTask("recon", task.id)
+task = await client.cancelTask("recon", task.id)
+```
+
+The option `hostKeyPath` is required. The client throws
+`InboundA2ARefusedError` for HTTP 401 and HTTP 403. Its field `status` holds
+the HTTP status.
+
+## Next steps
+
+- [Inbound A2A calls](/docs/a2a-inbound)
+- [Identity](/docs/security/identity)
