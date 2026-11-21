@@ -70,7 +70,8 @@ The service of the step calls `ConnectionPointService` of the daemon.
 
 - `CompleteSignupStep` takes the step token and the outcome.
 - `DescribeSignupStep` takes the step token. It returns the workspace slug,
-  the plan ID and the email address of the owner.
+  the plan ID and the email address of the owner. The hosted service has
+  one plan, so the plan ID does not change from one signup to the next.
 
 The daemon reads the SPIFFE ID of the caller from the TLS peer of the
 call. It accepts only the ID in `GIBSON_SIGNUP_STEP_COMPLETER_SVID`. A call
