@@ -18,6 +18,7 @@
     "plugins",
     "connectors",
     "integrations",
+    "a2a-inbound",
     "secrets-management",
     "findings",
     "---",
