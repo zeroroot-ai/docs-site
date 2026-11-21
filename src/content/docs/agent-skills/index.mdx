@@ -1,0 +1,149 @@
+---
+title: Agent Skills
+description: An Agent Skill is a folder of method text in the open Agent Skills format. A mission agent finds it with search_tools and loads it with invoke_tool after a tenant admin grants it.
+---
+
+An **Agent Skill** is a packaged method. It tells an agent when to use a tool,
+in which order, and how to read the result. A mission agent loads the method
+when the task needs it. The method is not part of the prompt of each agent.
+
+An Agent Skill is a folder in the open
+[Agent Skills format](https://agentskills.io/specification). Gibson stores the
+folder, records its digest, and gives the content to an agent that has a grant.
+
+## The folder
+
+An Agent Skill folder has one required file and three optional folders.
+
+```text
+check-tls-config/
+├── SKILL.md          # required: the frontmatter and the method text
+├── scripts/          # optional: code that the agent can run
+├── references/       # optional: text that the agent reads on request
+└── assets/           # optional: templates and other files
+```
+
+`SKILL.md` starts with a YAML frontmatter. The frontmatter holds the `name`
+and the `description` of the Agent Skill. The text after the frontmatter is
+the **body**. The body is the method that the agent reads.
+
+The name of the folder must be equal to the `name` field. The name is also
+the id of the Agent Skill in the catalog, in the form `skill:<name>`.
+
+For each field and limit, see
+[Write and publish an Agent Skill](/docs/agent-skills/write-and-publish#the-frontmatter-fields).
+
+## Two sources
+
+| Source | Who publishes it | Who sees it |
+|---|---|---|
+| **Tenant Agent Skill** | A tenant admin, from an OCI image in a registry that the tenant owns. | Only the tenant that published it. |
+| **Shared Agent Skill** | The operator of the platform, in the daemon configuration. | Each tenant on the platform. A tenant admin must enable it first. |
+
+When a tenant admin enables a Shared Agent Skill, Gibson copies it into the
+tenant. After that, the tenant uses it like a Tenant Agent Skill. No agent
+loads an Agent Skill from a URL or from a public collection.
+
+## The trust rules
+
+An Agent Skill is content. It is not a component. It has no identity of its
+own and no permission of its own. These rules apply to each Agent Skill.
+
+1. **An Agent Skill adds no permission.** An agent that loads an Agent Skill
+   keeps the same tools and the same grants as before.
+2. **No default grant exists.** A tenant admin must grant the Agent Skill to an
+   agent or to a mission before a load. A Shared Agent Skill also needs this
+   grant.
+3. **An agent with no grant does not see it.** The search does not return it,
+   and a direct load by its id is refused.
+4. **The text is tool output.** The agent gets the body as the result of a tool
+   call. Gibson never adds the body to the system instructions. Treat the text
+   of a Tenant Agent Skill as untrusted input.
+5. **The `allowed-tools` field can only narrow.** The agent gets the field as
+   data. The field gives the agent no tool.
+6. **Each load is recorded.** The Timeline of the mission records the agent,
+   the mission, the name and the digest of each load.
+7. **A mission keeps its digest.** A new publish does not change the content
+   that a running mission loads.
+
+Only an agent in a mission can load an Agent Skill. The dashboard chat and a
+coding agent session cannot load one.
+
+## How an agent finds and loads an Agent Skill
+
+A mission agent uses the same two calls that it uses for tools.
+
+1. The agent calls `search_tools` with a description of the task.
+2. Gibson returns the matching tools and the matching Agent Skills that the
+   agent may load. An Agent Skill has an id of the form `skill:<name>`.
+3. The agent calls `invoke_tool` with the `skill:<name>` id.
+4. Gibson checks the grant again and returns the body.
+5. To read one file of the folder, the agent calls `invoke_tool` again with
+   the path of the file in `args.file`.
+
+The search compares the query with the name and the description. Write a
+description that says what the method does and when to use it. A weak
+description hides the Agent Skill from the search.
+
+To restrict a search to Agent Skills, the agent sets `sources` to `["skill"]`.
+
+### The load of the body
+
+```json
+{ "id": "skill:check-tls-config" }
+```
+
+The result has these fields:
+
+```json
+{
+  "name": "check-tls-config",
+  "digest": "sha256:…",
+  "description": "Check the TLS configuration of one host…",
+  "body": "# Check the TLS configuration of a host\n…",
+  "files": [{ "path": "references/weak-ciphers.md", "size": 412 }],
+  "allowed_tools": ["nmap"]
+}
+```
+
+### The load of one file
+
+```json
+{ "id": "skill:check-tls-config", "args": { "file": "references/weak-ciphers.md" } }
+```
+
+The result has the fields `name`, `digest`, `file` and `content`. The path must
+be inside the folder. Gibson returns only a file that holds UTF-8 text.
+
+## The digest of a mission
+
+Gibson stores each publish as a version with its own digest. The newest
+publish of a name is the **current version**. An old digest stays readable.
+
+A mission fixes one digest for each Agent Skill. It keeps that digest until
+the mission ends.
+
+- If the mission definition pins the Agent Skill, Gibson fixes the digest at
+  the mission start.
+- If the mission does not pin it, Gibson fixes the digest at the first load in
+  the mission.
+
+To pin or deny an Agent Skill in a mission, see
+[Write and publish an Agent Skill](/docs/agent-skills/write-and-publish#5-pin-an-agent-skill-in-a-mission).
+
+## Scripts
+
+An Agent Skill can hold scripts. Gibson does not run a script on its own. A
+script runs only when the agent runs it with its normal execution tool, in the
+sandbox of the agent. The script then has the grants and the egress limit of
+that agent. It gets no other permission.
+
+Gibson does not copy the files of an Agent Skill into the sandbox yet. The
+agent reads a script with `invoke_tool` and `args.file`. The agent then
+runs it with its execution tool.
+
+## Next steps
+
+- [Write and publish an Agent Skill](/docs/agent-skills/write-and-publish)
+- [Offer a Shared Agent Skill](/docs/agent-skills/shared)
+- [Limits and troubleshooting](/docs/agent-skills/troubleshooting)
