@@ -105,10 +105,13 @@ model underneath it.
 A person **does**: own components, write and revoke grants, enable or disable a
 component at tenant, team, or user scope, and set the mission constraints.
 
-A person **does not**: approve individual actions while a mission runs. That is a
-deliberate decision, recorded as an ADR. See [Runtime](/docs/security/runtime).
-A person declares control before the agent starts. The agent does not request
-control while it works.
+A person **does not**: approve each action while a mission runs. That is a
+deliberate decision, recorded as an ADR. A person declares control before the
+agent starts.
+
+One exception exists. A tenant admin approves or denies a destructive action
+before the agent does it. A destructive action is an action that a person
+cannot undo. See [Runtime](/docs/security/runtime).
 
 ## What to check
 
