@@ -132,8 +132,8 @@ times we have seen something like this before").
 related, err := h.GetRelatedFindings(ctx, findingID)
 ```
 
-This read starts from a finding and follows graph relationships, not
-similarity. Use it to read the findings that link to the same assets.
+This read starts from a finding and follows its `similar_to` and
+`related_to` edges to other findings. It does not run an embedding search.
 
 ## How agents use the graph in practice
 
@@ -163,7 +163,8 @@ The dashboard shows graph data wherever the data is useful in context:
 ## Per-tenant isolation
 
 The graph of your tenant is yours. There are no cross-tenant reads,
-ever. `FindSimilarFindings` only considers your own history. Gibson does not pool embeddings across customers.
+ever. `FindSimilarFindings` only considers your own history. Gibson
+does not pool embeddings across customers.
 
 ## What about retention?
 
