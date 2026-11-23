@@ -63,7 +63,7 @@ need:
 | Query a plugin | `h.QueryPlugin`, `h.ListPlugins` |
 | Hand a subtask to another agent | `h.DelegateToAgent`, `h.ListAgents` |
 | Persist a security finding | `h.SubmitFinding`, `h.GetFindings` |
-| Read the knowledge graph | `h.QueryNodes`, `h.FindSimilarAttacks`, `h.FindSimilarFindings`, `h.GetAttackChains` |
+| Read the knowledge graph | `h.QueryNodes`, `h.FindSimilarFindings`, `h.GetRelatedFindings` |
 | Report what the agent saw into the World | `h.Observe` |
 | Keep a fact across runs | `h.Observe` with an `agent.MemoryObservation` |
 | See the mission's target and metadata | `h.Mission()`, `h.Target()` |
