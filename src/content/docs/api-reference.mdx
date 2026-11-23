@@ -8,87 +8,6 @@ description: The Gibson SDK proto surface — every service, message, field, and
 
 This is the machine-generated reference for the Gibson SDK proto surface — the services, messages, fields, and enums a component developer compiles against. It is exhaustive; the guides walk you through the common workflows. Every symbol below is grouped by its proto package.
 
-## Package `gibson.agent.v1`
-
-### Services
-
-#### `AgentService`
-
-##### `Execute`
-
-`ExecuteRequest` → `ExecuteResponse`
-
-##### `GetDescriptor`
-
-`GetDescriptorRequest` → `GetDescriptorResponse`
-
-##### `Health`
-
-`HealthRequest` → `HealthResponse`
-
-### Messages
-
-#### `ExecuteRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `task` | 1 | `gibson.types.v1.Task` | — |
-| `timeout_ms` | 2 | `int64` | — |
-| `callback_endpoint` | 3 | `string` | Callback endpoint for the orchestrator's HarnessCallbackService. When provided, the agent will connect to this endpoint to access harness operations (LLM, tools, memory, etc.). |
-| `callback_token` | 4 | `string` | Optional authentication token for the callback connection. |
-| `mission` | 5 | `gibson.common.v1.TypedMap` | Mission context for this execution. |
-| `target` | 6 | `gibson.common.v1.TypedMap` | Target information for this execution. |
-| `trace_id` | 7 | `string` | Trace ID for distributed tracing (propagated from orchestrator). |
-| `parent_span_id` | 8 | `string` | Parent span ID for distributed tracing (propagated from orchestrator). |
-| `mission_run_id` | 9 | `string` | Mission run ID - unique identifier for this specific mission execution. Created by MissionGraphManager.CreateMissionRunNode at mission start. Used for mission-scoped GraphRAG storage. |
-| `agent_run_id` | 10 | `string` | Agent run ID - unique identifier for this specific agent execution. Used for DISCOVERED relationships and provenance tracking. |
-| `run_number` | 11 | `int32` | Run number - sequential number for this mission (1, 2, 3...). Used for mission memory queries and historical comparisons. |
-| `job_id` | 12 | `string` | job_id names the job this execution serves. A one-shot dispatch and a bank job then share one result path. Empty for a dispatch that opens no job. |
-
-#### `ExecuteResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result` | 1 | `gibson.types.v1.Result` | — |
-| `error` | 2 | `gibson.common.v1.Error` | — |
-| `deliverables` | 3 | `repeated gibson.job.v1.Deliverable` | deliverables lists what left the sandbox for this execution: a pushed branch, an opened merge request. Empty when nothing left. |
-| `claude_session_id` | 4 | `string` | claude_session_id is the coding-agent session that ran this execution, so a later turn resumes the same conversation. Empty for an agent that holds no session. |
-
-#### `GetDescriptorRequest`
-
-_No fields._
-
-#### `GetDescriptorResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `version` | 2 | `string` | — |
-| `description` | 3 | `string` | — |
-| `capabilities` | 4 | `repeated string` | — |
-| `target_schemas` | 5 | `repeated TargetSchemaProto` | — |
-| `technique_types` | 6 | `repeated string` | — |
-| `target_types` | 7 | `repeated string` | Deprecated: v0.8.0. Use target_schemas (field 5) instead. Will be removed in v0.10.0. |
-
-#### `HealthRequest`
-
-_No fields._
-
-#### `HealthResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `status` | 1 | `gibson.common.v1.HealthStatus` | — |
-
-#### `TargetSchemaProto`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `type` | 1 | `string` | — |
-| `version` | 2 | `string` | — |
-| `schema_json` | 3 | `string` | — |
-| `description` | 4 | `string` | — |
-
 ## Package `gibson.agentidentity.v1`
 
 Package gibson.agentidentity.v1 — AgentIdentityService: customer-callable
@@ -905,43 +824,11 @@ progress, partial results, warnings, and the final output.
 
 CancelMission requests cancellation of a running mission.
 
-##### `Complete`
-
-`CompleteRequest` → `CompleteResponse`
-
-Complete proxies an LLM completion request through the agent harness.
-
-##### `CompleteStream`
-
-`CompleteStreamRequest` → `stream CompleteStreamResponse`
-
-CompleteStream proxies a streaming LLM completion request through the agent harness.
-
-##### `CompleteStructured`
-
-`CompleteStructuredRequest` → `CompleteStructuredResponse`
-
-CompleteStructured proxies an LLM completion requesting JSON output
-conforming to the supplied schema.
-
-##### `CompleteWithTools`
-
-`CompleteWithToolsRequest` → `CompleteWithToolsResponse`
-
-CompleteWithTools proxies an LLM completion with tool definitions for
-function-calling support. Returns the response including any tool calls.
-
 ##### `CreateMission`
 
 `CreateMissionRequest` → `CreateMissionResponse`
 
 CreateMission creates a new sub-mission.
-
-##### `DelegateToAgent`
-
-`DelegateToAgentRequest` → `DelegateToAgentResponse`
-
-DelegateToAgent dispatches a sub-task to another agent and returns its result.
 
 ##### `DisablePlugin`
 
@@ -965,26 +852,13 @@ EnrollComponent enrolls a component that the calling agent produced
 the caller and a short-lived bootstrap token for that identity only.
 The person who owns the calling agent owns the new component. The
 platform assigns its trust: a produced component is never trusted, so
-a catalog name is refused. A quota for each tenant bounds how many
-components agents enroll. Each enrollment writes an audit record.
-
-##### `FindSimilarAttacks`
-
-`FindSimilarAttacksRequest` → `FindSimilarAttacksResponse`
-
-FindSimilarAttacks returns attack patterns semantically similar to the given content.
+a catalog name is refused. Each enrollment writes an audit record.
 
 ##### `FindSimilarFindings`
 
 `FindSimilarFindingsRequest` → `FindSimilarFindingsResponse`
 
 FindSimilarFindings returns findings semantically similar to the given finding.
-
-##### `GetAttackChains`
-
-`GetAttackChainsRequest` → `GetAttackChainsResponse`
-
-GetAttackChains returns multi-hop attack paths from a starting technique.
 
 ##### `GetCredential`
 
@@ -1046,12 +920,6 @@ GetTaxonomySchema returns the current taxonomy definition.
 
 Heartbeat sends a periodic health pulse. The response indicates whether
 the component is still considered registered and may carry config updates.
-
-##### `ListAgents`
-
-`ListAgentsRequest` → `ListAgentsResponse`
-
-ListAgents returns descriptors for all agents visible to the caller's tenant.
 
 ##### `ListAvailablePlugins`
 
@@ -1124,6 +992,31 @@ configuration including heartbeat and poll intervals.
 
 ReportStepHints reports planning step hints from an agent back to the orchestrator.
 
+##### `ResolveAgent`
+
+`ResolveAgentRequest` → `ResolveAgentResponse`
+
+ResolveAgent finds the route of an agent on the Agent gateway (A2A). The
+caller then sends an A2A SendMessage (JSON-RPC binding) to gateway_url
+with the A2A client of the SDK. It sends the task grant in the header
+x-capability-grant and each route header of the response unchanged.
+This is the same call as HarnessCallbackService.ResolveAgent, for an
+agent that polls for work. It replaces DelegateToAgent and ListAgents.
+
+Errors: NotFound (no agent of this name), PermissionDenied (the grant
+does not allow the delegation), InvalidArgument.
+
+##### `ResolveModel`
+
+`ResolveModelRequest` → `ResolveModelResponse`
+
+ResolveModel turns a slot into one exact model name (ADR-0172). The agent
+then calls the model gateway with the Open Responses client of the SDK.
+The agent sends the task grant in the header x-capability-grant and sends
+each route header of the response unchanged. The gateway never sees a
+slot name. This is the same call as HarnessCallbackService.ResolveModel,
+for an agent that polls for work.
+
 ##### `RunMission`
 
 `RunMissionRequest` → `RunMissionResponse`
@@ -1182,18 +1075,6 @@ watch another component. The stream stays open until the client cancels.
 
 ### Messages
 
-#### `AgentDescriptorProto`
-
-AgentDescriptorProto describes a registered agent.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `version` | 2 | `string` | — |
-| `description` | 3 | `string` | — |
-| `capabilities` | 4 | `repeated string` | — |
-| `target_types` | 5 | `repeated string` | — |
-
 #### `AuthorizeRequest`
 
 AuthorizeRequest asks whether a work item may do an action on a resource.
@@ -1232,6 +1113,7 @@ CallToolResponse carries the tool execution result.
 |---|---|---|---|
 | `output_json` | 1 | `string` | output_json is the JSON-encoded tool output matching the tool's output schema. |
 | `error` | 2 | `ComponentError` | — |
+| `tool_call_id` | 3 | `string` | tool_call_id is the id that the daemon recorded for this call. An agent cites it in the tool_call_ids of a finding or a proof (CiteToolCalls in the SDK). For the meta-tool invoke_tool it is the id of the recorded call of the invoked tool. Empty when the daemon recorded none, and from a daemon that does not send it. |
 
 #### `CallToolStreamRequest`
 
@@ -1254,6 +1136,7 @@ CallToolStreamResponse is a single event in a streaming tool execution.
 | `payload_json` | 2 | `string` | payload_json carries event-specific data. |
 | `done` | 3 | `bool` | done is true on the final event. |
 | `error` | 4 | `ComponentError` | — |
+| `tool_call_id` | 5 | `string` | tool_call_id is the id that the daemon recorded for this call, as in CallToolResponse.tool_call_id. The daemon sets it on the last event (done is true). Empty on the other events, and from a daemon that does not send it. |
 
 #### `CancelMissionRequest`
 
@@ -1270,90 +1153,20 @@ CancelMissionResponse is returned after cancellation is requested.
 
 _No fields._
 
-#### `CompleteRequest`
+#### `CardSkill`
 
-CompleteRequest is a harness proxy request for a non-streaming LLM completion.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | work_id ties this request to the active work item for authorization and billing. |
-| `slot` | 2 | `string` | slot is the named LLM slot defined by the agent (e.g. "primary"). |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `timeout_ms` | 4 | `int64` | timeout_ms is the maximum time to wait for the completion. |
-
-#### `CompleteResponse`
-
-CompleteResponse carries the LLM's reply to a non-streaming completion.
+CardSkill is one A2A AgentSkill: a capability entry of an Agent Card. It is
+not an Agent Skill in the SKILL.md format.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `response` | 1 | `LLMMessage` | — |
-| `usage` | 2 | `TokenUsage` | — |
-
-#### `CompleteStreamRequest`
-
-CompleteStreamRequest is a harness proxy request for a streaming LLM completion.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | work_id ties this request to the active work item for authorization and billing. |
-| `slot` | 2 | `string` | slot is the named LLM slot defined by the agent (e.g. "primary"). |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `timeout_ms` | 4 | `int64` | timeout_ms is the maximum time to wait for the completion. |
-
-#### `CompleteStreamResponse`
-
-CompleteStreamResponse is a single chunk in a streaming LLM completion response.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `content` | 1 | `string` | — |
-| `done` | 2 | `bool` | done is true on the final chunk; usage is only populated on the final chunk. |
-| `usage` | 3 | `TokenUsage` | — |
-
-#### `CompleteStructuredRequest`
-
-CompleteStructuredRequest is a harness proxy request for structured JSON output.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `schema_json` | 4 | `string` | schema_json is a JSON Schema the LLM output must conform to. |
-| `timeout_ms` | 5 | `int64` | — |
-
-#### `CompleteStructuredResponse`
-
-CompleteStructuredResponse carries the validated structured output.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result_json` | 1 | `string` | result_json is the JSON output conforming to the requested schema. |
-| `usage` | 2 | `TokenUsage` | — |
-
-#### `CompleteWithToolsRequest`
-
-CompleteWithToolsRequest is a harness proxy request for LLM completion with tool definitions.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `tools` | 4 | `repeated ToolDefinition` | — |
-| `timeout_ms` | 5 | `int64` | — |
-
-#### `CompleteWithToolsResponse`
-
-CompleteWithToolsResponse carries the LLM's reply including any tool calls.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `response` | 1 | `LLMMessage` | — |
-| `usage` | 2 | `TokenUsage` | — |
-| `tool_calls` | 3 | `repeated ToolCallResult` | — |
-| `finish_reason` | 4 | `string` | — |
+| `id` | 1 | `string` | — |
+| `name` | 2 | `string` | — |
+| `description` | 3 | `string` | — |
+| `tags` | 4 | `repeated string` | — |
+| `examples` | 5 | `repeated string` | — |
+| `input_modes` | 6 | `repeated string` | input_modes override default_input_modes for this card skill. |
+| `output_modes` | 7 | `repeated string` | output_modes override default_output_modes for this card skill. |
 
 #### `ComponentError`
 
@@ -1407,24 +1220,6 @@ CreateMissionResponse carries the created mission info.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `mission_json` | 1 | `bytes` | mission_json is the JSON-encoded mission.MissionInfo. |
-
-#### `DelegateToAgentRequest`
-
-DelegateToAgentRequest dispatches a sub-task to another agent.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-| `agent_name` | 2 | `string` | — |
-| `task_json` | 3 | `bytes` | task_json is the JSON-encoded agent.Task to delegate. |
-
-#### `DelegateToAgentResponse`
-
-DelegateToAgentResponse carries the delegated agent's result.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result_json` | 1 | `bytes` | result_json is the JSON-encoded agent.Result. |
 
 #### `DisablePluginRequest`
 
@@ -1486,24 +1281,6 @@ one-time credential.
 | `bootstrap_token` | 2 | `string` | bootstrap_token is the one-time credential that the new component exchanges for its host key. It is valid until expires_at and for this component only. It carries no session capability. |
 | `expires_at` | 3 | `google.protobuf.Timestamp` | expires_at is the end of the bootstrap token. |
 
-#### `FindSimilarAttacksRequest`
-
-FindSimilarAttacksRequest searches for attack patterns similar to the given content.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-| `content` | 2 | `string` | — |
-| `top_k` | 3 | `int32` | — |
-
-#### `FindSimilarAttacksResponse`
-
-FindSimilarAttacksResponse carries matching attack patterns.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `results_json` | 1 | `bytes` | results_json is a JSON-encoded []graphrag.AttackPattern. |
-
 #### `FindSimilarFindingsRequest`
 
 FindSimilarFindingsRequest searches for findings similar to the given one.
@@ -1521,24 +1298,6 @@ FindSimilarFindingsResponse carries matching findings.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `results_json` | 1 | `bytes` | results_json is a JSON-encoded []graphrag.FindingNode. |
-
-#### `GetAttackChainsRequest`
-
-GetAttackChainsRequest requests multi-hop attack paths from a technique.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-| `technique_id` | 2 | `string` | — |
-| `max_depth` | 3 | `int32` | — |
-
-#### `GetAttackChainsResponse`
-
-GetAttackChainsResponse carries attack chain results.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `results_json` | 1 | `bytes` | results_json is a JSON-encoded []graphrag.AttackChain. |
 
 #### `GetCredentialRequest`
 
@@ -1708,48 +1467,6 @@ HeartbeatResponse is returned by the server after each heartbeat.
 |---|---|---|---|
 | `registered` | 1 | `bool` | registered indicates whether the server still considers this instance registered. A false value means the component must re-register before polling for work. |
 
-#### `LLMMessage`
-
-LLMMessage represents a single message in an LLM conversation.
-
-Tool-call round trips are represented with two message shapes so a
-multi-turn conversation can replay the full tool history structurally
-(instead of flattening it into `content` text):
-
- 1. An assistant turn that requested tool calls sets `role` to
- "assistant" and carries the calls in `tool_calls` (typically copied
- verbatim from a prior `CompleteWithToolsResponse.tool_calls`).
- `content` holds any accompanying assistant text and may be empty.
- 2. A tool-result turn sets `role` to "tool", `tool_call_id` to the
- `ToolCallResult.id` it answers, and `content` to the tool's output.
- One message per tool call; a turn with N tool calls is followed by
- N tool-result messages.
-
-Both fields are optional: plain role+content messages are unchanged.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `role` | 1 | `string` | role is "system", "user", "assistant", or "tool". |
-| `content` | 2 | `string` | — |
-| `tool_calls` | 3 | `repeated ToolCallResult` | tool_calls carries the tool calls an assistant turn requested. Set only when role is "assistant"; empty for all other roles. |
-| `tool_call_id` | 4 | `string` | tool_call_id identifies which requested tool call this message answers. Set only when role is "tool", in which case `content` carries the tool's output and this matches the `ToolCallResult.id` of the corresponding entry in the preceding assistant turn's `tool_calls`. Empty for all other roles. |
-
-#### `ListAgentsRequest`
-
-ListAgentsRequest requests descriptors for all available agents.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `work_id` | 1 | `string` | — |
-
-#### `ListAgentsResponse`
-
-ListAgentsResponse carries all agent descriptors visible to the caller.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `agents` | 1 | `repeated AgentDescriptorProto` | — |
-
 #### `ListAvailablePluginsRequest`
 
 ListAvailablePluginsRequest is an empty request; filtering may be added in future fields.
@@ -1859,6 +1576,7 @@ When work_id is empty the poll timed out without available work.
 | `payload` | 3 | `bytes` | payload is the serialized work payload; interpretation depends on work_type. |
 | `context` | 4 | `map<string, string>` | context carries arbitrary key-value metadata associated with this work item. |
 | `timeout_ms` | 5 | `int64` | timeout_ms is the maximum time allowed to complete and submit the result. |
+| `task_grant` | 6 | `string` | task_grant is the task grant of this work item (the compact JWT that the daemon mints for the task, with the tenant, mission and task claims). The agent sends it in the header x-capability-grant on each call to a gateway: the model gateway and the Agent gateway. It is a secret. Empty means the work item has no grant, and the agent then cannot call a gateway. The agent renews it with DaemonService.RenewCapabilityGrant before it expires. |
 
 #### `QueryNodesRequest`
 
@@ -1935,6 +1653,9 @@ itself and declare its capabilities.
 | `config_schema_json` | 10 | `string` | config_schema_json is the JSON Schema document describing the plugin's configuration surface (used when kind == "plugin"). |
 | `ontology_extension` | 11 | `gibson.graphrag.v1.OntologyExtension` | ontology_extension carries the component's contribution to the daemon's ontology reasoner (hierarchies, equivalences, IFPs, prefixes). Optional; components that do not author an `ontology.yaml` leave this unset and the daemon's reasoner is unaffected. Mirrors `graphrag.OntologyExtension` on the Go side; populated automatically by `serve.Tool` / `serve.Agent` when the component implements the optional `serve.OntologyContributor` interface. |
 | `method_descriptors` | 12 | `repeated ComponentMethod` | method_descriptors carries per-method metadata (name + human-readable description + optional JSON-Schema input) for plugin methods. It is the rich superset of `methods` (which stays for back-compat): `methods` carries names only; `method_descriptors` carries the descriptions an agent reads to disambiguate tools in the catalog (SearchTools). Used when kind == "plugin". Empty is valid (older SDKs populate only `methods`). |
+| `card_skills` | 13 | `repeated CardSkill` | card_skills are the entries of the "skills" list of the A2A Agent Card of this agent (used when kind == "agent"). The daemon serves the card from the catalog, and it builds the card from this registration. Naming: an A2A AgentSkill is a capability entry of a card. It is NOT an Agent Skill in the SKILL.md format (the "skill:&lt;name>" ids of the catalog). The field says card_skills so the two never mix. |
+| `default_input_modes` | 14 | `repeated string` | default_input_modes are the media types that the agent accepts, as the defaultInputModes of the Agent Card (used when kind == "agent"). |
+| `default_output_modes` | 15 | `repeated string` | default_output_modes are the media types that the agent returns, as the defaultOutputModes of the Agent Card (used when kind == "agent"). |
 
 #### `RegisterComponentResponse`
 
@@ -1963,6 +1684,52 @@ ReportStepHintsRequest reports planning step hints from an agent.
 ReportStepHintsResponse is returned after hints are accepted.
 
 _No fields._
+
+#### `ResolveAgentRequest`
+
+ResolveAgentRequest asks the daemon for the Agent gateway route of an agent.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `work_id` | 1 | `string` | work_id ties this request to the active work item for authorization. |
+| `name` | 2 | `string` | name is the name of the agent. |
+| `bank_id` | 3 | `optional string` | bank_id names a bank of always-on agents. When it is set, the route is the route of a member of that bank, and name is the agent that the bank runs. Unset means an ephemeral agent. |
+
+#### `ResolveAgentResponse`
+
+ResolveAgentResponse holds what the caller needs to send an A2A message to
+an agent through the Agent gateway.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `gateway_url` | 1 | `string` | gateway_url is the JSON-RPC interface URL of the agent on the Agent gateway. The caller sends A2A SendMessage to this URL. |
+| `route_headers` | 2 | `map<string, string>` | route_headers are the headers that the gateway route matches on. The caller sends each one unchanged. |
+| `gateway_ca_pem` | 3 | `string` | gateway_ca_pem is the PEM bundle of the private CA of the Agent gateway. The caller trusts exactly this bundle for gateway_url, which must use https. Empty means the system roots. |
+| `agent_card_url` | 4 | `string` | agent_card_url is the URL of the Agent Card of the agent on the gateway. |
+
+#### `ResolveModelRequest`
+
+ResolveModelRequest asks the daemon for the model of a slot.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `work_id` | 1 | `string` | work_id ties this request to the active work item for authorization. |
+| `slot` | 2 | `string` | slot is the named LLM slot defined by the agent (e.g. "primary"). |
+
+#### `ResolveModelResponse`
+
+ResolveModelResponse names the one model that the slot resolves to, and the
+facts that the agent needs to call the model gateway.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `model` | 1 | `string` | model is the exact model name for the model field of the request. |
+| `provider` | 2 | `string` | provider is the name of the model provider of the tenant. |
+| `gateway_url` | 3 | `string` | gateway_url is the base URL of the model gateway. The agent calls POST &#123;gateway_url}/v1/responses. |
+| `route_headers` | 4 | `map<string, string>` | route_headers are the headers that the gateway route matches on. The agent sends each one unchanged. |
+| `context_window` | 5 | `int32` | context_window is the size of the context window in tokens. 0 means unknown. |
+| `max_output_tokens` | 6 | `int32` | max_output_tokens is the output limit of the model in tokens. 0 means unknown. |
+| `gateway_ca_pem` | 7 | `string` | gateway_ca_pem is the PEM bundle of the private CA that signed the certificate of the model gateway. The agent trusts exactly this bundle for calls to gateway_url, which must use https. Empty means the system roots. |
 
 #### `RunMissionRequest`
 
@@ -2036,35 +1803,6 @@ TestPluginConnectionResponse reports the result of a connectivity test.
 | `message` | 2 | `string` | — |
 | `latency_ms` | 3 | `int64` | latency_ms is the round-trip time of the test probe in milliseconds. |
 
-#### `TokenUsage`
-
-TokenUsage reports token consumption for an LLM call.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `input_tokens` | 1 | `int32` | — |
-| `output_tokens` | 2 | `int32` | — |
-
-#### `ToolCallResult`
-
-ToolCallResult represents a tool call made by the LLM.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | — |
-| `arguments_json` | 3 | `string` | arguments is the JSON-encoded arguments the LLM generated for this tool call. |
-
-#### `ToolDefinition`
-
-ToolDefinition describes a tool available for LLM function calling.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `description` | 2 | `string` | — |
-| `input_schema_json` | 3 | `string` | input_schema is a JSON Schema describing the tool's input parameters. |
-
 #### `ToolDescriptorProto`
 
 ToolDescriptorProto describes a registered tool.
@@ -2097,6 +1835,7 @@ ToolResultsResponse is a single result from a queued tool batch.
 | `output_json` | 2 | `string` | output_json is the JSON-encoded tool output. |
 | `error` | 3 | `ComponentError` | — |
 | `done` | 4 | `bool` | done is true on the final result. |
+| `tool_call_id` | 5 | `string` | tool_call_id is the id that the daemon recorded for the call of this input, as in CallToolResponse.tool_call_id. Empty when the daemon recorded none, and from a daemon that does not send it. |
 
 #### `UpdatePluginConfigRequest`
 
@@ -2276,8 +2015,8 @@ GetAgentStatus returns the current status of a specific agent.
 GetCapabilityManifest returns the signed, versioned capability manifest
 for the calling principal in their resolved tenant. SDKs call this on
 session start and on invalidation events. The ADK calls it at scaffold
-time to discover what components, permissions, cross-component rules,
-and runtime limits apply.
+time to discover what components, permissions and cross-component rules
+apply.
 
 ##### `GetComponentLogs`
 
@@ -2667,21 +2406,6 @@ render it.
 | `description` | 2 | `string` | description is the one-line description from the mission's own definition. |
 | `version` | 3 | `string` | version is the mission's declared version. |
 | `declared_params` | 4 | `repeated string` | declared_params names every parameter this mission requires, sorted. The set is closed: RenderCatalogMission refuses a key that is not here, and refuses a render that omits one. |
-
-#### `CheckpointMetadata`
-
-CheckpointMetadata is the summary of a source checkpoint on a
-ResumeMission response. The daemon does not send it today: see
-ResumeMissionResponse.checkpoint_metadata. The checkpoints of a run are listed by
-GetMissionCheckpoints (ADR-0170).
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `checkpoint_id` | 1 | `string` | checkpoint_id is the identifier of the source checkpoint. |
-| `saved_at_unix_seconds` | 2 | `int64` | saved_at_unix_seconds is when the checkpoint was captured (Unix epoch seconds). |
-| `super_step_number` | 3 | `int32` | super_step_number identifies which super-step boundary this checkpoint captured (1-based; 0 if not super-step-aligned). |
-| `cadence_reason` | 4 | `string` | cadence_reason is a free-form classifier for why the checkpoint was taken. Recognized values per R9.1: "super_step", "parallel_group_complete", "approval_required", "graceful_shutdown". Promoted to enum at v1.0.0. |
-| `size_bytes` | 5 | `int64` | size_bytes is the wire size of the checkpoint payload (advisory). |
 
 #### `CompleteMissionCUERequest`
 
@@ -3347,7 +3071,6 @@ PauseMissionResponse confirms the mission pause request.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `success` | 1 | `bool` | success indicates if the pause request was accepted |
-| `checkpoint_id` | 2 | `string` | checkpoint_id is empty. A pause does not make a checkpoint: a checkpoint is the end of a node in a run (ADR-0170). Use GetMissionCheckpoints to list the checkpoints of a run. |
 | `message` | 3 | `string` | message provides additional context about the pause operation |
 
 #### `PermissionComponentGrant`
@@ -3475,7 +3198,6 @@ ResumeMissionResponse wraps a MissionEvent for the ResumeMission streaming RPC.
 | `data` | 6 | `gibson.common.v1.TypedMap` | data contains event-specific data (typed map) |
 | `error` | 7 | `string` | error contains error information if the event represents an error |
 | `result` | 8 | `OperationResult` | result contains typed operation metrics (for mission.completed events) |
-| `checkpoint_metadata` | 9 | `CheckpointMetadata` | checkpoint_metadata is not set by the daemon. A resume continues the same run, so a resume stream has no source checkpoint. A run that starts at a checkpoint is a new run from RewindMission, and it records the checkpoint in parent_checkpoint_id (ADR-0170). |
 
 #### `RewindMissionRequest`
 
@@ -3729,12 +3451,13 @@ MissionStatus represents the execution status of a mission.
 | Value | # | Description |
 |---|---|---|
 | `MISSION_STATUS_UNSPECIFIED` | 0 | — |
-| `MISSION_STATUS_PENDING` | 1 | — |
-| `MISSION_STATUS_RUNNING` | 2 | — |
 | `MISSION_STATUS_PAUSED` | 3 | — |
 | `MISSION_STATUS_COMPLETED` | 4 | — |
 | `MISSION_STATUS_FAILED` | 5 | — |
-| `MISSION_STATUS_CANCELLED` | 6 | — |
+| `MISSION_STATUS_INPUT_REQUIRED` | 7 | — |
+| `MISSION_STATUS_SUBMITTED` | 8 | — |
+| `MISSION_STATUS_WORKING` | 9 | — |
+| `MISSION_STATUS_CANCELED` | 10 | — |
 
 ## Package `gibson.graph.v1`
 
@@ -3867,6 +3590,12 @@ knowledge graph, shaped for dashboard list/detail views.
 | `created_at` | 7 | `google.protobuf.Timestamp` | — |
 | `properties` | 8 | `map<string, string>` | Catch-all for additional properties beyond the structured fields above (CVE, CVSS, etc.). Values are stringified to preserve fidelity through proto3. |
 | `labels` | 9 | `repeated string` | Distinguishes:Finding from:Vulnerability and any future label split. |
+| `assets` | 11 | `repeated string` | assets names the place of the finding: each host, service, repo or other asset that the finding affects. Empty means the daemon knows no place. |
+| `priority` | 12 | `string` | priority is the rank of the finding, "P1" (most urgent) to "P4". Empty means no triage has decided a priority yet. A reader must not show an empty priority as "unimportant". |
+| `priority_rule` | 13 | `string` | priority_rule names the triage rule that set the priority. Empty means no rule has set one. |
+| `confidence` | 14 | `optional double` | confidence is how sure the platform is that the finding is real, from 0.0 to 1.0. The field is absent when the platform has no value. Absent is not the same as 0.0. |
+| `merge_request_url` | 15 | `string` | merge_request_url links to the merge request of the fix. Empty means no merge request exists for the finding. |
+| `lifecycle_status` | 16 | `FindingLifecycleStatus` | lifecycle_status is where the finding stands in the fix loop. The finding is the unit of work, so the status belongs to the finding. The daemon always sets it. FINDING_LIFECYCLE_STATUS_UNSPECIFIED means the daemon did not report a status, and a reader must not show it as OPEN. The name is not "status", because gibson.types.v1.Finding.status uses the value set of FindingStatus, which is a different set. Number 10 held this field under the name "status" before any release read it. The wire contract is append-only (ADR-0028), so the field moved to number 16 and 10 is reserved. |
 
 #### `GetFindingCountsRequest`
 
@@ -4085,6 +3814,20 @@ _No fields._
 | `SEVERITY` | 1 | — |
 | `CATEGORY` | 2 | — |
 
+#### `FindingLifecycleStatus`
+
+FindingLifecycleStatus is where a finding stands in the fix loop. A fix
+moves a finding from OPEN to FIXING to FIXED. The check that raised the
+finding then moves it to VERIFIED, or back to OPEN if the check fails.
+
+| Value | # | Description |
+|---|---|---|
+| `FINDING_LIFECYCLE_STATUS_UNSPECIFIED` | 0 | Sentinel value. The daemon did not report a status. |
+| `FINDING_LIFECYCLE_STATUS_OPEN` | 1 | FINDING_LIFECYCLE_STATUS_OPEN means no fix is under way. |
+| `FINDING_LIFECYCLE_STATUS_FIXING` | 2 | FINDING_LIFECYCLE_STATUS_FIXING means an agent works on a fix. |
+| `FINDING_LIFECYCLE_STATUS_FIXED` | 3 | FINDING_LIFECYCLE_STATUS_FIXED means a fix is in place. The check that raised the finding has not yet confirmed it. |
+| `FINDING_LIFECYCLE_STATUS_VERIFIED` | 4 | FINDING_LIFECYCLE_STATUS_VERIFIED means the check that raised the finding confirmed the fix. |
+
 #### `GraphUpdate.Kind`
 
 | Value | # | Description |
@@ -4097,48 +3840,6 @@ _No fields._
 ## Package `gibson.graphrag.v1`
 
 ### Messages
-
-#### `AttackChain`
-
-AttackChain is a multi-hop technique sequence discovered by graph traversal.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | — |
-| `steps` | 3 | `repeated AttackStep` | — |
-| `mission_id` | 4 | `string` | — |
-| `confidence` | 5 | `double` | confidence for the chain as a whole. |
-| `severity` | 6 | `string` | — |
-| `created_at` | 20 | `int64` | — |
-| `updated_at` | 21 | `int64` | — |
-
-#### `AttackPattern`
-
-AttackPattern is a MITRE ATT&amp;CK-shaped technique record from the tenant graph.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `technique_id` | 2 | `string` | technique_id is the ATT&amp;CK identifier, e.g. "T1566". |
-| `name` | 3 | `string` | — |
-| `description` | 4 | `string` | — |
-| `references` | 8 | `repeated string` | — |
-| `created_at` | 20 | `int64` | — |
-| `updated_at` | 21 | `int64` | — |
-
-#### `AttackStep`
-
-AttackStep is one hop in an AttackChain.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `order` | 1 | `int32` | — |
-| `technique_id` | 2 | `string` | — |
-| `node_id` | 3 | `string` | — |
-| `description` | 4 | `string` | — |
-| `evidence` | 5 | `repeated string` | evidence names the findings supporting this step. |
-| `confidence` | 6 | `double` | — |
 
 #### `Certificate`
 
@@ -4182,9 +3883,9 @@ Tools populate this message and Gibson automatically persists to the graph.
 | `technologies` | 7 | `repeated Technology` | — |
 | `certificates` | 8 | `repeated Certificate` | — |
 | `findings` | 9 | `repeated Finding` | Security findings |
-| `evidence` | 10 | `repeated Evidence` | — |
 | `custom_nodes` | 20 | `repeated CustomNode` | Custom extensions |
 | `explicit_relationships` | 21 | `repeated ExplicitRelationship` | — |
+| `finding_evidence` | 23 | `repeated FindingEvidence` | finding_evidence is evidence that a parser read from tool output, for a finding of this result. Each item names its finding by finding_id. A parser fills the type, the title, the content and the metadata of the evidence. It never sets the tier or the tool call id: the daemon sets both. The number 10 stays reserved. This is a new field with a new number. |
 
 #### `Domain`
 
@@ -4208,18 +3909,6 @@ Endpoint (URL) on a service.
 | `status_code` | 5 | `optional int32` | — |
 | `content_type` | 6 | `optional string` | — |
 | `title` | 8 | `optional string` | — |
-
-#### `Evidence`
-
-Evidence for a finding.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `optional string` | — |
-| `finding_id` | 2 | `string` | — |
-| `type` | 3 | `string` | — |
-| `content` | 4 | `optional string` | — |
-| `url` | 5 | `optional string` | — |
 
 #### `ExplicitRelationship`
 
@@ -4249,6 +3938,17 @@ Finding (vulnerability or security issue).
 | `remediation` | 7 | `optional string` | — |
 | `cve_ids` | 9 | `optional string` | — |
 | `parent_id` | 10 | `optional string` | Parent entity reference (optional - finding can be associated with various entities) |
+
+#### `FindingEvidence`
+
+FindingEvidence ties one evidence item to a finding of the same
+DiscoveryResult. The evidence shape is gibson.types.v1.Evidence, the one
+evidence shape (gibson#1365).
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `finding_id` | 1 | `string` | finding_id is the id of an entry of DiscoveryResult.findings. |
+| `evidence` | 2 | `gibson.types.v1.Evidence` | evidence is the item. The tier and the tool_call_id of it are set by the daemon, and the daemon ignores a value that a parser sends. |
 
 #### `FindingNode`
 
@@ -4555,12 +4255,6 @@ mirrors gibson.job.v1.JobService.CloseJob.
 Mission Management Operations
 These enable agents to autonomously create, run, and manage missions
 
-##### `DelegateToAgent`
-
-`DelegateToAgentRequest` → `DelegateToAgentResponse`
-
-Agent Operations
-
 ##### `DeleteSessionContext`
 
 `DeleteSessionContextRequest` → `DeleteSessionContextResponse`
@@ -4577,10 +4271,6 @@ This is deliberately distinct from the per-call SANDBOXED tool path
 working state (checkouts, build caches) that per-call isolation would
 throw away between commands.
 
-##### `FindSimilarAttacks`
-
-`FindSimilarAttacksRequest` → `FindSimilarAttacksResponse`
-
 ##### `FindSimilarFindings`
 
 `FindSimilarFindingsRequest` → `FindSimilarFindingsResponse`
@@ -4589,9 +4279,20 @@ throw away between commands.
 
 `GenerateNodeIDRequest` → `GenerateNodeIDResponse`
 
-##### `GetAttackChains`
+##### `GetCountermeasures`
 
-`GetAttackChainsRequest` → `GetAttackChainsResponse`
+`GetCountermeasuresRequest` → `GetCountermeasuresResponse`
+
+GetCountermeasures returns the defensive countermeasures that counter one
+ATT&amp;CK technique, from the D3FEND pack of the platform catalog
+(zeroroot-ai/gibson#1487). A fix agent reads them when it plans a fix, and
+it names the one that the fix applies in the context of the fix job.
+
+The catalog is the same for every tenant, so the request carries no tenant
+field. A technique that no countermeasure counters returns an empty list
+and no error. A value that is not an ATT&amp;CK technique id is refused by
+the validation of the request. An empty value passes validation, and the
+SDK makes no call for it.
 
 ##### `GetCredential`
 
@@ -4639,27 +4340,11 @@ Planning Operations
 
 Taxonomy Operations
 
-##### `LLMComplete`
+##### `LastReadMarker`
 
-`LLMCompleteRequest` → `LLMCompleteResponse`
+`LastReadMarkerRequest` → `LastReadMarkerResponse`
 
-LLM Operations
-
-##### `LLMCompleteStructured`
-
-`LLMCompleteStructuredRequest` → `LLMCompleteStructuredResponse`
-
-##### `LLMCompleteWithTools`
-
-`LLMCompleteWithToolsRequest` → `LLMCompleteWithToolsResponse`
-
-##### `LLMStream`
-
-`LLMStreamRequest` → `stream LLMStreamResponse`
-
-##### `ListAgents`
-
-`ListAgentsRequest` → `ListAgentsResponse`
+LastReadMarker returns the last marker of one Connector.
 
 ##### `ListMissions`
 
@@ -4795,6 +4480,33 @@ demonstration BEFORE the agent performs it (ADR-0132). It returns
 immediately with a pending request id — the fleet keeps working while
 the decision is pending. The agent performs the destructive act only
 after it reads back an approval, then calls SubmitProof.
+
+##### `ResolveAgent`
+
+`ResolveAgentRequest` → `ResolveAgentResponse`
+
+ResolveAgent finds the route of an agent on the Agent gateway (A2A). The
+caller then sends an A2A SendMessage (JSON-RPC binding) to gateway_url
+with the A2A client of the SDK. It sends the task grant in the header
+x-capability-grant and each route header of the response unchanged.
+This call replaces DelegateToAgent and ListAgents. An agent finds other
+agents through the Agent Cards that the daemon serves.
+
+Errors: NotFound (no agent of this name), PermissionDenied (the grant
+does not allow the delegation), InvalidArgument.
+
+##### `ResolveModel`
+
+`ResolveModelRequest` → `ResolveModelResponse`
+
+ResolveModel turns a slot into one exact model name (ADR-0172, decision 4).
+The agent then calls the model gateway with the Open Responses client of
+the SDK. The gateway never sees a slot name. The agent sends the task
+grant in the header x-capability-grant and sends each route header of
+the response unchanged.
+
+Errors: NotFound (the slot has no model), PermissionDenied (the task
+grant does not allow the slot), InvalidArgument.
 
 ##### `RunMission`
 
@@ -4935,6 +4647,17 @@ there, never from this request. WorldViewRequest carries no tenant field and
 no scope field, so an agent cannot name another tenant's World or a wider
 slice: both are unrepresentable rather than rejected.
 
+##### `WriteReadMarker`
+
+`WriteReadMarkerRequest` → `WriteReadMarkerResponse`
+
+Read markers. An agent that reads the results of a Connector in a loop
+records how far it read. The daemon stores each marker as a Timeline
+event of the tenant. After a restart, the agent reads the last marker
+and continues from it, so it reads no result twice and skips none.
+
+WriteReadMarker records a marker for one Connector.
+
 ### Messages
 
 #### `AccountObservation`
@@ -4999,6 +4722,12 @@ context that decides how much it matters.
 | `priority` | 11 | `string` | priority, priority_rule and priority_reason are what a previous triage pass decided about this Finding, written back by the agent and returned here so the next pass can read its own history. Two behaviors are dark while they are empty. A triage rule that keeps the previous priority when a scoring feed is unavailable — so an outage never re-ranks a Finding on severity alone — has nothing to keep. And a pass that explains only what changed sees every decision as a change, so model cost scales with the size of the backlog rather than with what actually happened. Empty means NO PASS HAS DECIDED YET. That is a fact about the Finding, not a failure of the read, and a reader must never take it for "unimportant". The three are written by different steps — a rule table decides the priority, a model writes the reason — so losing the reason must not take the decision with it: an empty priority_reason beside a populated priority is a model that went quiet, not a Finding nobody ranked. |
 | `priority_rule` | 12 | `string` | — |
 | `priority_reason` | 13 | `string` | — |
+| `fix_blocked_reason` | 14 | `string` | fix_blocked_reason is why the fix agent did not fix this Finding. The next pass reads it and does not try the same fix again. Empty means no fix agent has given up on the Finding. |
+| `merge_request` | 15 | `string` | merge_request is the key of the merge request of the current fix (the FIXED_BY edge). merge_request_url links to it. Both are empty when no fix of the Finding has a merge request. |
+| `merge_request_url` | 16 | `string` | — |
+| `technique` | 17 | `string` | technique is the id of the ATT&amp;CK technique that the Finding exercises, for example "T1190" or "T1059.001". Empty means that the Finding names no technique, which is a fact about the Finding and not a failure of the read. A fix agent passes it to GetCountermeasures. |
+| `fix_head_sha` | 18 | `string` | fix_head_sha is the head commit of the merge request of the current fix, and fix_files are the files that the merge request changes, with no content. The daemon fills both from its own read of the fix merge request through the connector of the tenant, when it links the Finding to the merge request (FIXED_BY), after its checks that the merge request is open, was created after the claim of the job and has the branch of the job. They are empty when no fix of the Finding has a merge request. A caller cannot set them, and no agent claim feeds them. The fix agent passes the head to the host as the head that it expects, and it merges only when the files of the merge request equal fix_files. One window stays: a commit that a person pushes between the end of the job and the link is in both values, so the agent cannot see it. |
+| `fix_files` | 19 | `repeated FixFile` | — |
 
 #### `ApplicationFindingsRequest`
 
@@ -5093,6 +4822,7 @@ CallToolProtoResponse returns the tool output as proto-serialized JSON.
 |---|---|---|---|
 | `output_json` | 1 | `bytes` | JSON-serialized proto response message |
 | `error` | 2 | `HarnessError` | — |
+| `tool_call_id` | 3 | `string` | tool_call_id is the id that the daemon recorded for this call. An agent cites it in the tool_call_ids of a finding or a proof (CiteToolCalls in the SDK). It is the same id as ContextInfo.tool_execution_id of the work that the call started. For the meta-tool invoke_tool it is the id of the recorded call of the invoked tool. Empty when the daemon recorded none, and from a daemon that does not send it. |
 
 #### `CallToolProtoStreamRequest`
 
@@ -5121,6 +4851,7 @@ CallToolProtoStreamResponse streams tool execution events back to the agent.
 | `trace_id` | 10 | `string` | — |
 | `span_id` | 11 | `string` | — |
 | `sequence` | 12 | `int64` | — |
+| `tool_call_id` | 14 | `string` | tool_call_id is the id that the daemon recorded for this call, as in CallToolProtoResponse.tool_call_id. The daemon sets it on the last message of the stream (the complete event or the error event). Empty on the other messages, and from a daemon that does not send it. |
 
 **oneof `payload`** — one of: `progress`, `partial`, `warning`, `complete`, `error`.
 
@@ -5209,6 +4940,17 @@ CloseJobResponse carries the job after the close was recorded.
 | `run_number` | 8 | `int32` | Run number - sequential number for this mission (1, 2, 3...). Used for mission memory queries and historical comparisons. |
 | `tool_execution_id` | 9 | `string` | Tool execution ID - unique identifier for tool execution provenance. Used to create PRODUCED relationships from tool executions to nodes. |
 
+#### `Countermeasure`
+
+Countermeasure is one defensive technique of the D3FEND pack.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `id` | 1 | `string` | id is the id of the countermeasure in its framework, for example "D3-FA". A fix job names this value. |
+| `name` | 2 | `string` | name is the name that the framework gives the countermeasure. |
+| `tactic` | 3 | `string` | tactic is the tactic of the countermeasure, for example "Harden". |
+| `nist_controls` | 4 | `repeated string` | nist_controls are the ids of the NIST SP 800-53 rev 5 controls that the framework maps to the countermeasure. |
+
 #### `CreateMissionRequest`
 
 CreateMissionRequest creates a new mission from a mission definition.
@@ -5260,35 +5002,6 @@ CredentialObservation reports a discovered credential (identity: secret hash).
 | `secret_hash` | 1 | `string` | — |
 | `username` | 2 | `string` | — |
 | `kind` | 3 | `string` | — |
-
-#### `DelegateToAgentRequest`
-
-DelegateToAgentRequest dispatches a task to another agent. The target
-selector says WHERE the task runs. Absent means an ephemeral launch, which
-is the behavior every caller had before banks existed.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `name` | 2 | `string` | — |
-| `task` | 3 | `gibson.types.v1.Task` | — |
-| `ephemeral` | 10 | `bool` | ephemeral launches a new sandbox for this task and tears it down when the task ends. Setting it to true is the same as leaving the oneof unset; it lets a caller say so out loud. |
-| `bank_id` | 11 | `string` | bank_id opens a new job on that bank. A member with a free slot takes it, or the bank queues it, per the bank spill policy. |
-| `job_id` | 12 | `string` | job_id sends the task as the next input to a job that is already open, so the agent keeps its conversation and its worktrees. |
-
-**oneof `target`** — one of: `ephemeral`, `bank_id`, `job_id`.
-
-#### `DelegateToAgentResponse`
-
-DelegateToAgentResponse carries the delegated task's result, and the job
-the task ran as when the target was a bank or a job.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result` | 1 | `gibson.types.v1.Result` | — |
-| `error` | 2 | `HarnessError` | — |
-| `job_id` | 3 | `string` | job_id names the job the task ran as. Empty for an ephemeral launch. |
-| `member_id` | 4 | `string` | member_id names the bank member that ran the job. Empty for an ephemeral launch. |
 
 #### `DeleteSessionContextRequest`
 
@@ -5360,25 +5073,6 @@ EndpointObservation is a path observed on a service.
 | `path` | 1 | `string` | — |
 | `status` | 2 | `int32` | — |
 
-#### `FindSimilarAttacksRequest`
-
-FindSimilarAttacksRequest searches for attack patterns similar to the given content.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `content` | 2 | `string` | — |
-| `top_k` | 3 | `int32` | — |
-
-#### `FindSimilarAttacksResponse`
-
-FindSimilarAttacksResponse carries matching attack patterns.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `results` | 1 | `repeated gibson.graphrag.v1.AttackPattern` | — |
-| `error` | 2 | `HarnessError` | — |
-
 #### `FindSimilarFindingsRequest`
 
 FindSimilarFindingsRequest searches for findings similar to the given one.
@@ -5410,6 +5104,18 @@ FindingFilter represents filtering criteria for findings
 | `status` | 4 | `gibson.types.v1.FindingStatus` | — |
 | `tags` | 5 | `repeated string` | — |
 
+#### `FixFile`
+
+FixFile is one file that a fix merge request changes. It holds no content.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `path` | 1 | `string` | path is the path of the file after the change. |
+| `change` | 2 | `FixFileChange` | — |
+| `previous_path` | 3 | `string` | previous_path is the path before the change. It is set for a rename only. |
+| `blob_sha` | 4 | `string` | blob_sha is the git object id of the file after the change. It is empty for a deleted file, and set for every other change. |
+| `mode` | 5 | `string` | mode is the git file mode at the head: 100644, 100755, 120000 or 160000. The daemon fills it from the mode that its connector read of the merge request gives. It is empty when the host gives none (GitHub gives no mode in the list of files). The fix agent compares it with the mode in the state of the merge request when both are set. |
+
 #### `GenerateNodeIDRequest`
 
 | Field | # | Type | Description |
@@ -5425,23 +5131,24 @@ FindingFilter represents filtering criteria for findings
 | `node_id` | 1 | `string` | — |
 | `error` | 2 | `HarnessError` | — |
 
-#### `GetAttackChainsRequest`
+#### `GetCountermeasuresRequest`
 
-GetAttackChainsRequest requests multi-hop attack paths from a technique.
+GetCountermeasuresRequest asks for the countermeasures that counter one
+ATT&amp;CK technique.
 
 | Field | # | Type | Description |
 |---|---|---|---|
 | `context` | 1 | `ContextInfo` | — |
-| `technique_id` | 2 | `string` | — |
-| `max_depth` | 3 | `int32` | — |
+| `technique` | 2 | `string` | technique is the id of an ATT&amp;CK technique, for example "T1190" or "T1059.001". |
 
-#### `GetAttackChainsResponse`
+#### `GetCountermeasuresResponse`
 
-GetAttackChainsResponse carries attack chain results.
+GetCountermeasuresResponse carries the countermeasures of one technique, in
+the order of the pack.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `results` | 1 | `repeated gibson.graphrag.v1.AttackChain` | — |
+| `countermeasures` | 1 | `repeated Countermeasure` | — |
 | `error` | 2 | `HarnessError` | — |
 
 #### `GetCredentialRequest`
@@ -5616,17 +5323,6 @@ GetRunFindingsResponse carries findings from the selected runs.
 | `capabilities` | 7 | `repeated TaxonomyCapability` | — |
 | `error` | 8 | `HarnessError` | — |
 
-#### `HarnessAgentDescriptor`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `version` | 2 | `string` | — |
-| `description` | 3 | `string` | — |
-| `capabilities` | 4 | `repeated string` | — |
-| `target_types` | 5 | `repeated string` | — |
-| `technique_types` | 6 | `repeated string` | — |
-
 #### `HarnessError`
 
 Error represents an error response from a callback operation.
@@ -5714,95 +5410,28 @@ KeyValue represents a key-value pair used in span attributes.
 | `key` | 1 | `string` | — |
 | `value` | 2 | `AnyValue` | — |
 
-#### `LLMCompleteRequest`
+#### `LastReadMarkerRequest`
+
+LastReadMarkerRequest asks for the last marker of one Connector.
 
 | Field | # | Type | Description |
 |---|---|---|---|
 | `context` | 1 | `ContextInfo` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `temperature` | 4 | `optional double` | Completion options |
-| `max_tokens` | 5 | `optional int32` | — |
-| `top_p` | 6 | `optional double` | — |
-| `stop` | 7 | `repeated string` | — |
+| `connector` | 2 | `string` | connector is the name of the ConnectorInstance. Required. |
 
-#### `LLMCompleteResponse`
+#### `LastReadMarkerResponse`
 
-| Field | # | Type | Description |
-|---|---|---|---|
-| `content` | 1 | `string` | — |
-| `tool_calls` | 2 | `repeated ToolCall` | — |
-| `finish_reason` | 3 | `string` | — |
-| `usage` | 4 | `TokenUsage` | — |
-| `error` | 5 | `HarnessError` | — |
+LastReadMarkerResponse carries the last marker of one Connector.
 
-#### `LLMCompleteStructuredRequest`
+found is false when the Connector has no marker yet. Then the agent reads
+from the start. A read that fails reports error, and never found = false
+with no error: the agent would read every result again.
 
 | Field | # | Type | Description |
 |---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `schema_json` | 4 | `string` | — |
-
-#### `LLMCompleteStructuredResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `result` | 1 | `gibson.common.v1.TypedValue` | — |
-| `usage` | 3 | `TokenUsage` | — |
-| `error` | 4 | `HarnessError` | — |
-
-#### `LLMCompleteWithToolsRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `tools` | 4 | `repeated ToolDef` | — |
-
-#### `LLMCompleteWithToolsResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `content` | 1 | `string` | — |
-| `tool_calls` | 2 | `repeated ToolCall` | — |
-| `finish_reason` | 3 | `string` | — |
-| `usage` | 4 | `TokenUsage` | — |
-| `error` | 5 | `HarnessError` | — |
-
-#### `LLMMessage`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `role` | 1 | `string` | — |
-| `content` | 2 | `string` | — |
-| `tool_calls` | 3 | `repeated ToolCall` | — |
-| `tool_results` | 4 | `repeated ToolResult` | — |
-| `name` | 5 | `string` | — |
-
-#### `LLMStreamRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-| `slot` | 2 | `string` | — |
-| `messages` | 3 | `repeated LLMMessage` | — |
-| `temperature` | 4 | `optional double` | Completion options |
-| `max_tokens` | 5 | `optional int32` | — |
-| `top_p` | 6 | `optional double` | — |
-| `stop` | 7 | `repeated string` | — |
-
-#### `LLMStreamResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `delta` | 1 | `string` | — |
-| `tool_calls` | 2 | `repeated ToolCall` | — |
-| `finish_reason` | 3 | `string` | — |
-| `usage` | 4 | `TokenUsage` | — |
-| `error` | 5 | `HarnessError` | — |
+| `marker` | 1 | `ReadMarker` | — |
+| `found` | 2 | `bool` | — |
+| `error` | 3 | `HarnessError` | — |
 
 #### `LifecycleEntityEdge`
 
@@ -5838,19 +5467,6 @@ existing node's identity enriches that node rather than creating a second one.
 | `id_properties` | 2 | `map<string, string>` | id_properties identify the entity. One property is the identity; several are folded into a composite key in sorted order, so the same entity observed twice resolves to the same node whatever order the map came in. An entity with no identity property records nothing — there would be no stable node to project. |
 | `properties` | 3 | `map<string, string>` | properties are the entity's non-identifying facts. A later sighting's properties take precedence over an earlier one's; a sighting that omits a property never erases what an earlier one established. |
 | `edges` | 4 | `repeated LifecycleEntityEdge` | edges are the outgoing relationships seen in this sighting. Both ends and the relationship type must be admitted by the Taxonomy, or the edge is skipped while the entity itself still lands. |
-
-#### `ListAgentsRequest`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `context` | 1 | `ContextInfo` | — |
-
-#### `ListAgentsResponse`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `agents` | 1 | `repeated HarnessAgentDescriptor` | — |
-| `error` | 2 | `HarnessError` | — |
 
 #### `ListMissionsRequest`
 
@@ -6215,6 +5831,17 @@ QueueToolWorkResponse returns a job ID for tracking the work queue.
 | `job_id` | 1 | `string` | — |
 | `error` | 2 | `HarnessError` | — |
 
+#### `ReadMarker`
+
+ReadMarker records how far an agent read the results of one Connector.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `connector` | 1 | `string` | connector is the name of the ConnectorInstance that the agent read. |
+| `cursor` | 2 | `string` | cursor is the position in the results of the Connector, in the format of that Connector. The daemon does not read it. |
+| `result_ids` | 3 | `repeated string` | result_ids names the results that the agent read at the cursor. A Connector can give many results with the same cursor value, so the agent skips these results when it reads from the cursor again. |
+| `at` | 4 | `google.protobuf.Timestamp` | at is the time at which the daemon recorded the marker. |
+
 #### `ReasoningStepObservation`
 
 ReasoningStepObservation reports one step of an agent's own structured,
@@ -6359,6 +5986,52 @@ keeps working while the human decision is pending (ADR-0132).
 |---|---|---|---|
 | `error` | 2 | `HarnessError` | — |
 
+#### `ResolveAgentRequest`
+
+ResolveAgentRequest asks the daemon for the Agent gateway route of an agent.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `name` | 2 | `string` | name is the name of the agent. |
+| `bank_id` | 3 | `optional string` | bank_id names a bank of always-on agents. When it is set, the route is the route of a member of that bank, and name is the agent that the bank runs. Unset means an ephemeral agent. |
+
+#### `ResolveAgentResponse`
+
+ResolveAgentResponse holds what the caller needs to send an A2A message to
+an agent through the Agent gateway.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `gateway_url` | 1 | `string` | gateway_url is the JSON-RPC interface URL of the agent on the Agent gateway. The caller sends A2A SendMessage to this URL. |
+| `route_headers` | 2 | `map<string, string>` | route_headers are the headers that the gateway route matches on. The caller sends each one unchanged. |
+| `gateway_ca_pem` | 3 | `string` | gateway_ca_pem is the PEM bundle of the private CA of the Agent gateway. The caller trusts exactly this bundle for gateway_url, which must use https. Empty means the system roots. |
+| `agent_card_url` | 4 | `string` | agent_card_url is the URL of the Agent Card of the agent on the gateway. |
+
+#### `ResolveModelRequest`
+
+ResolveModelRequest asks the daemon for the model of a slot.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `slot` | 2 | `string` | slot is the name of the slot, for example "primary". |
+
+#### `ResolveModelResponse`
+
+ResolveModelResponse names the one model that the slot resolves to, and
+the facts that the agent needs to call the model gateway.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `model` | 1 | `string` | model is the exact model name. The agent puts it in the model field of the Open Responses request. |
+| `provider` | 2 | `string` | provider is the name of the model provider of the tenant. |
+| `gateway_url` | 3 | `string` | gateway_url is the base URL of the model gateway. The agent calls POST &#123;gateway_url}/v1/responses. |
+| `route_headers` | 4 | `map<string, string>` | route_headers are the headers that the gateway route matches on, for example the tenant and the provider. The agent sends each one unchanged. |
+| `context_window` | 5 | `int32` | context_window is the size of the context window in tokens. 0 means unknown. |
+| `max_output_tokens` | 6 | `int32` | max_output_tokens is the output limit of the model in tokens. 0 means unknown. |
+| `gateway_ca_pem` | 7 | `string` | gateway_ca_pem is the PEM bundle of the private CA that signed the certificate of the model gateway. The agent trusts exactly this bundle for calls to gateway_url, which must use https. Empty means the system roots. |
+
 #### `RunMissionRequest`
 
 RunMissionRequest queues a mission for execution.
@@ -6392,6 +6065,7 @@ canonical id.
 | `tool` | 4 | `string` | — |
 | `description` | 5 | `string` | — |
 | `input_schema_json` | 6 | `string` | input_schema_json is the JSON-Schema input document, when known. |
+| `tool_class` | 7 | `string` | tool_class is the tool class that the manifest of the connector states (ADR-0177), for example scanner or siem. An agent uses it to pick the tool for its job. Empty means no catalog connector serves the tool. |
 
 #### `SearchToolsRequest`
 
@@ -6487,6 +6161,7 @@ SubdomainObservation reports an FQDN, its parent domain, and resolved addresses.
 | `context` | 1 | `ContextInfo` | — |
 | `finding` | 2 | `gibson.types.v1.Finding` | — |
 | `idempotency_key` | 3 | `string` | idempotency_key makes a retry safe (ADR-0028). A second request with the same key returns the result of the first request and does the work one time. An empty key turns the protection off for the call. |
+| `tool_call_ids` | 4 | `repeated string` | tool_call_ids names the tool calls whose recorded results are the recorded evidence of this finding. Each id is the ContextInfo.tool_execution_id of a tool call that the daemon recorded in this mission. The daemon reads the recorded result of each call. If an id names no record of this mission and tenant, the whole request fails. Evidence in finding.evidence that no tool call id backs is typed by the agent. |
 
 #### `SubmitFindingResponse`
 
@@ -6639,22 +6314,6 @@ TechnologyObservation is a technology fingerprinted on a service.
 | `name` | 1 | `string` | — |
 | `version` | 2 | `string` | — |
 
-#### `TokenUsage`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `input_tokens` | 1 | `int32` | — |
-| `output_tokens` | 2 | `int32` | — |
-| `total_tokens` | 3 | `int32` | — |
-
-#### `ToolCall`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `id` | 1 | `string` | — |
-| `name` | 2 | `string` | — |
-| `arguments` | 3 | `string` | — |
-
 #### `ToolCompleteEvent`
 
 ToolCompleteEvent signals successful completion with final output
@@ -6662,14 +6321,6 @@ ToolCompleteEvent signals successful completion with final output
 | Field | # | Type | Description |
 |---|---|---|---|
 | `output_json` | 1 | `bytes` | — |
-
-#### `ToolDef`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `name` | 1 | `string` | — |
-| `description` | 2 | `string` | — |
-| `parameters` | 3 | `JSONSchemaNode` | — |
 
 #### `ToolErrorEvent`
 
@@ -6699,14 +6350,6 @@ ToolProgressEvent indicates progress during tool execution
 | `stage` | 2 | `string` | — |
 | `message` | 3 | `string` | — |
 
-#### `ToolResult`
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `tool_call_id` | 1 | `string` | — |
-| `content` | 2 | `string` | — |
-| `is_error` | 3 | `bool` | — |
-
 #### `ToolResultsRequest`
 
 ToolResultsRequest requests streaming results for a queued job.
@@ -6727,6 +6370,7 @@ ToolResultsResponse streams individual results as tool executions complete.
 | `output_type` | 3 | `string` | — |
 | `error` | 4 | `HarnessError` | — |
 | `is_final` | 5 | `bool` | — |
+| `tool_call_id` | 6 | `string` | tool_call_id is the id that the daemon recorded for the call of this input, as in CallToolProtoResponse.tool_call_id. Empty when the daemon recorded none, and from a daemon that does not send it. |
 
 #### `ToolWarningEvent`
 
@@ -6982,6 +6626,28 @@ WorldViewResponse carries the projected slice.
 | `entities` | 2 | `repeated WorldEntity` | — |
 | `truncated` | 3 | `bool` | truncated is true when the slice exceeded the projection cap and entities were dropped. The cap is a server-side budget, not something the caller can raise; a truncated slice is still a valid one. |
 
+#### `WriteReadMarkerRequest`
+
+WriteReadMarkerRequest records a marker for one Connector.
+
+It carries NO tenant field. The tenant comes from the call context, as on
+every other call of this service.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `context` | 1 | `ContextInfo` | — |
+| `connector` | 2 | `string` | connector is the name of the ConnectorInstance. Required. |
+| `cursor` | 3 | `string` | cursor is the position in the results of the Connector. |
+| `result_ids` | 4 | `repeated string` | result_ids names the results that the agent read at the cursor. |
+
+#### `WriteReadMarkerResponse`
+
+WriteReadMarkerResponse reports the result of a write.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `error` | 1 | `HarnessError` | — |
+
 ### Enums
 
 #### `CredentialType`
@@ -6997,6 +6663,18 @@ CredentialType represents the type of credential.
 | `CREDENTIAL_TYPE_OAUTH` | 4 | — |
 | `CREDENTIAL_TYPE_CUSTOM` | 5 | — |
 
+#### `FixFileChange`
+
+FixFileChange is how a merge request changes a file.
+
+| Value | # | Description |
+|---|---|---|
+| `FIX_FILE_CHANGE_UNSPECIFIED` | 0 | — |
+| `FIX_FILE_CHANGE_ADDED` | 1 | — |
+| `FIX_FILE_CHANGE_MODIFIED` | 2 | — |
+| `FIX_FILE_CHANGE_DELETED` | 3 | — |
+| `FIX_FILE_CHANGE_RENAMED` | 4 | — |
+
 #### `MissionStatus`
 
 MissionStatus represents the current state of a mission.
@@ -7004,12 +6682,13 @@ MissionStatus represents the current state of a mission.
 | Value | # | Description |
 |---|---|---|
 | `MISSION_STATUS_UNSPECIFIED` | 0 | — |
-| `MISSION_STATUS_PENDING` | 1 | — |
-| `MISSION_STATUS_RUNNING` | 2 | — |
 | `MISSION_STATUS_PAUSED` | 3 | — |
 | `MISSION_STATUS_COMPLETED` | 4 | — |
 | `MISSION_STATUS_FAILED` | 5 | — |
-| `MISSION_STATUS_CANCELLED` | 6 | — |
+| `MISSION_STATUS_INPUT_REQUIRED` | 7 | — |
+| `MISSION_STATUS_SUBMITTED` | 8 | — |
+| `MISSION_STATUS_WORKING` | 9 | — |
+| `MISSION_STATUS_CANCELED` | 10 | — |
 
 #### `OntologyExtensionKind`
 
@@ -7607,7 +7286,6 @@ applies to the calling principal in their resolved tenant. Both SDKs
 | `agents` | 11 | `repeated ComponentCapability` | — |
 | `tools` | 12 | `repeated ComponentCapability` | — |
 | `plugins` | 13 | `repeated ComponentCapability` | — |
-| `limits` | 30 | `LimitsAndQuotas` | — |
 | `memory` | 32 | `MemoryPermissions` | — |
 | `signature` | 200 | `bytes` | Signature payload (Ed25519 over body with signature/kid cleared). |
 
@@ -7666,16 +7344,6 @@ wire format of the manifest body itself.
 | Field | # | Type | Description |
 |---|---|---|---|
 | `manifest` | 1 | `CapabilityManifest` | — |
-
-#### `LimitsAndQuotas`
-
-LimitsAndQuotas carries the tier-derived resource ceilings applied to
-the subject's session. max_spend_usd is a decimal string to avoid
-floating-point rounding at quota boundaries.
-
-| Field | # | Type | Description |
-|---|---|---|---|
-| `max_tokens_per_call` | 1 | `uint64` | — |
 
 #### `ManifestInvalidationEvent`
 
@@ -7885,6 +7553,10 @@ Spec: MissionConstraints proto promotion.
 | `allowed_techniques` | 10 | `repeated string` | allowed_techniques is the allowlist of attack technique IDs (taxonomy) that agents may use during the mission. Empty list means no allowlist (any technique may be used unless blocked). |
 | `blocked_techniques` | 11 | `repeated string` | blocked_techniques is the blocklist of attack technique IDs that agents must not use, regardless of allowed_techniques. Empty list means no blocklist. |
 | `max_tokens_per_call` | 12 | `int32` | max_tokens_per_call is the per-invocation cap on LLM tokens for any single LLM call within this mission. Applied by the daemon before every provider call; the provider never sees more than this many output tokens. Precedence cascade (highest → lowest): 1. Per-node *NodeConfig.max_tokens_per_call (when set on a specific node) 2. This field (mission-level default) 3. 0 — no cap from this mechanism When a per-node override is set it completely supersedes this field for that node (including 0, which explicitly disables the cap for that node while this field may still apply to all other nodes). This field is different from max_tokens: max_tokens is a cumulative budget for the entire mission; max_tokens_per_call is a ceiling on each individual LLM call. 0 means unlimited at this level. Spec: mission-schema-canonicalization Requirement 5. Enforced by EffectivePerCallCap (wired in M4). |
+| `health_hold` | 13 | `google.protobuf.Duration` | health_hold is how long the health signal of a service must hold after a fix. The hold time starts after a restart ends, not at the start of the fix. Absent or zero means the platform default. A negative value is invalid. The upper bound is 24 hours, so a typing error cannot keep a finding in the fix loop for days. |
+| `restart_policy` | 14 | `RestartPolicy` | restart_policy states if an agent may restart a host. Absent or RESTART_POLICY_UNSPECIFIED means RESTART_POLICY_FORBIDDEN. When the policy forbids a restart and a patch needs one, the agent installs the patch and does not restart. |
+| `restart_limit` | 15 | `google.protobuf.Duration` | restart_limit is how long a restart can take before it counts as a failed health signal. Absent or zero means the platform default. A negative value is invalid. The upper bound is one hour. A restart that takes longer is a failed health signal. |
+| `restart_window` | 16 | `RestartWindow` | restart_window is the daily window in which a restart may start. It is set when restart_policy is RESTART_POLICY_IN_WINDOW, and in no other case. |
 
 #### `MissionDefinition`
 
@@ -8044,6 +7716,16 @@ directly to the SDK's workspace.RepositoryConfig type.
 | `shallow` | 5 | `bool` | Shallow enables `git clone --depth 1`. |
 | `depends_on` | 6 | `repeated string` | DependsOn lists repository names that must clone first. Enables topological ordering for multi-repo missions. |
 
+#### `RestartWindow`
+
+RestartWindow is a daily time range in UTC. A restart may start inside the
+range. If end is before start, the range crosses midnight.
+
+| Field | # | Type | Description |
+|---|---|---|---|
+| `start` | 1 | `string` | start is the first minute of the range, in the form "HH:MM" (24 hours). |
+| `end` | 2 | `string` | end is the last minute of the range, in the form "HH:MM" (24 hours). |
+
 #### `RetryPolicy`
 
 | Field | # | Type | Description |
@@ -8199,6 +7881,17 @@ NodeType defines the type of mission node
 | `NODE_TYPE_JOIN` | 6 | Join node waits for multiple branches to complete |
 | `NODE_TYPE_JOB` | 7 | Job node drives a job on a bank of always-on agents. Its executor opens the job, runs the verify loop against the acceptance the spec declares, and closes the job with a verdict. |
 | `NODE_TYPE_FOR_EACH` | 8 | ForEach node runs ONE template node once per item in a source set. It is a CONTAINER, so one graph node remains one execution unit and JoinNodeConfig.wait_for keeps meaning "this node", not "one of its instances". A boolean on MissionNode would have made every consumer of a node 1:N and made wait_for ambiguous between one instance and all. |
+
+#### `RestartPolicy`
+
+RestartPolicy states if an agent may restart a host to finish a fix.
+
+| Value | # | Description |
+|---|---|---|
+| `RESTART_POLICY_UNSPECIFIED` | 0 | Sentinel value. The daemon reads it as RESTART_POLICY_FORBIDDEN. |
+| `RESTART_POLICY_ALLOWED` | 1 | RESTART_POLICY_ALLOWED means the agent may restart a host at any time. |
+| `RESTART_POLICY_FORBIDDEN` | 2 | RESTART_POLICY_FORBIDDEN means the agent never restarts a host. |
+| `RESTART_POLICY_IN_WINDOW` | 3 | RESTART_POLICY_IN_WINDOW means the agent may start a restart only inside the restart_window of the constraints. |
 
 ## Package `gibson.plugin.v1`
 
@@ -8963,6 +8656,8 @@ Evidence represents supporting evidence for a finding.
 | `type` | 2 | `EvidenceType` | — |
 | `content` | 3 | `string` | — |
 | `metadata` | 4 | `map<string, string>` | — |
+| `tier` | 5 | `EvidenceTier` | tier is set by the daemon. The daemon ignores a value that an agent sends. |
+| `tool_call_id` | 6 | `string` | tool_call_id is set by the daemon on a tier 1 item. It is the id of the recorded tool call that backs the item. It is empty on a tier 2 item. The daemon ignores a value that an agent sends. An agent names a tool call in the tool_call_ids field of the request. |
 
 #### `Finding`
 
@@ -8982,7 +8677,6 @@ Finding represents a security vulnerability or issue discovered during testing.
 | `confidence` | 10 | `double` | — |
 | `status` | 11 | `FindingStatus` | — |
 | `mitre_attack` | 12 | `MitreMapping` | — |
-| `mitre_atlas` | 13 | `MitreMapping` | — |
 | `evidence` | 14 | `repeated Evidence` | — |
 | `reproduction` | 15 | `repeated ReproStep` | — |
 | `cvss_score` | 16 | `double` | — |
@@ -9015,7 +8709,7 @@ not with mission lifecycle control.
 
 #### `MitreMapping`
 
-MitreMapping represents a mapping to MITRE ATT&amp;CK or ATLAS framework.
+MitreMapping represents a mapping to the MITRE ATT&amp;CK framework.
 
 | Field | # | Type | Description |
 |---|---|---|---|
@@ -9091,9 +8785,21 @@ TaskConstraints represents execution constraints for a task.
 
 ### Enums
 
+#### `EvidenceTier`
+
+EvidenceTier tells a reader how much to trust an evidence item. The daemon
+sets the tier. An agent cannot set it.
+
+| Value | # | Description |
+|---|---|---|
+| `EVIDENCE_TIER_UNSPECIFIED` | 0 | — |
+| `EVIDENCE_TIER_RECORDED` | 1 | EVIDENCE_TIER_RECORDED is tier 1. A tool call id backs the item, and the daemon built the content from its own record of that tool call. |
+| `EVIDENCE_TIER_TYPED` | 2 | EVIDENCE_TIER_TYPED is tier 2. The agent typed the content. |
+
 #### `EvidenceType`
 
-EvidenceType represents the type of evidence collected.
+EvidenceType is the one list of evidence types. Each evidence shape in the
+platform uses this list.
 
 | Value | # | Description |
 |---|---|---|
@@ -9104,6 +8810,9 @@ EvidenceType represents the type of evidence collected.
 | `EVIDENCE_TYPE_CODE` | 4 | — |
 | `EVIDENCE_TYPE_LOG` | 5 | — |
 | `EVIDENCE_TYPE_OTHER` | 6 | — |
+| `EVIDENCE_TYPE_PAYLOAD` | 7 | — |
+| `EVIDENCE_TYPE_CONVERSATION` | 8 | EVIDENCE_TYPE_CONVERSATION is a dialogue with a target. Gibson tests targets that are models, so a dialogue is evidence. |
+| `EVIDENCE_TYPE_NETWORK_TRACE` | 9 | — |
 
 #### `FindingSeverity`
 
