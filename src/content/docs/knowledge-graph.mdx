@@ -114,31 +114,26 @@ Search by text, by node type, and by a relationship from a start node
 (`FromNodeId` and `RelationshipType`). Use this read when you want a
 specific slice of the graph.
 
-### Similarity search
+### Similar findings
 
-These are the two main reads. Both use embedding similarity over the
-history of your tenant:
+This read uses embedding similarity over the history of your tenant:
 
 ```go
-similar, err := h.FindSimilarAttacks(ctx, "credential stuffing on web login", 5)
-
 prior, err := h.FindSimilarFindings(ctx, findingID, 5)
 ```
 
-Use these reads to ground LLM prompts ("here are five times we have
-seen something like this before"). The `FindSimilarFindings` read
-starts from a finding that you already have. Use it to read prior
-findings like that one.
+The read starts from a finding that you already have. It returns prior
+findings like that one. Use it to ground LLM prompts ("here are five
+times we have seen something like this before").
 
-### Attack chain walks
+### Related findings
 
 ```go
-chains, err := h.GetAttackChains(ctx, techniqueID, 4)
+related, err := h.GetRelatedFindings(ctx, findingID)
 ```
 
-This read walks attack-pattern relationships from a start technique. Use it
-for narrative reports ("here is the path from this exposed service to
-the data we care about").
+This read starts from a finding and follows its `similar_to` and
+`related_to` edges to other findings. It does not run an embedding search.
 
 ## How agents use the graph in practice
 
@@ -149,7 +144,7 @@ Common patterns:
 | **De-duplicate before submitting a finding** | `prior := h.GetFindings(ctx, filter); if any(prior, sameTitleAndTarget) { skip }` |
 | **Ground a triage prompt with context** | `nodes := h.QueryNodes(target=current); pass to LLM as evidence` |
 | **Skip recon you've done recently** | `existing := h.QueryNodes(host=target, mission_started_after=24h ago); if non-empty: re-use` |
-| **Cross-mission learning** | `tactics := h.FindSimilarAttacks(scenario); use as few-shot examples` |
+| **Cross-mission learning** | `prior := h.FindSimilarFindings(ctx, findingID, 5); use as few-shot examples` |
 
 ## Dashboard views
 
@@ -161,15 +156,15 @@ The dashboard shows graph data wherever the data is useful in context:
 - **Asset pages**: for any host, service, or endpoint, show every
   finding ever filed against it. They also show every mission that
   touched it and every attack pattern linked to it.
-- **Findings detail**: shows the affected asset, similar prior
-  findings, and the attack chain that led to the finding.
+- **Findings detail**: shows the affected asset and similar prior
+  findings.
 - **Search**: global search across the graph, scoped to your tenant.
 
 ## Per-tenant isolation
 
 The graph of your tenant is yours. There are no cross-tenant reads,
-ever. `FindSimilarAttacks` and `FindSimilarFindings` only consider your
-own history. Gibson does not pool embeddings across customers.
+ever. `FindSimilarFindings` only considers your own history. Gibson
+does not pool embeddings across customers.
 
 ## What about retention?
 
