@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.6.21](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.20...docs-site-v0.6.21) (2026-11-23)
+
+
+### Bug Fixes
+
+* **build:** allow the esbuild install script in pnpm-workspace.yaml ([#127](https://github.com/zeroroot-ai/docs-site/issues/127)) ([08b2d3f](https://github.com/zeroroot-ai/docs-site/commit/08b2d3f626654b73c9c0fd0af9aa20ad1f2449f7))
+
+
+### Documentation
+
+* **a2a-inbound:** document how an outside client calls a gibson agent ([#152](https://github.com/zeroroot-ai/docs-site/issues/152)) ([fee7b6b](https://github.com/zeroroot-ai/docs-site/commit/fee7b6bbd7437c5f656314bf50b379013fb75dbc)), closes [#141](https://github.com/zeroroot-ai/docs-site/issues/141)
+* **agent-skills:** add the Agent Skill pages ([#142](https://github.com/zeroroot-ai/docs-site/issues/142)) ([91c0e79](https://github.com/zeroroot-ai/docs-site/commit/91c0e792d38b38d563cae0b289d3e9306fd52b70))
+* copy the ADR index of gibson up to ADR-0180 ([#157](https://github.com/zeroroot-ai/docs-site/issues/157)) ([78e171d](https://github.com/zeroroot-ai/docs-site/commit/78e171df1c98e3d32b03198c7afe179001beabe5))
+* **install:** list the command groups of gibson 0.116.0 ([#154](https://github.com/zeroroot-ai/docs-site/issues/154)) ([cd218a4](https://github.com/zeroroot-ai/docs-site/commit/cd218a41b79b4e55def8443f9353adfcf7673a08)), closes [#153](https://github.com/zeroroot-ai/docs-site/issues/153)
+* **knowledge-graph:** remove the FindSimilarAttacks and GetAttackChains reads ([#155](https://github.com/zeroroot-ai/docs-site/issues/155)) ([b6345c1](https://github.com/zeroroot-ai/docs-site/commit/b6345c153213241035f97d31631b714141f52394))
+* one description of Gibson, and the finding model ([#147](https://github.com/zeroroot-ai/docs-site/issues/147)) ([a3f504e](https://github.com/zeroroot-ai/docs-site/commit/a3f504e0b31aa0c03eedaeb758149a963104e8d6))
+* one hosted plan and no limits ([#149](https://github.com/zeroroot-ai/docs-site/issues/149)) ([246e8c6](https://github.com/zeroroot-ai/docs-site/commit/246e8c6d222fd455529be41ebcce68b7a39f8962))
+
+
+### Miscellaneous
+
+* **docs:** refresh api-spec ([#156](https://github.com/zeroroot-ai/docs-site/issues/156)) ([4dfb722](https://github.com/zeroroot-ai/docs-site/commit/4dfb72289f608e0584f12d7b6809310ea20553e0))
+* **docs:** refresh api-spec from zeroroot-ai/sdk@v0.215.0 ([4dfb722](https://github.com/zeroroot-ai/docs-site/commit/4dfb72289f608e0584f12d7b6809310ea20553e0))
+
 ## [0.6.20](https://github.com/zeroroot-ai/docs-site/compare/docs-site-v0.6.19...docs-site-v0.6.20) (2026-10-25)
 
 
